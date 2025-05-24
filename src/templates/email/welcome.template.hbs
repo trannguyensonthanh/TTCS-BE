@@ -1,0 +1,21 @@
+<!-- src/templates/email/welcome.template.hbs -->
+{{!< main}} <!-- Sử dụng layout 'main.hbs' -->
+
+<h1>Chào mừng {{userName}}!</h1>
+<p>Chào mừng bạn đã đến với <span class="highlight">Hệ thống Quản lý Sự kiện & Mượn phòng</span> của Học viện Công nghệ Bưu chính Viễn thông TP.HCM (PTITHCM).</p>
+<p>Tài khoản của bạn đã được tạo thành công. Dưới đây là thông tin đăng nhập ban đầu của bạn:</p>
+<ul>
+  <li><strong>Tên đăng nhập:</strong> <span class="highlight">{{loginName}}</span></li>
+  <li><strong>Mật khẩu:</strong> <span class="highlight">{{initialPassword}}</span></li>
+</ul>
+<p>Chúng tôi khuyến khích bạn <span class="highlight">đổi mật khẩu ngay sau lần đăng nhập đầu tiên</span> để đảm bảo an toàn cho tài khoản.</p>
+
+<div class="button-container">
+  <a href="{{loginPageUrl}}" target="_blank" class="button">Đăng Nhập Ngay</a>
+</div>
+
+<p>Nếu bạn có bất kỳ câu hỏi nào hoặc cần hỗ trợ, đừng ngần ngại liên hệ với chúng tôi.</p>
+
+<p>Trân trọng,<br>
+Đội ngũ Quản lý Sự kiện & Mượn phòng<br>
+PTITHCM</p>

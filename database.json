@@ -1,0 +1,985 @@
+[
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "DatPhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "GhiChuDatPhong",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "PhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "TgNhanPhongTT",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "TgTraPhongTT",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "ChiTietDatPhong",
+    "COLUMN_NAME": "YcMuonPhongCtID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ChuyenNganh",
+    "COLUMN_NAME": "ChuyenNganhID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ChuyenNganh",
+    "COLUMN_NAME": "MaChuyenNganh",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ChuyenNganh",
+    "COLUMN_NAME": "MoTaCN",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ChuyenNganh",
+    "COLUMN_NAME": "NganhHocID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ChuyenNganh",
+    "COLUMN_NAME": "TenChuyenNganh",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "DanhGiaSkID",
+    "DATA_TYPE": "bigint"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "DiemDiaDiem",
+    "DATA_TYPE": "tinyint"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "DiemNoiDung",
+    "DATA_TYPE": "tinyint"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "DiemToChuc",
+    "DATA_TYPE": "tinyint"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "NguoiDanhGiaID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "DanhGiaSK", "COLUMN_NAME": "SuKienID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "TgDanhGia",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "DanhGiaSK",
+    "COLUMN_NAME": "YKienDongGop",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "DonVi", "COLUMN_NAME": "DonViChaID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "DonVi", "COLUMN_NAME": "DonViID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "DonVi",
+    "COLUMN_NAME": "LoaiDonVi",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "DonVi", "COLUMN_NAME": "MaDonVi", "DATA_TYPE": "varchar" },
+  { "TABLE_NAME": "DonVi", "COLUMN_NAME": "MoTaDv", "DATA_TYPE": "nvarchar" },
+  { "TABLE_NAME": "DonVi", "COLUMN_NAME": "TenDonVi", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "LoaiPhong",
+    "COLUMN_NAME": "LoaiPhongID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "LoaiPhong", "COLUMN_NAME": "MoTa", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "LoaiPhong",
+    "COLUMN_NAME": "TenLoaiPhong",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "LoaiTaiLieuSK",
+    "COLUMN_NAME": "LoaiTaiLieuID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "LoaiTaiLieuSK",
+    "COLUMN_NAME": "TenLoaiTL",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "LopHoc",
+    "COLUMN_NAME": "ChuyenNganhID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "LopHoc", "COLUMN_NAME": "LopID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "LopHoc", "COLUMN_NAME": "MaLop", "DATA_TYPE": "varchar" },
+  { "TABLE_NAME": "LopHoc", "COLUMN_NAME": "NganhHocID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "LopHoc", "COLUMN_NAME": "NienKhoa", "DATA_TYPE": "varchar" },
+  { "TABLE_NAME": "LopHoc", "COLUMN_NAME": "TenLop", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "NganhHoc",
+    "COLUMN_NAME": "CoChuyenNganh",
+    "DATA_TYPE": "bit"
+  },
+  {
+    "TABLE_NAME": "NganhHoc",
+    "COLUMN_NAME": "KhoaQuanLyID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "NganhHoc",
+    "COLUMN_NAME": "MaNganhHoc",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "NganhHoc",
+    "COLUMN_NAME": "MoTaNH",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "NganhHoc", "COLUMN_NAME": "NganhHocID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "NganhHoc",
+    "COLUMN_NAME": "TenNganhHoc",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "AnhDaiDien",
+    "DATA_TYPE": "varchar"
+  },
+  { "TABLE_NAME": "NguoiDung", "COLUMN_NAME": "Email", "DATA_TYPE": "varchar" },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "HoTen",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "NguoiDung", "COLUMN_NAME": "IsActive", "DATA_TYPE": "bit" },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "MaDinhDanh",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "NgayTao",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "NguoiDungID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "NguoiDung",
+    "COLUMN_NAME": "SoDienThoai",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "DonViID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "GanVaiTroID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "GhiChuGanVT",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "NgayBatDau",
+    "DATA_TYPE": "date"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "NgayKetThuc",
+    "DATA_TYPE": "date"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "NguoiDungID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "NguoiDung_VaiTro",
+    "COLUMN_NAME": "VaiTroID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "DaSuDung",
+    "DATA_TYPE": "bit"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "Email",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "LoaiToken",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "NgayTao",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "Otp",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "OtpExpiresAt",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "ResetToken",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "ResetTokenExpiresAt",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "OtpVaResetToken",
+    "COLUMN_NAME": "TokenID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "Phong",
+    "COLUMN_NAME": "AnhMinhHoa",
+    "DATA_TYPE": "varchar"
+  },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "LoaiPhongID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "MaPhong", "DATA_TYPE": "varchar" },
+  {
+    "TABLE_NAME": "Phong",
+    "COLUMN_NAME": "MoTaChiTietPhong",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "PhongID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "SucChua", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "TenPhong", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "Phong",
+    "COLUMN_NAME": "TrangThaiPhongID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "Phong", "COLUMN_NAME": "ViTri", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "Phong_ThietBi",
+    "COLUMN_NAME": "PhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "Phong_ThietBi",
+    "COLUMN_NAME": "SoLuong",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "Phong_ThietBi",
+    "COLUMN_NAME": "ThietBiID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "Phong_ThietBi",
+    "COLUMN_NAME": "TinhTrang",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SK_DonViThamGia",
+    "COLUMN_NAME": "DonViID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SK_DonViThamGia",
+    "COLUMN_NAME": "SuKienID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SK_DonViThamGia",
+    "COLUMN_NAME": "VaiTroDonViSK",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "GhiChuMoi",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "IsChapNhanMoi",
+    "DATA_TYPE": "bit"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "MoiThamGiaID",
+    "DATA_TYPE": "bigint"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "NguoiDuocMoiID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "SuKienID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "TgPhanHoiMoi",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "SK_MoiThamGia",
+    "COLUMN_NAME": "VaiTroDuKienSK",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "DonViChuTriID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "DonViChuTriNgoai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "IsCongKhaiNoiBo",
+    "DATA_TYPE": "bit"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "KhachMoiNgoaiGhiChu",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "LyDoHuyNguoiTao",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "LyDoTuChoiBGH",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "MoTaChiTiet",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "NgayDuyetBGH",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "NgayTaoSK",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "NguoiChuTriID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "NguoiDuyetBGHID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "SuKien", "COLUMN_NAME": "NguoiTaoID", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "SuKien", "COLUMN_NAME": "SlThamDuDK", "DATA_TYPE": "int" },
+  { "TABLE_NAME": "SuKien", "COLUMN_NAME": "SuKienID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "TenChuTriNgoai",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "SuKien", "COLUMN_NAME": "TenSK", "DATA_TYPE": "nvarchar" },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "TgBatDauDK",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "TgKetThucDK",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "SuKien",
+    "COLUMN_NAME": "TrangThaiSkID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TaiKhoan",
+    "COLUMN_NAME": "LanDangNhapCuoi",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "TaiKhoan",
+    "COLUMN_NAME": "MatKhauHash",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TaiKhoan",
+    "COLUMN_NAME": "NgayTaoTk",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "TaiKhoan",
+    "COLUMN_NAME": "NguoiDungID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "TaiKhoan", "COLUMN_NAME": "TaiKhoanID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "TaiKhoan",
+    "COLUMN_NAME": "TrangThaiTk",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "DuongDanFile",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "IsCongKhaiTL",
+    "DATA_TYPE": "bit"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "LoaiTaiLieuID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "MoTaTL",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "NgayTaiLen",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "NguoiTaiLenID",
+    "DATA_TYPE": "int"
+  },
+  { "TABLE_NAME": "TaiLieuSK", "COLUMN_NAME": "SuKienID", "DATA_TYPE": "int" },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "TaiLieuSkID",
+    "DATA_TYPE": "bigint"
+  },
+  {
+    "TABLE_NAME": "TaiLieuSK",
+    "COLUMN_NAME": "TenHienThiTL",
+    "DATA_TYPE": "nvarchar"
+  },
+  { "TABLE_NAME": "ThongBao", "COLUMN_NAME": "DaDocTB", "DATA_TYPE": "bit" },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "DonViNhanID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "DuongDanTB",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "LoaiYcLienQuan",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "NgayDocTB",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "NgayTaoTB",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "NguoiNhanID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "NoiDungTB",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "SkLienQuanID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "ThongBaoID",
+    "DATA_TYPE": "bigint"
+  },
+  {
+    "TABLE_NAME": "ThongBao",
+    "COLUMN_NAME": "YcLienQuanID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "ChucDanhGD",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "ChuyenMonChinh",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "DonViCongTacID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "HocHam",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "HocVi",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "MaGiangVien",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinGiangVien",
+    "COLUMN_NAME": "NguoiDungID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "ChuyenNganhID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "HeDaoTao",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "KhoaHoc",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "LopID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "MaSinhVien",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "NganhHocID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "NgayNhapHoc",
+    "DATA_TYPE": "date"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "NguoiDungID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "ThongTinSinhVien",
+    "COLUMN_NAME": "TrangThaiHocTap",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiPhong",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiPhong",
+    "COLUMN_NAME": "TenTrangThai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiPhong",
+    "COLUMN_NAME": "TrangThaiPhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TrangThaiSK",
+    "COLUMN_NAME": "MaTrangThai",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiSK",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiSK",
+    "COLUMN_NAME": "TenTrangThai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiSK",
+    "COLUMN_NAME": "TrangThaiSkID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauDoiPhong",
+    "COLUMN_NAME": "MaTrangThai",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauDoiPhong",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauDoiPhong",
+    "COLUMN_NAME": "TenTrangThai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauDoiPhong",
+    "COLUMN_NAME": "TrangThaiYcDoiPID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauHuySK",
+    "COLUMN_NAME": "MaTrangThai",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauHuySK",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauHuySK",
+    "COLUMN_NAME": "TenTrangThai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauHuySK",
+    "COLUMN_NAME": "TrangThaiYcHuySkID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauPhong",
+    "COLUMN_NAME": "LoaiApDung",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauPhong",
+    "COLUMN_NAME": "MaTrangThai",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauPhong",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauPhong",
+    "COLUMN_NAME": "TenTrangThai",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThaiYeuCauPhong",
+    "COLUMN_NAME": "TrangThaiYcpID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "TrangThietBi",
+    "COLUMN_NAME": "MoTa",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThietBi",
+    "COLUMN_NAME": "TenThietBi",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "TrangThietBi",
+    "COLUMN_NAME": "ThietBiID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "VaiTroHeThong",
+    "COLUMN_NAME": "MaVaiTro",
+    "DATA_TYPE": "varchar"
+  },
+  {
+    "TABLE_NAME": "VaiTroHeThong",
+    "COLUMN_NAME": "MoTaVT",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "VaiTroHeThong",
+    "COLUMN_NAME": "TenVaiTro",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "VaiTroHeThong",
+    "COLUMN_NAME": "VaiTroID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "GhiChuCtCSVC",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "LoaiPhongYcID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "MoTaNhomPhong",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "SlPhongNhomNay",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "SucChuaYc",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "TgMuonDk",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "TgTraDk",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "ThietBiThemYc",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "TrangThaiCtID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "YcMuonPhongCtID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YcMuonPhongChiTiet",
+    "COLUMN_NAME": "YcMuonPhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "DatPhongID_Cu",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "DatPhongID_Moi",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "LyDoDoiPhong",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "LyDoTuChoiDoiCSVC",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "NgayDuyetDoiCSVC",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "NgayYeuCauDoi",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "NguoiDuyetDoiCSVCID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "NguoiYeuCauID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "TrangThaiYcDoiPID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "YcDoiPhongID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "YcMuonPhongCtID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "YcPhongMoi_LoaiID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "YcPhongMoi_SucChua",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauDoiPhong",
+    "COLUMN_NAME": "YcPhongMoi_ThietBi",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "LyDoHuy",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "LyDoTuChoiHuyBGH",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "NgayDuyetHuyBGH",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "NgayYeuCauHuy",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "NguoiDuyetHuyBGHID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "NguoiYeuCauID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "SuKienID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "TrangThaiYcHuySkID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauHuySK",
+    "COLUMN_NAME": "YcHuySkID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "GhiChuChungYc",
+    "DATA_TYPE": "nvarchar"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "NgayDuyetTongCSVC",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "NgayYeuCau",
+    "DATA_TYPE": "datetime"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "NguoiDuyetTongCSVCID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "NguoiYeuCauID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "SuKienID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "TrangThaiChungID",
+    "DATA_TYPE": "int"
+  },
+  {
+    "TABLE_NAME": "YeuCauMuonPhong",
+    "COLUMN_NAME": "YcMuonPhongID",
+    "DATA_TYPE": "int"
+  }
+]

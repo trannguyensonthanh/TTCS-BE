@@ -1,0 +1,45 @@
+<!-- src/templates/email/layouts/main.hbs -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title> <!-- Tiêu đề email sẽ được truyền vào từ context -->
+  <style type="text/css">
+    body { margin: 0; padding: 0; font-family: 'Arial', sans-serif; background-color: #f4f4f4; color: #333333; }
+    .email-container { max-width: 600px; margin: 20px auto; background-color: #ffffff; border: 1px solid #dddddd; border-radius: 8px; overflow: hidden; }
+    .email-header { background-color: #D8242B; padding: 30px 20px; text-align: center; }
+    .email-header img { max-width: 180px; height: auto; }
+    .email-body-content { padding: 30px 25px; line-height: 1.6; font-size: 16px; }
+    .email-body-content h1 { color: #D8242B; font-size: 24px; margin-top: 0; margin-bottom: 20px; text-align: center; }
+    .email-body-content p { margin-bottom: 15px; }
+    .email-footer { background-color: #333333; color: #cccccc; padding: 20px; text-align: center; font-size: 12px; }
+    .email-footer a { color: #ffffff; text-decoration: underline; }
+    .highlight { color: #D8242B; font-weight: bold; }
+
+    /* Nút bấm dùng chung */
+    .button-container { text-align: center; margin-top: 25px; margin-bottom: 20px; }
+    .button { background-color: #D8242B; color: #ffffff !important; padding: 14px 28px; text-decoration: none !important; border-radius: 5px; font-weight: bold; font-size: 16px; display: inline-block; border: none; cursor: pointer; }
+    
+    @media screen and (max-width: 600px) {
+      .email-container { width: 100% !important; border-radius: 0 !important; border-left: none !important; border-right: none !important; margin: 0 auto !important; }
+      .email-body-content, .email-header, .email-footer { padding: 20px 15px !important; }
+      .email-body-content h1 { font-size: 22px !important; }
+      .button { padding: 12px 24px !important; font-size: 15px !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <!-- Sử dụng partial cho header -->
+    {{> emailHeader}}
+
+    <div class="email-body-content">
+      {{{body}}} <!-- Nội dung của từng email cụ thể sẽ được chèn vào đây -->
+    </div>
+
+    <!-- Sử dụng partial cho footer -->
+    {{> emailFooter}}
+  </div>
+</body>
+</html>
