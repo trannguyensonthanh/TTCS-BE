@@ -3,9 +3,9 @@ import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 
 /**
- * Tìm tài khoản bằng Tên đăng nhập (hoặc Email nếu bạn dùng email làm tên đăng nhập)
- * @param {string} tenDangNhap
- * @returns {Promise<object|null>} Thông tin tài khoản hoặc null nếu không tìm thấy
+ * Tìm tài khoản người dùng bằng email.
+ * @param {string} email - Địa chỉ email của người dùng.
+ * @returns {Promise<object|null>} Thông tin tài khoản hoặc null nếu không tìm thấy.
  */
 const findTaiKhoanNguoiDungByEmail = async (email) => {
   const query = `
@@ -16,7 +16,7 @@ const findTaiKhoanNguoiDungByEmail = async (email) => {
         tk.TrangThaiTk,
         nd.MaDinhDanh,
         nd.HoTen,
-        nd.Email AS NguoiDungEmail, -- Đổi tên để tránh trùng với email đăng nhập nếu có
+        nd.Email AS NguoiDungEmail,
         nd.AnhDaiDien,
         nd.IsActive AS NguoiDungIsActive
     FROM TaiKhoan tk
@@ -29,9 +29,9 @@ const findTaiKhoanNguoiDungByEmail = async (email) => {
 };
 
 /**
- * Lấy danh sách vai trò chức năng của người dùng
- * @param {number} nguoiDungID
- * @returns {Promise<Array<object>>}
+ * Lấy danh sách vai trò của người dùng theo ID.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @returns {Promise<Array<object>>} Danh sách vai trò.
  */
 const getVaiTroByNguoiDungID = async (nguoiDungID) => {
   const query = `
@@ -65,14 +65,14 @@ const getVaiTroByNguoiDungID = async (nguoiDungID) => {
 };
 
 /**
- * Lấy thông tin cơ bản của Sinh viên
- * @param {number} nguoiDungID
- * @returns {Promise<object|null>}
+ * Lấy thông tin cơ bản của sinh viên theo ID người dùng.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @returns {Promise<object|null>} Thông tin sinh viên hoặc null nếu không tìm thấy.
  */
 const getThongTinSinhVienCoBan = async (nguoiDungID) => {
   const query = `
     SELECT
-        tsv.MaSinhVien,
+        nd.MaDinhDanh AS MaSinhVien,
         lh.TenLop,
         lh.MaLop,
         nh.TenNganhHoc,
@@ -83,9 +83,10 @@ const getThongTinSinhVienCoBan = async (nguoiDungID) => {
         dv_khoa.TenDonVi AS TenKhoaQuanLy
     FROM ThongTinSinhVien tsv
     JOIN LopHoc lh ON tsv.LopID = lh.LopID
-    JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID -- Lấy ngành từ Lớp
+    JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID 
+    JOIN NguoiDung nd ON tsv.NguoiDungID = nd.NguoiDungID
     JOIN DonVi dv_khoa ON nh.KhoaQuanLyID = dv_khoa.DonViID
-    LEFT JOIN ChuyenNganh cn ON lh.ChuyenNganhID = cn.ChuyenNganhID -- Lấy chuyên ngành từ Lớp
+    LEFT JOIN ChuyenNganh cn ON lh.ChuyenNganhID = cn.ChuyenNganhID
     WHERE tsv.NguoiDungID = @NguoiDungID;
   `;
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
@@ -108,19 +109,20 @@ const getThongTinSinhVienCoBan = async (nguoiDungID) => {
 };
 
 /**
- * Lấy thông tin cơ bản của Giảng viên
- * @param {number} nguoiDungID
- * @returns {Promise<object|null>}
+ * Lấy thông tin cơ bản của giảng viên theo ID người dùng.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @returns {Promise<object|null>} Thông tin giảng viên hoặc null nếu không tìm thấy.
  */
 const getThongTinGiangVienCoBan = async (nguoiDungID) => {
   const query = `
     SELECT
-        tgv.MaGiangVien,
+        nd.MaDinhDanh AS MaGiangVien,
         dv.TenDonVi AS TenDonViCongTacChinh,
         dv.MaDonVi AS MaDonViCongTacChinh,
         tgv.HocVi,
         tgv.ChucDanhGD
     FROM ThongTinGiangVien tgv
+    JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
     JOIN DonVi dv ON tgv.DonViCongTacID = dv.DonViID
     WHERE tgv.NguoiDungID = @NguoiDungID;
   `;
@@ -139,6 +141,11 @@ const getThongTinGiangVienCoBan = async (nguoiDungID) => {
   return null;
 };
 
+/**
+ * Tìm người dùng theo email.
+ * @param {string} email - Địa chỉ email của người dùng.
+ * @returns {Promise<object|null>} Thông tin người dùng hoặc null nếu không tìm thấy.
+ */
 const findNguoiDungByEmail = async (email) => {
   const query = `SELECT NguoiDungID, Email, HoTen FROM NguoiDung WHERE Email = @Email AND IsActive = 1;`;
   const params = [{ name: 'Email', type: sql.VarChar, value: email }];
@@ -146,18 +153,21 @@ const findNguoiDungByEmail = async (email) => {
   return result.recordset.length > 0 ? result.recordset[0] : null;
 };
 
+/**
+ * Lưu OTP cho email tương ứng.
+ * @param {string} email - Địa chỉ email.
+ * @param {string} otp - Mã OTP.
+ * @returns {Promise<void>}
+ */
 const saveOtp = async (email, otp) => {
-  // Vô hiệu hóa các OTP cũ cùng loại cho email này
   await executeQuery(
     `UPDATE OtpVaResetToken SET DaSuDung = 1 WHERE Email = @Email AND LoaiToken = 'OTP_QUEN_MK' AND DaSuDung = 0;`,
     [{ name: 'Email', type: sql.VarChar, value: email }]
   );
 
-  // Sử dụng GETDATE() để lấy thời gian hiện tại theo múi giờ của SQL Server (đã là GMT+7 theo bạn nói)
   const query = `
     INSERT INTO OtpVaResetToken (Email, Otp, OtpExpiresAt, LoaiToken, NgayTao)
     VALUES (@Email, @Otp, DATEADD(minute, @OtpExpiryMinutes, GETDATE()), 'OTP_QUEN_MK', GETDATE()); 
-    -- Cả OtpExpiresAt và NgayTao đều dùng GETDATE()
   `;
   const params = [
     { name: 'Email', type: sql.VarChar, value: email },
@@ -166,11 +176,17 @@ const saveOtp = async (email, otp) => {
       name: 'OtpExpiryMinutes',
       type: sql.Int,
       value: process.env.OTP_EXPIRY_MINUTES || 10,
-    }, // Mặc định là 10 phút
+    },
   ];
   await executeQuery(query, params);
 };
 
+/**
+ * Tìm OTP hợp lệ theo email và mã OTP.
+ * @param {string} email - Địa chỉ email.
+ * @param {string} otp - Mã OTP.
+ * @returns {Promise<object|null>} Thông tin OTP hoặc null nếu không hợp lệ.
+ */
 const findValidOtp = async (email, otp) => {
   const query = `
     SELECT TokenID, Email, Otp, OtpExpiresAt
@@ -187,14 +203,24 @@ const findValidOtp = async (email, otp) => {
   return result.recordset.length > 0 ? result.recordset[0] : null;
 };
 
+/**
+ * Đánh dấu OTP đã sử dụng.
+ * @param {number} tokenID - ID của OTP.
+ * @returns {Promise<void>}
+ */
 const markOtpAsUsed = async (tokenID) => {
   const query = `UPDATE OtpVaResetToken SET DaSuDung = 1 WHERE TokenID = @TokenID;`;
   const params = [{ name: 'TokenID', type: sql.Int, value: tokenID }];
   await executeQuery(query, params);
 };
 
+/**
+ * Lưu reset token cho email tương ứng.
+ * @param {string} email - Địa chỉ email.
+ * @param {string} resetToken - Token reset mật khẩu.
+ * @returns {Promise<void>} Promise hoàn thành khi token được lưu.
+ */
 const saveResetToken = async (email, resetToken) => {
-  // Vô hiệu hóa các reset token cũ cùng loại cho email này (nếu có)
   await executeQuery(
     `UPDATE OtpVaResetToken SET DaSuDung = 1 WHERE Email = @Email AND LoaiToken = 'RESET_PASSWORD_TOKEN' AND DaSuDung = 0;`,
     [{ name: 'Email', type: sql.VarChar, value: email }]
@@ -205,7 +231,7 @@ const saveResetToken = async (email, resetToken) => {
   `;
   const params = [
     { name: 'Email', type: sql.VarChar, value: email },
-    { name: 'ResetToken', type: sql.VarChar, value: resetToken }, // Nên là VARCHAR(255)
+    { name: 'ResetToken', type: sql.VarChar, value: resetToken },
     {
       name: 'ResetTokenExpiryHours',
       type: sql.Int,
@@ -215,6 +241,11 @@ const saveResetToken = async (email, resetToken) => {
   await executeQuery(query, params);
 };
 
+/**
+ * Tìm reset token hợp lệ.
+ * @param {string} resetToken - Token reset mật khẩu.
+ * @returns {Promise<object|null>} Thông tin token hoặc null nếu không hợp lệ.
+ */
 const findValidResetToken = async (resetToken) => {
   const query = `
     SELECT TokenID, Email, ResetTokenExpiresAt
@@ -227,6 +258,12 @@ const findValidResetToken = async (resetToken) => {
   return result.recordset.length > 0 ? result.recordset[0] : null;
 };
 
+/**
+ * Cập nhật mật khẩu mới cho người dùng theo email.
+ * @param {string} email - Địa chỉ email.
+ * @param {string} newPasswordHash - Hash mật khẩu mới.
+ * @returns {Promise<void>}
+ */
 const updateUserPasswordByEmail = async (email, newPasswordHash) => {
   const query = `
     UPDATE tk
@@ -242,49 +279,46 @@ const updateUserPasswordByEmail = async (email, newPasswordHash) => {
   await executeQuery(query, params);
 };
 
+/**
+ * Tìm tài khoản theo ID người dùng.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @returns {Promise<object|null>} Thông tin tài khoản hoặc null nếu không tìm thấy.
+ */
 const findTaiKhoanByNguoiDungID = async (nguoiDungID) => {
   const query = `SELECT TaiKhoanID, RefreshToken FROM TaiKhoan WHERE NguoiDungID = @NguoiDungID`;
-  // Chú ý: CSDL hiện tại của bạn chưa có cột RefreshToken trong bảng TaiKhoan.
-  // Bạn cần thêm cột này nếu muốn lưu refresh token vào DB để quản lý session phía server.
-  // Hoặc, nếu refresh token chỉ có ở client (cookie), thì không cần query này cho refresh token.
-  // Tạm thời query này chỉ để minh họa, bạn có thể không cần nó cho logic refresh token chỉ dựa vào cookie.
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   const result = await executeQuery(query, params);
   return result.recordset.length > 0 ? result.recordset[0] : null;
 };
 
 /**
- * Lấy danh sách các vai trò chức năng (System Roles) được gán cho một người dùng.
- * Chỉ lấy các vai trò còn hiệu lực (NgayKetThuc là NULL hoặc trong tương lai).
- * @param {number} nguoiDungID ID của người dùng
- * @returns {Promise<Array<object>>} Danh sách các đối tượng vai trò, mỗi đối tượng có dạng:
- *                                   { maVaiTro: string, tenVaiTro: string,
- *                                     donViThucThi: { donViID: number, tenDonVi: string, maDonVi: string, loaiDonVi: string } | null }
+ * Lấy danh sách vai trò chức năng của người dùng theo ID.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @returns {Promise<Array<object>>} Danh sách vai trò chức năng.
  */
 const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
   const query = `
     SELECT
-        vt.MaVaiTro,      -- Đổi từ MaVaiTroCn sang MaVaiTro theo bảng VaiTroHeThong
-        vt.TenVaiTro,    -- Đổi từ TenVaiTroCn sang TenVaiTro theo bảng VaiTroHeThong
+        vt.MaVaiTro,
+        vt.TenVaiTro,
         dv.DonViID,
         dv.TenDonVi,
         dv.MaDonVi,
         dv.LoaiDonVi
-    FROM NguoiDung_VaiTro nd_vt -- Sử dụng tên bảng NguoiDung_VaiTro
-    JOIN VaiTroHeThong vt ON nd_vt.VaiTroID = vt.VaiTroID -- Sử dụng tên bảng VaiTroHeThong
-    LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID -- Đổi DonViThucThiID thành DonViID theo bảng NguoiDung_VaiTro
+    FROM NguoiDung_VaiTro nd_vt
+    JOIN VaiTroHeThong vt ON nd_vt.VaiTroID = vt.VaiTroID
+    LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID
     WHERE nd_vt.NguoiDungID = @NguoiDungID
-      AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= GETDATE()); -- Chỉ lấy vai trò còn hiệu lực
+      AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= GETDATE());
   `;
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   const result = await executeQuery(query, params);
 
   return result.recordset.map((row) => ({
-    maVaiTro: row.MaVaiTro, // Đổi tên thuộc tính trả về
-    tenVaiTro: row.TenVaiTro, // Đổi tên thuộc tính trả về
+    maVaiTro: row.MaVaiTro,
+    tenVaiTro: row.TenVaiTro,
     donViThucThi: row.DonViID
       ? {
-          // Kiểm tra DonViID trước khi tạo object
           donViID: row.DonViID,
           tenDonVi: row.TenDonVi,
           maDonVi: row.MaDonVi,
@@ -294,9 +328,14 @@ const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
   }));
 };
 
+/**
+ * Tìm danh sách người dùng theo mã vai trò.
+ * @param {string} maVaiTro - Mã vai trò.
+ * @returns {Promise<Array<object>>} Danh sách người dùng.
+ */
 const findUsersByRoleMa = async (maVaiTro) => {
   const query = `
-    SELECT DISTINCT nd.NguoiDungID, nd.Email, nd.HoTen -- Lấy các thông tin cần thiết
+    SELECT DISTINCT nd.NguoiDungID, nd.Email, nd.HoTen
     FROM NguoiDung nd
     JOIN NguoiDung_VaiTro ndvt ON nd.NguoiDungID = ndvt.NguoiDungID
     JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
@@ -308,6 +347,10 @@ const findUsersByRoleMa = async (maVaiTro) => {
   const result = await executeQuery(query, params);
   return result.recordset;
 };
+
+/**
+ * Repository các hàm xử lý liên quan đến xác thực và người dùng.
+ */
 export const authRepository = {
   findTaiKhoanNguoiDungByEmail,
   getVaiTroByNguoiDungID,

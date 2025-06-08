@@ -4,6 +4,11 @@ import logger from '../utils/logger.util.js';
 import ApiError from '../utils/ApiError.util.js';
 import serverConfig from '../config/server.config.js';
 
+/**
+ * Chuyển đổi lỗi thường về ApiError nếu chưa phải, để chuẩn hóa xử lý lỗi.
+ * Đầu vào: err (Error), req, res, next
+ * Đầu ra: gọi next(error) với error là ApiError
+ */
 const errorConverter = (err, req, res, next) => {
   let error = err;
   if (!(error instanceof ApiError)) {
@@ -14,7 +19,11 @@ const errorConverter = (err, req, res, next) => {
   next(error);
 };
 
-// eslint-disable-next-line no-unused-vars
+/**
+ * Middleware xử lý lỗi chung cho toàn bộ ứng dụng.
+ * Đầu vào: err (Error), req, res, next
+ * Đầu ra: trả về response lỗi chuẩn hóa cho client
+ */
 const errorHandler = (err, req, res, next) => {
   let { statusCode, message } = err;
   if (serverConfig.env === 'production' && !err.isOperational) {
@@ -28,7 +37,7 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     code: statusCode,
     message,
-    ...(serverConfig.env === 'development' && { stack: err.stack }), // Chỉ gửi stack trace ở môi trường dev
+    ...(serverConfig.env === 'development' && { stack: err.stack }),
   };
 
   if (serverConfig.env === 'development') {

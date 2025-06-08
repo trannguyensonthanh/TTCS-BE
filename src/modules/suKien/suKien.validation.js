@@ -7,7 +7,7 @@ import validate from '../../utils/validation.utils.js';
 const getSuKienParamsSchema = Joi.object({
   searchTerm: Joi.string().allow('').optional(),
   trangThaiSkMa: Joi.string().allow('').optional(),
-  // loaiSuKienMa: Joi.string().allow('').optional(), // Nếu có
+  // loaiSuKienMa: Joi.string().allow('').optional(),
   donViChuTriID: Joi.number().integer().positive().optional(),
   tuNgay: Joi.date().iso().optional(),
   denNgay: Joi.date().iso().optional().min(Joi.ref('tuNgay')),
@@ -24,9 +24,7 @@ const getSuKienParamsSchema = Joi.object({
 
 const publicSuKienIDParamSchema = Joi.object({
   id: Joi.number().integer().positive().required().messages({
-    // Đổi thành 'id'
     'number.base': 'ID sự kiện phải là một số',
-    // ... các messages khác
   }),
 });
 
@@ -53,14 +51,17 @@ const createSuKienSchema = Joi.object({
   tgKetThucDK: Joi.date().iso().required().min(Joi.ref('tgBatDauDK')),
   moTaChiTiet: Joi.string().allow('', null),
   donViChuTriID: Joi.number().integer().positive().required(),
-  loaiSuKienID: Joi.number().integer().positive().allow(null).optional(), // Cho phép null nếu không bắt buộc
+  loaiSuKienID: Joi.number().integer().positive().allow(null).optional(),
   nguoiChuTriID: Joi.number().integer().positive().allow(null).optional(),
   tenChuTriNgoai: Joi.string().max(150).allow('', null).optional(),
   donViChuTriNgoai: Joi.string().max(200).allow('', null).optional(),
   slThamDuDK: Joi.number().integer().min(0).allow(null).optional(),
   isCongKhaiNoiBo: Joi.boolean().default(false),
   khachMoiNgoaiGhiChu: Joi.string().allow('', null),
-  // Thêm các trường khác bạn cho phép client gửi lên khi tạo
+  cacDonViThamGiaIDs: Joi.array()
+    .items(Joi.number().integer().positive())
+    .optional(),
+
   // Ví dụ: donViThamGiaIDs: Joi.array().items(Joi.number().integer().positive()).optional(),
   //        nguoiDuocMoiIDs: Joi.array().items(Joi.number().integer().positive()).optional(),
 })
@@ -69,12 +70,23 @@ const createSuKienSchema = Joi.object({
 
 const updateSuKienSchema = Joi.object({
   tenSK: Joi.string().max(300).optional(),
+  moTaChiTiet: Joi.string().allow('', null).optional(),
   tgBatDauDK: Joi.date().iso().optional(),
   tgKetThucDK: Joi.date().iso().optional().min(Joi.ref('tgBatDauDK')),
-  // ... các trường khác có thể sửa, bao gồm loaiSuKienID
+  slThamDuDK: Joi.number().integer().min(0).allow(null).optional(),
+  donViChuTriID: Joi.number().integer().positive().optional(), // Cân nhắc không cho sửa
+  nguoiChuTriID: Joi.number().integer().positive().allow(null).optional(),
+  tenChuTriNgoai: Joi.string().max(150).allow('', null).optional(),
+  donViChuTriNgoai: Joi.string().max(200).allow('', null).optional(),
+  cacDonViThamGiaIDs: Joi.array()
+    .items(Joi.number().integer().positive())
+    .optional()
+    .default([]),
+  khachMoiNgoaiGhiChu: Joi.string().allow('', null).optional(),
+  isCongKhaiNoiBo: Joi.boolean().optional(),
   loaiSuKienID: Joi.number().integer().positive().allow(null).optional(),
-  // ...
-}).min(1); // Ít nhất một trường để cập nhật
+  ghiChuPhanHoiChoBGH: Joi.string().max(1000).allow('', null).optional(),
+}).min(1);
 
 const duyetSuKienBGHPayloadSchema = Joi.object({
   ghiChuBGH: Joi.string().max(1000).allow('', null).optional(),
@@ -105,27 +117,76 @@ const getSuKienForSelectParamsSchema = Joi.object({
   searchTerm: Joi.string().allow('').optional(),
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
-  coTheTaoYeuCauPhongMoi: Joi.boolean().default(true), // Mặc định là true
-  sortBy: Joi.string().optional().default('TgBatDauDK'), // <<<< THÊM LẠI, default có thể là TgBatDauDK
-  sortOrder: Joi.string().valid('asc', 'desc').default('ASC'), // <<<< THÊM LẠI
+  coTheTaoYeuCauPhongMoi: Joi.boolean().default(true),
+  sortBy: Joi.string().optional().default('TgBatDauDK'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('ASC'),
 });
 
 export const suKienValidation = {
+  /**
+   * Middleware validate query params cho lấy danh sách sự kiện (lọc, phân trang, sắp xếp).
+   * @returns {function} Middleware validate query params.
+   */
   validateGetSuKienParams: validate(getSuKienParamsSchema, 'query'),
+
+  /**
+   * Middleware validate param :suKienID cho các route thao tác với sự kiện theo ID.
+   * @returns {function} Middleware validate param suKienID.
+   */
   validateSuKienIDParam: validate(suKienIDParamSchema, 'params'),
-  validatePublicSuKienIDParam: validate(publicSuKienIDParamSchema, 'params'), // Dùng cho route public
+
+  /**
+   * Middleware validate param :id cho các route public lấy sự kiện theo ID.
+   * @returns {function} Middleware validate param id.
+   */
+  validatePublicSuKienIDParam: validate(publicSuKienIDParamSchema, 'params'),
+
+  /**
+   * Middleware validate body khi cập nhật trạng thái sự kiện.
+   * @returns {function} Middleware validate body cập nhật trạng thái.
+   */
   validateUpdateTrangThaiPayload: validate(
     updateTrangThaiPayloadSchema,
     'body'
   ),
+
+  /**
+   * Middleware validate body khi tạo mới sự kiện.
+   * @returns {function} Middleware validate body tạo sự kiện.
+   */
   validateCreateSuKien: validate(createSuKienSchema),
+
+  /**
+   * Middleware validate body khi cập nhật sự kiện.
+   * @returns {function} Middleware validate body cập nhật sự kiện.
+   */
   validateUpdateSuKien: validate(updateSuKienSchema),
+
+  /**
+   * Middleware validate body khi duyệt sự kiện bởi BGH.
+   * @returns {function} Middleware validate body duyệt sự kiện.
+   */
   validateDuyetSuKienBGHPayload: validate(duyetSuKienBGHPayloadSchema, 'body'),
+
+  /**
+   * Middleware validate body khi từ chối sự kiện bởi BGH.
+   * @returns {function} Middleware validate body từ chối sự kiện.
+   */
   validateTuChoiSuKienBGHPayload: validate(
     tuChoiSuKienBGHPayloadSchema,
     'body'
   ),
-  validateIDParam: validate(idParamSchema, 'params'), // Dùng chung cho các route cần ID
+
+  /**
+   * Middleware validate param :id cho các route cần ID chung.
+   * @returns {function} Middleware validate param id.
+   */
+  validateIDParam: validate(idParamSchema, 'params'),
+
+  /**
+   * Middleware validate query params cho lấy danh sách sự kiện để chọn tạo yêu cầu phòng.
+   * @returns {function} Middleware validate query params.
+   */
   validateGetSuKienForSelectParams: validate(
     getSuKienForSelectParamsSchema,
     'query'

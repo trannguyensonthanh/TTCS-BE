@@ -1,4 +1,3 @@
-// src/services/email.service.js
 import nodemailer from 'nodemailer';
 import hbs from 'nodemailer-express-handlebars';
 import path from 'path';
@@ -18,11 +17,11 @@ const transporter = nodemailer.createTransport({
 const handlebarOptions = {
   viewEngine: {
     extname: '.hbs',
-    partialsDir: path.join(__dirname, '../templates/email/partials'), // Đúng đường dẫn
-    layoutsDir: path.join(__dirname, '../templates/email/layouts'), // Đúng đường dẫn
-    defaultLayout: 'main', // Chỉ định layout mặc định là 'main.hbs'
+    partialsDir: path.join(__dirname, '../templates/email/partials'),
+    layoutsDir: path.join(__dirname, '../templates/email/layouts'),
+    defaultLayout: 'main',
   },
-  viewPath: path.join(__dirname, '../templates/email'), // Thư mục chứa các view chính (resetPassword.hbs, welcome.hbs)
+  viewPath: path.join(__dirname, '../templates/email'),
   extName: '.hbs',
 };
 
@@ -35,16 +34,15 @@ const sendEmail = async (to, subject, templateName, context) => {
     }>`,
     to: to,
     subject: subject,
-    template: templateName, // Tên file template (không có .hbs)
+    template: templateName,
     context: {
       ...context,
-      // Truyền các biến dùng chung cho layout và partials vào đây
       logoUrl:
         process.env.LOGO_URL ||
-        'https://ptit.edu.vn/wp-content/uploads/2024/08/logo-PTIT-1240x1536.jpg', // Lấy từ .env
+        'https://ptit.edu.vn/wp-content/uploads/2024/08/logo-PTIT-1240x1536.jpg',
       ptitHomepageUrl:
         process.env.PTIT_HOMEPAGE_URL || 'https://ptithcm.edu.vn',
-      supportPageUrl: process.env.SUPPORT_PAGE_URL || '#', // Link trang hỗ trợ
+      supportPageUrl: process.env.SUPPORT_PAGE_URL || '#',
       currentYear: new Date().getFullYear(),
     },
   };
@@ -64,12 +62,12 @@ const OTP_EXPIRY_MINUTES = 10;
 const sendOtpEmail = async (email, userName, otp) => {
   const subject = 'PTIT Event Booking - Yêu Cầu Đặt Lại Mật Khẩu';
   await sendEmail(email, subject, 'resetPassword.template', {
-    title: 'Đặt Lại Mật Khẩu', // Tiêu đề cho thẻ <title> trong layout
+    title: 'Đặt Lại Mật Khẩu',
     userName: userName,
     otp: otp,
     otpExpiryMinutes: OTP_EXPIRY_MINUTES,
     email: email,
-    resetPasswordPageUrl: `${process.env.FRONTEND_URL}/reset-password`, // Ví dụ
+    resetPasswordPageUrl: `${process.env.FRONTEND_URL}/reset-password`,
   });
 };
 
@@ -81,7 +79,7 @@ const sendWelcomeEmail = async (
 ) => {
   const subject = 'Chào mừng bạn đến với Hệ thống Quản lý Sự kiện PTITHCM!';
   await sendEmail(email, subject, 'welcome.template', {
-    title: 'Chào Mừng Thành Viên Mới', // Tiêu đề cho thẻ <title>
+    title: 'Chào Mừng Thành Viên Mới',
     userName: userName,
     loginName: loginName,
     initialPassword: initialPassword,

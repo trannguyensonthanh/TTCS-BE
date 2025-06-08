@@ -2,8 +2,14 @@
 import httpStatus from '../constants/httpStatus.js';
 import ApiError from '../utils/ApiError.util.js';
 import { verifyToken } from '../utils/jwt.util.js';
-import { authRepository } from '../modules/auth/auth.repository.js'; // Để lấy thông tin người dùng nếu cần
+import { authRepository } from '../modules/auth/auth.repository.js';
+import logger from '../utils/logger.util.js';
 
+/**
+ * Middleware xác thực access token từ header Authorization.
+ * Đầu vào: req, res, next
+ * Đầu ra: Gán req.user nếu hợp lệ, gọi next() hoặc trả lỗi nếu không hợp lệ
+ */
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   const token =
@@ -15,26 +21,22 @@ const authenticateToken = async (req, res, next) => {
     );
   }
 
-  const payload = verifyToken(token); // verifyToken từ jwt.util.js
+  const payload = verifyToken(token);
   if (!payload) {
     return next(
       new ApiError(httpStatus.UNAUTHORIZED, 'Invalid or expired access token')
     );
   }
 
-  // Gắn thông tin người dùng vào request để các controller sau có thể sử dụng
-  // Có thể lấy thêm thông tin chi tiết người dùng từ DB nếu cần
-  // const user = await authRepository.findNguoiDungById(payload.sub);
-  // if (!user) {
-  //   return next(new ApiError(httpStatus.UNAUTHORIZED, 'User not found for token'));
-  // }
-  // req.user = user;
-
-  req.user = { nguoiDungID: payload.sub }; // Gắn NguoiDungID vào request
+  req.user = { nguoiDungID: payload.sub };
   next();
 };
 
-// Middleware kiểm tra vai trò (ví dụ)
+/**
+ * Middleware kiểm tra quyền truy cập theo vai trò.
+ * Đầu vào: ...requiredRoles (danh sách vai trò), trả về middleware (req, res, next)
+ * Đầu ra: Cho phép hoặc từ chối truy cập dựa trên vai trò của user
+ */
 const authorizeRoles = (...requiredRoles) => {
   return async (req, res, next) => {
     if (!req.user || !req.user.nguoiDungID) {
@@ -46,7 +48,10 @@ const authorizeRoles = (...requiredRoles) => {
     const userRoles = await authRepository.getVaiTroByNguoiDungID(
       req.user.nguoiDungID
     );
-    const userMaVaiTro = userRoles.map((role) => role.MaVaiTro);
+    logger.info(
+      `User roles for NguoiDungID ${req.user.nguoiDungID}: ${JSON.stringify(userRoles)}`
+    );
+    const userMaVaiTro = userRoles.map((role) => role.maVaiTro);
 
     const hasRequiredRole = requiredRoles.some((role) =>
       userMaVaiTro.includes(role)

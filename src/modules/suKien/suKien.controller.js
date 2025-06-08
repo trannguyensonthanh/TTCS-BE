@@ -1,13 +1,18 @@
 // src/modules/suKien/suKien.controller.js
 import { suKienService } from './suKien.service.js';
-import { okResponse } from '../../utils/response.util.js';
+import { createdResponse, okResponse } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
+import logger from '../../utils/logger.util.js';
 
+/**
+ * Lấy danh sách sự kiện (có phân trang, lọc, phân quyền).
+ * @param {import('express').Request} req - Express request (query: filter, phân trang, sắp xếp)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về danh sách sự kiện qua okResponse
+ */
 const getSuKienListController = async (req, res) => {
-  // Lấy các tham số query đã được validate (nếu dùng middleware)
-  // Hoặc pick các tham số hợp lệ từ req.query
   const filterOptions = pick(req.query, [
     'searchTerm',
     'trangThaiSkMa',
@@ -32,22 +37,30 @@ const getSuKienListController = async (req, res) => {
   okResponse(res, result, 'Lấy danh sách sự kiện thành công.');
 };
 
+/**
+ * Lấy chi tiết một sự kiện theo ID.
+ * @param {import('express').Request} req - Express request (params: suKienID)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về chi tiết sự kiện qua okResponse
+ */
 const getSuKienDetailController = async (req, res) => {
+  console.log('getSuKienDetailController called with params:', req.params);
   const { suKienID } = req.params;
-  // suKienID đã được validate là số nguyên dương bởi middleware (nếu dùng)
-  // hoặc có thể validate lại ở đây:
-  // if (isNaN(parseInt(suKienID)) || parseInt(suKienID) <= 0) {
-  //   throw new ApiError(httpStatus.BAD_REQUEST, 'ID sự kiện không hợp lệ.');
-  // }
 
   const suKienDetail = await suKienService.getSuKienDetail(parseInt(suKienID));
   okResponse(res, suKienDetail, 'Lấy chi tiết sự kiện thành công.');
 };
 
+/**
+ * Cập nhật trạng thái sự kiện.
+ * @param {import('express').Request} req - Express request (params: suKienID, body: trạng thái mới, lý do)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về sự kiện đã cập nhật qua okResponse
+ */
 const updateSuKienTrangThaiController = async (req, res) => {
   const { suKienID } = req.params;
-  const payload = req.body; // Gồm maTrangThaiMoi, lyDo (đã được validate bởi middleware)
-  const nguoiThucHien = req.user; // Lấy từ authMiddleware
+  const payload = req.body;
+  const nguoiThucHien = req.user;
 
   const suKienUpdated = await suKienService.updateSuKienTrangThai(
     parseInt(suKienID),
@@ -57,6 +70,12 @@ const updateSuKienTrangThaiController = async (req, res) => {
   okResponse(res, suKienUpdated, 'Cập nhật trạng thái sự kiện thành công.');
 };
 
+/**
+ * Lấy danh sách sự kiện công khai (public).
+ * @param {import('express').Request} req - Express request (query: filter, phân trang, sắp xếp)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về danh sách sự kiện công khai qua okResponse
+ */
 const getPublicSuKienListController = async (req, res) => {
   const filterOptions = pick(req.query, [
     'searchTerm',
@@ -77,6 +96,12 @@ const getPublicSuKienListController = async (req, res) => {
   okResponse(res, result, 'Lấy danh sách sự kiện công khai thành công.');
 };
 
+/**
+ * Lấy chi tiết sự kiện công khai theo ID.
+ * @param {import('express').Request} req - Express request (params: id)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về chi tiết sự kiện công khai qua okResponse
+ */
 const getPublicSuKienDetailController = async (req, res) => {
   const { id: suKienID } = req.params; // Lấy 'id' từ path params
   const suKienDetail = await suKienService.getPublicSuKienDetail(
@@ -86,7 +111,10 @@ const getPublicSuKienDetailController = async (req, res) => {
 };
 
 /**
- * Controller để tạo mới một sự kiện
+ * Tạo mới một sự kiện.
+ * @param {import('express').Request} req - Express request (body: thông tin sự kiện)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về sự kiện vừa tạo qua createdResponse
  */
 const createSuKienController = async (req, res) => {
   // req.body đã được validate bởi suKienValidation.validateCreateSuKien
@@ -106,12 +134,15 @@ const createSuKienController = async (req, res) => {
 };
 
 /**
- * Controller để cập nhật thông tin sự kiện
+ * Cập nhật thông tin một sự kiện.
+ * @param {import('express').Request} req - Express request (params: suKienID, body: thông tin cập nhật)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về sự kiện đã cập nhật qua okResponse
  */
 const updateSuKienController = async (req, res) => {
   const { suKienID } = req.params;
-  const suKienBody = req.body; // Đã được validate bởi middleware
-  const nguoiThucHien = req.user; // Lấy từ middleware xác thực
+  const suKienBody = req.body;
+  const nguoiThucHien = req.user;
 
   const updatedSuKien = await suKienService.updateSuKienService(
     parseInt(suKienID),
@@ -122,10 +153,16 @@ const updateSuKienController = async (req, res) => {
   okResponse(res, updatedSuKien, 'Cập nhật sự kiện thành công.');
 };
 
+/**
+ * Duyệt sự kiện bởi BGH.
+ * @param {import('express').Request} req - Express request (params: id, body: ghi chú BGH)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về sự kiện đã duyệt qua okResponse
+ */
 const duyetSuKienByBGHController = async (req, res) => {
-  const { id: suKienID } = req.params; // Lấy id từ params
-  const payload = req.body; // Chứa ghiChuBGH (optional)
-  const nguoiDuyet = req.user; // Từ authMiddleware
+  const { id: suKienID } = req.params;
+  const payload = req.body;
+  const nguoiDuyet = req.user;
 
   const suKienUpdated = await suKienService.duyetSuKienByBGH(
     parseInt(suKienID),
@@ -135,9 +172,15 @@ const duyetSuKienByBGHController = async (req, res) => {
   okResponse(res, suKienUpdated, 'Sự kiện đã được duyệt bởi BGH thành công.');
 };
 
+/**
+ * Từ chối sự kiện bởi BGH.
+ * @param {import('express').Request} req - Express request (params: id, body: lý do từ chối)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về sự kiện đã bị từ chối qua okResponse
+ */
 const tuChoiSuKienByBGHController = async (req, res) => {
-  const { id: suKienID } = req.params; // Lấy id từ params
-  const payload = req.body; // Chứa lyDoTuChoiBGH (required)
+  const { id: suKienID } = req.params;
+  const payload = req.body;
   const nguoiDuyet = req.user;
 
   const suKienUpdated = await suKienService.tuChoiSuKienByBGH(
@@ -148,18 +191,29 @@ const tuChoiSuKienByBGHController = async (req, res) => {
   okResponse(res, suKienUpdated, 'Sự kiện đã bị từ chối bởi BGH.');
 };
 
+/**
+ * Lấy danh sách sự kiện để chọn tạo yêu cầu phòng.
+ * @param {import('express').Request} req - Express request (query: filter, phân trang, quyền user)
+ * @param {import('express').Response} res - Express response
+ * @returns {void} Trả về danh sách sự kiện phù hợp qua okResponse
+ */
 const getSuKiensForYeuCauPhongSelectController = async (req, res) => {
+  console.log(
+    'getSuKiensForYeuCauPhongSelectController called with query params:',
+    req.query
+  );
   const params = pick(req.query, [
     'nguoiTaoID',
     'donViChuTriID',
     'searchTerm',
     'page',
     'limit',
-    'coTheTaoYeuCauPhongMoi', // Thêm tham số này
+    'coTheTaoYeuCauPhongMoi',
     'sortBy',
     'sortOrder',
   ]);
   const currentUser = req.user;
+
   const result = await suKienService.getSuKiensForYeuCauPhongSelect(
     params,
     currentUser

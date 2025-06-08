@@ -4,6 +4,11 @@ import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
 import { transformKeysPascalToCamel } from '../../utils/pascal_camel.util.js';
 
+/**
+ * Tạo mới loại sự kiện.
+ * @param {object} loaiSKBody - Dữ liệu loại sự kiện mới (maLoaiSK, tenLoaiSK, moTaLoaiSK, isActive)
+ * @returns {Promise<object>} Loại sự kiện vừa tạo
+ */
 const createLoaiSK = async (loaiSKBody) => {
   // Kiểm tra MaLoaiSK đã tồn tại chưa
   const existingMa = await loaiSuKienRepository.getLoaiSKByMa(
@@ -20,6 +25,11 @@ const createLoaiSK = async (loaiSKBody) => {
   );
 };
 
+/**
+ * Lấy danh sách loại sự kiện (có lọc, phân trang, tìm kiếm).
+ * @param {object} params - Tham số lọc, phân trang, sắp xếp (searchTerm, isActive, page, limit, sortBy, sortOrder)
+ * @returns {Promise<{items: Array<object>, totalPages: number, currentPage: number, totalItems: number, pageSize: number}>}
+ */
 const getLoaiSKs = async (params) => {
   console.log('params', params);
   const { items, totalItems } = await loaiSuKienRepository.getAllLoaiSK(params);
@@ -36,6 +46,11 @@ const getLoaiSKs = async (params) => {
   };
 };
 
+/**
+ * Lấy chi tiết loại sự kiện theo ID.
+ * @param {number} loaiSuKienID - ID loại sự kiện
+ * @returns {Promise<object>} Thông tin loại sự kiện
+ */
 const getLoaiSKById = async (loaiSuKienID) => {
   const loaiSK = await loaiSuKienRepository.getLoaiSKById(loaiSuKienID);
   if (!loaiSK) {
@@ -44,6 +59,12 @@ const getLoaiSKById = async (loaiSuKienID) => {
   return loaiSK;
 };
 
+/**
+ * Cập nhật loại sự kiện theo ID.
+ * @param {number} loaiSuKienID - ID loại sự kiện
+ * @param {object} updateBody - Dữ liệu cập nhật (maLoaiSK, tenLoaiSK, moTaLoaiSK, isActive)
+ * @returns {Promise<object>} Thông tin loại sự kiện đã cập nhật
+ */
 const updateLoaiSKById = async (loaiSuKienID, updateBody) => {
   const loaiSK = await getLoaiSKById(loaiSuKienID); // Kiểm tra tồn tại trước
   if (updateBody.maLoaiSK && updateBody.maLoaiSK !== loaiSK.MaLoaiSK) {
@@ -71,6 +92,11 @@ const updateLoaiSKById = async (loaiSuKienID, updateBody) => {
   return updatedLoaiSK;
 };
 
+/**
+ * Xóa loại sự kiện theo ID.
+ * @param {number} loaiSuKienID - ID loại sự kiện
+ * @returns {Promise<void>} Không trả về dữ liệu nếu xóa thành công, ném lỗi nếu thất bại
+ */
 const deleteLoaiSKById = async (loaiSuKienID) => {
   await getLoaiSKById(loaiSuKienID); // Kiểm tra tồn tại trước khi xóa
   await loaiSuKienRepository.deleteLoaiSKById(loaiSuKienID);

@@ -10,6 +10,7 @@ const router = express.Router();
 // --- PUBLIC ROUTES ---
 // API này có thể không cần authenticateToken hoặc authenticateToken là optional
 // Nếu không cần biết ai đang xem:
+
 router.get(
   '/public',
   suKienValidation.validateGetSuKienParams, // Vẫn nên validate query params
@@ -31,11 +32,30 @@ router.get(
 );
 
 router.get(
-  '/:suKienID',
+  '/cho-chon-yc-phong', // GET /v1/sukien/cho-chon-yc-phong
+
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CB_TO_CHUC_SU_KIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  suKienValidation.validateGetSuKienForSelectParams,
+  asyncHandler(suKienController.getSuKiensForYeuCauPhongSelectController)
+);
+
+router.get(
+  '/:suKienID', // GET /v1/sukien/:suKienID
   // suKienValidation.validateSuKienIDParam, // Middleware validation cho suKienID
   asyncHandler(suKienController.getSuKienDetailController)
 );
 
+/**
+ * PUT /v1/sukien/:suKienID
+ * Cập nhật thông tin một sự kiện theo ID.
+ * Yêu cầu xác thực và vai trò: CB_TO_CHUC_SU_KIEN, ADMIN_HE_THONG.
+ * @param {string} suKienID - ID sự kiện (param)
+ * @body {object} Thông tin cập nhật sự kiện
+ * @returns {object} Sự kiện đã được cập nhật
+ */
 router.put(
   '/:suKienID/trangthai',
   authMiddleware.authorizeRoles(
@@ -47,6 +67,13 @@ router.put(
   asyncHandler(suKienController.updateSuKienTrangThaiController)
 );
 
+/**
+ * POST /v1/sukien
+ * Tạo mới một sự kiện.
+ * Yêu cầu vai trò: CB_TO_CHUC_SU_KIEN, ADMIN_HE_THONG.
+ * @body {object} Thông tin sự kiện
+ * @returns {object} Sự kiện vừa được tạo
+ */
 router.post(
   '/', // POST /v1/sukien
   authMiddleware.authorizeRoles(
@@ -57,8 +84,16 @@ router.post(
   asyncHandler(suKienController.createSuKienController)
 );
 
+/**
+ * PUT /v1/sukien/:suKienID
+ * Cập nhật thông tin một sự kiện theo ID.
+ * Yêu cầu xác thực và vai trò: CB_TO_CHUC_SU_KIEN, ADMIN_HE_THONG.
+ * @param {string} suKienID - ID sự kiện (param)
+ * @body {object} Thông tin cập nhật sự kiện
+ * @returns {object} Sự kiện đã được cập nhật
+ */
 router.put(
-  '/:suKienID', // PUT /v1/sukien/:suKienID
+  '/:suKienID',
   authMiddleware.authorizeRoles(
     MaVaiTro.CB_TO_CHUC_SU_KIEN,
     MaVaiTro.ADMIN_HE_THONG
@@ -68,40 +103,44 @@ router.put(
   asyncHandler(suKienController.updateSuKienController)
 );
 
-// API BGH Duyệt Sự Kiện
+/**
+ * POST /v1/sukien/:id/duyet-bgh
+ * Duyệt sự kiện bởi BGH.
+ * Yêu cầu xác thực và vai trò: BGH_DUYET_SK_TRUONG, ADMIN_HE_THONG.
+ * @param {string} id - ID sự kiện (param)
+ * @body {object} Ghi chú BGH (nếu có)
+ * @returns {object} Sự kiện đã được duyệt
+ */
 router.post(
-  '/:id/duyet-bgh', // Sử dụng :id cho nhất quán với FE và các route khác
+  '/:id/duyet-bgh',
   authMiddleware.authenticateToken,
   authMiddleware.authorizeRoles(
     MaVaiTro.BGH_DUYET_SK_TRUONG,
     MaVaiTro.ADMIN_HE_THONG
   ),
-  suKienValidation.validateIDParam, // Cần tạo/dùng lại middleware validateIDParam cho req.params.id
+  suKienValidation.validateIDParam,
   suKienValidation.validateDuyetSuKienBGHPayload,
   asyncHandler(suKienController.duyetSuKienByBGHController)
 );
 
-// API BGH Từ Chối Sự Kiện
+/**
+ * POST /v1/sukien/:id/tuchoi-bgh
+ * Từ chối sự kiện bởi BGH.
+ * Yêu cầu xác thực và vai trò: BGH_DUYET_SK_TRUONG, ADMIN_HE_THONG.
+ * @param {string} id - ID sự kiện (param)
+ * @body {object} Lý do từ chối
+ * @returns {object} Sự kiện đã bị từ chối
+ */
 router.post(
-  '/:id/tuchoi-bgh', // Sử dụng :id
+  '/:id/tuchoi-bgh',
   authMiddleware.authenticateToken,
   authMiddleware.authorizeRoles(
     MaVaiTro.BGH_DUYET_SK_TRUONG,
     MaVaiTro.ADMIN_HE_THONG
   ),
-  suKienValidation.validateIDParam, // Cần tạo/dùng lại middleware validateIDParam
+  suKienValidation.validateIDParam,
   suKienValidation.validateTuChoiSuKienBGHPayload,
   asyncHandler(suKienController.tuChoiSuKienByBGHController)
-);
-
-router.get(
-  '/cho-chon-yc-phong', // GET /v1/sukien/cho-chon-yc-phong
-  authMiddleware.authorizeRoles(
-    MaVaiTro.CB_TO_CHUC_SU_KIEN,
-    MaVaiTro.ADMIN_HE_THONG
-  ),
-  suKienValidation.validateGetSuKienForSelectParams,
-  asyncHandler(suKienController.getSuKiensForYeuCauPhongSelectController)
 );
 
 export default router;

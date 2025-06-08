@@ -2,6 +2,11 @@
 
 import { phongRepository } from './phongForSelect.repository.js';
 
+/**
+ * Lấy danh sách phòng để chọn theo các tiêu chí lọc, kiểm tra phòng trống nếu có thời gian.
+ * @param {object} params - Tham số lọc, phân trang, kiểm tra phòng trống (searchTerm, loaiPhongID, sucChuaToiThieu, thoiGianMuon, thoiGianTra, trangThaiPhongMa, page, limit, sortBy, sortOrder)
+ * @returns {Promise<Array<object>>} Danh sách phòng phù hợp
+ */
 const getPhongsForSelect = async (params) => {
   if (params.thoiGianMuon && !params.thoiGianTra) {
     throw new ApiError(
@@ -30,11 +35,9 @@ const getPhongsForSelect = async (params) => {
   const page = parseInt(params.page) || 1;
   const limit = parseInt(params.limit) || 50;
   const totalPages = Math.ceil(totalItems / limit);
-  return { items, totalPages, currentPage: page, totalItems, pageSize: limit };
+  return items;
 };
 
 export const phongService = {
-  // Hoặc tên export của bạn
   getPhongsForSelect,
-  // ... các service khác cho phòng
 };

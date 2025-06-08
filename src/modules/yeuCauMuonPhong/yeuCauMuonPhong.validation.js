@@ -4,6 +4,11 @@ import httpStatus from '../../constants/httpStatus.js';
 import ApiError from '../../utils/ApiError.util.js';
 import validate from '../../utils/validation.utils.js';
 
+/**
+ * Schema kiểm tra query params khi lấy danh sách yêu cầu mượn phòng.
+ * Đầu vào: query params (searchTerm, trangThaiChungMa, suKienID, nguoiYeuCauID, donViYeuCauID, tuNgayYeuCau, denNgayYeuCau, page, limit, sortBy, sortOrder)
+ * Đầu ra: Joi schema validate query
+ */
 const getYeuCauMuonPhongParamsSchema = Joi.object({
   searchTerm: Joi.string().allow('').optional(),
   trangThaiChungMa: Joi.string().allow('').optional(),
@@ -18,6 +23,11 @@ const getYeuCauMuonPhongParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
 });
 
+/**
+ * Schema kiểm tra params id khi lấy chi tiết hoặc thao tác yêu cầu mượn phòng.
+ * Đầu vào: params (id)
+ * Đầu ra: Joi schema validate params
+ */
 const ycMuonPhongIDParamSchema = Joi.object({
   id: Joi.number()
     .integer()
@@ -26,6 +36,11 @@ const ycMuonPhongIDParamSchema = Joi.object({
     .messages({ 'any.required': 'ID Yêu cầu mượn phòng là bắt buộc' }),
 });
 
+/**
+ * Schema kiểm tra params id khi thao tác chi tiết yêu cầu mượn phòng.
+ * Đầu vào: params (ycMuonPhongID, ycMuonPhongCtID)
+ * Đầu ra: Joi schema validate params
+ */
 const ycMuonPhongChiTietIDParamSchema = Joi.object({
   ycMuonPhongID: Joi.number()
     .integer()
@@ -39,6 +54,11 @@ const ycMuonPhongChiTietIDParamSchema = Joi.object({
     .messages({ 'any.required': 'ID Chi tiết yêu cầu mượn phòng là bắt buộc' }),
 });
 
+/**
+ * Schema kiểm tra payload khi tạo mới chi tiết yêu cầu mượn phòng.
+ * Đầu vào: body (moTaNhomPhong, slPhongNhomNay, loaiPhongYcID, sucChuaYc, thietBiThemYc, tgMuonDk, tgTraDk)
+ * Đầu ra: Joi schema validate body
+ */
 const ycMuonPhongChiTietCreatePayloadSchema = Joi.object({
   moTaNhomPhong: Joi.string().max(200).allow('', null).optional(),
   slPhongNhomNay: Joi.number().integer().min(1).required(),
@@ -49,6 +69,11 @@ const ycMuonPhongChiTietCreatePayloadSchema = Joi.object({
   tgTraDk: Joi.date().iso().required().greater(Joi.ref('tgMuonDk')), // Đổi từ string sang date
 });
 
+/**
+ * Schema kiểm tra payload khi tạo mới yêu cầu mượn phòng.
+ * Đầu vào: body (suKienID, ghiChuChungYc, chiTietYeuCau[])
+ * Đầu ra: Joi schema validate body
+ */
 const createYeuCauMuonPhongPayloadSchema = Joi.object({
   suKienID: Joi.number().integer().positive().required(),
   ghiChuChungYc: Joi.string().allow('', null).optional(),
@@ -58,10 +83,20 @@ const createYeuCauMuonPhongPayloadSchema = Joi.object({
     .required(),
 });
 
+/**
+ * Schema kiểm tra payload phòng được cấp khi duyệt chi tiết yêu cầu.
+ * Đầu vào: body (phongID)
+ * Đầu ra: Joi schema validate body
+ */
 const phongDuocCapPayloadSchema = Joi.object({
   phongID: Joi.number().integer().positive().required(),
 });
 
+/**
+ * Schema kiểm tra payload khi xử lý chi tiết yêu cầu mượn phòng.
+ * Đầu vào: body (hanhDong, phongDuocCap[], ghiChuCSVC)
+ * Đầu ra: Joi schema validate body
+ */
 const xuLyYcChiTietPayloadSchema = Joi.object({
   hanhDong: Joi.string().valid('DUYET', 'TU_CHOI').required(),
   phongDuocCap: Joi.array()
@@ -85,6 +120,57 @@ const xuLyYcChiTietPayloadSchema = Joi.object({
     }),
 });
 
+/**
+ * Schema kiểm tra payload khi cập nhật chi tiết yêu cầu mượn phòng.
+ * Đầu vào: body (ycMuonPhongCtID, moTaNhomPhong, slPhongNhomNay, loaiPhongYcID, sucChuaYc, thietBiThemYc, tgMuonDk, tgTraDk)
+ * Đầu ra: Joi schema validate body
+ */
+const ycMuonPhongChiTietUpdatePayloadSchema = Joi.object({
+  ycMuonPhongCtID: Joi.number().integer().positive().allow(null, 0).optional(), // ID của chi tiết cũ, null hoặc 0 cho chi tiết mới
+  moTaNhomPhong: Joi.string().max(200).allow('', null).optional(),
+  slPhongNhomNay: Joi.number().integer().min(1).required(),
+  loaiPhongYcID: Joi.number().integer().positive().allow(null).optional(),
+  sucChuaYc: Joi.number().integer().min(1).allow(null).optional(),
+  thietBiThemYc: Joi.string().allow('', null).optional(),
+  tgMuonDk: Joi.date().iso().required(),
+  tgTraDk: Joi.date().iso().required().greater(Joi.ref('tgMuonDk')),
+})
+  .min(1)
+  .custom((value, helpers) => {
+    if (
+      value.tgMuonDk &&
+      value.tgTraDk &&
+      new Date(value.tgTraDk) <= new Date(value.tgMuonDk)
+    ) {
+      return helpers.error('date.greater');
+    }
+    return value;
+  })
+  .messages({
+    'object.min': 'Cần ít nhất một trường để cập nhật.',
+    'date.greater':
+      'Thời gian trả phòng dự kiến phải sau thời gian mượn dự kiến.',
+  });
+
+/**
+ * Schema kiểm tra payload khi cập nhật toàn bộ yêu cầu mượn phòng.
+ * Đầu vào: body (ghiChuChungYc, chiTietYeuCau[], ghiChuPhanHoiChoCSVC)
+ * Đầu ra: Joi schema validate body
+ */
+const updateYeuCauMuonPhongPayloadSchema = Joi.object({
+  ghiChuChungYc: Joi.string().allow('', null).optional(),
+  chiTietYeuCau: Joi.array()
+    .items(ycMuonPhongChiTietUpdatePayloadSchema)
+    .min(1)
+    .required(),
+  ghiChuPhanHoiChoCSVC: Joi.string().max(1000).allow('', null).optional(),
+});
+
+/**
+ * Export các middleware validate cho yêu cầu mượn phòng.
+ * Đầu vào: request (body, query, params)
+ * Đầu ra: middleware validate tương ứng
+ */
 export const yeuCauMuonPhongValidation = {
   validateGetYeuCauMuonPhongParams: validate(
     getYeuCauMuonPhongParamsSchema,
@@ -99,4 +185,7 @@ export const yeuCauMuonPhongValidation = {
     createYeuCauMuonPhongPayloadSchema
   ),
   validateXuLyYcChiTietPayload: validate(xuLyYcChiTietPayloadSchema),
+  validateUpdateYeuCauMuonPhongPayload: validate(
+    updateYeuCauMuonPhongPayloadSchema
+  ),
 };

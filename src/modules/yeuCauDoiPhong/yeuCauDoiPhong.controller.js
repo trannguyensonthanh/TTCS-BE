@@ -1,8 +1,15 @@
 // src/modules/yeuCauDoiPhong/yeuCauDoiPhong.controller.js
 import { yeuCauDoiPhongService } from './yeuCauDoiPhong.service.js';
-import { okResponse } from '../../utils/response.util.js';
+import { createdResponse, okResponse } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
+import logger from '../../utils/logger.util.js';
 
+/**
+ * Lấy danh sách yêu cầu đổi phòng (có phân trang, tìm kiếm).
+ * @param {Object} req - Request Express, query: các tham số lọc, phân trang.
+ * @param {Object} res - Response Express.
+ * @returns {void} Trả về response danh sách yêu cầu đổi phòng.
+ */
 const getYeuCauDoiPhongsController = async (req, res) => {
   const params = pick(req.query, [
     'searchTerm',
@@ -27,6 +34,12 @@ const getYeuCauDoiPhongsController = async (req, res) => {
   okResponse(res, result, 'Lấy danh sách yêu cầu đổi phòng thành công.');
 };
 
+/**
+ * Lấy chi tiết một yêu cầu đổi phòng theo ID.
+ * @param {Object} req - Request Express, params: id.
+ * @param {Object} res - Response Express.
+ * @returns {void} Trả về response chi tiết yêu cầu đổi phòng.
+ */
 const getYeuCauDoiPhongDetailController = async (req, res) => {
   const ycDoiPhongID = parseInt(req.params.id);
   const currentUser = req.user;
@@ -34,12 +47,19 @@ const getYeuCauDoiPhongDetailController = async (req, res) => {
     ycDoiPhongID,
     currentUser
   );
+  logger.info('result:', result);
   okResponse(res, result, 'Lấy chi tiết yêu cầu đổi phòng thành công.');
 };
 
+/**
+ * Tạo mới một yêu cầu đổi phòng.
+ * @param {Object} req - Request Express, body: thông tin yêu cầu, user: người yêu cầu.
+ * @param {Object} res - Response Express.
+ * @returns {void} Trả về response yêu cầu vừa tạo.
+ */
 const createYeuCauDoiPhongController = async (req, res) => {
-  const payload = req.body; // Đã validate
-  const nguoiYeuCau = req.user; // Từ authMiddleware
+  const payload = req.body;
+  const nguoiYeuCau = req.user;
 
   const newYeuCauDoiPhong = await yeuCauDoiPhongService.createYeuCauDoiPhong(
     payload,
@@ -52,10 +72,16 @@ const createYeuCauDoiPhongController = async (req, res) => {
   );
 };
 
+/**
+ * Xử lý yêu cầu đổi phòng (duyệt, từ chối, ...).
+ * @param {Object} req - Request Express, params: id, body: thông tin xử lý, user: người xử lý.
+ * @param {Object} res - Response Express.
+ * @returns {void} Trả về response yêu cầu đã xử lý.
+ */
 const xuLyYeuCauDoiPhongController = async (req, res) => {
   const ycDoiPhongID = parseInt(req.params.id);
-  const payload = req.body; // Đã validate
-  const nguoiXuLy = req.user; // Từ authMiddleware
+  const payload = req.body;
+  const nguoiXuLy = req.user;
 
   const updatedYeuCau = await yeuCauDoiPhongService.xuLyYeuCauDoiPhong(
     ycDoiPhongID,
@@ -65,17 +91,22 @@ const xuLyYeuCauDoiPhongController = async (req, res) => {
   okResponse(res, updatedYeuCau, 'Xử lý yêu cầu đổi phòng thành công.');
 };
 
+/**
+ * Hủy yêu cầu đổi phòng bởi người dùng.
+ * @param {Object} req - Request Express, params: id, user: người hủy.
+ * @param {Object} res - Response Express.
+ * @returns {void} Trả về response thông báo hủy thành công.
+ */
 const huyYeuCauDoiPhongByUserController = async (req, res) => {
   const ycDoiPhongID = parseInt(req.params.id);
-  const nguoiHuy = req.user; // Từ authMiddleware
+  const nguoiHuy = req.user;
 
   const result = await yeuCauDoiPhongService.huyYeuCauDoiPhongByUser(
     ycDoiPhongID,
     nguoiHuy
   );
-  // Trả về 200 OK với message hoặc 204 No Content đều được
+
   okResponse(res, null, result.message);
-  // Hoặc: noContentResponse(res, result.message);
 };
 
 export const yeuCauDoiPhongController = {
@@ -84,5 +115,4 @@ export const yeuCauDoiPhongController = {
   createYeuCauDoiPhongController,
   xuLyYeuCauDoiPhongController,
   huyYeuCauDoiPhongByUserController,
-  // Các controller khác
 };

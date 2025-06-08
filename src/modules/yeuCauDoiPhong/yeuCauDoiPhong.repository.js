@@ -1,10 +1,12 @@
 // src/modules/yeuCauDoiPhong/yeuCauDoiPhong.repository.js
 import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
-import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enum.js'; // Tạo enum này
 
 /**
- * Lấy danh sách YeuCauDoiPhong với phân trang và bộ lọc
+ * Lấy danh sách yêu cầu đổi phòng với phân trang và bộ lọc.
+ * @param {Object} params - Tham số truy vấn (lọc, phân trang).
+ * @param {Object} currentUser - Thông tin người dùng hiện tại.
+ * @returns {Promise<Object>} { items, totalItems }
  */
 const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
   const {
@@ -29,10 +31,12 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen,
         ycdp.NgayYeuCauDoi,
         p_cu.PhongID AS PhongCu_ID, p_cu.TenPhong AS PhongCu_TenPhong, p_cu.MaPhong AS PhongCu_MaPhong,
-        p_cu.SucChua AS PhongCu_SucChua, p_cu.ViTri AS PhongCu_ViTri, -- Thêm SucChua, ViTri cho phòng cũ
+        p_cu.SucChua AS PhongCu_SucChua, p_cu.ToaNhaTangID AS PhongCu_ToaNhaTangID, -- Thêm SucChua, ToaNhaTangID cho phòng cũ
         lp_cu.LoaiPhongID AS PhongCu_LoaiPhongID, lp_cu.TenLoaiPhong AS PhongCu_TenLoaiPhong, -- Thêm thông tin Loại Phòng cho phòng cũ
         cdp_cu.TgNhanPhongTT AS PhongCu_TgNhanPhongTT, -- <<<< THÊM CHO PHÒNG CŨ
         cdp_cu.TgTraPhongTT AS PhongCu_TgTraPhongTT,   -- <<<< THÊM CHO PHÒNG CŨ
+        yct_goc.tgMuonDk AS TgMuonDkCuaChiTiet, -- Thêm thời gian mượn dự kiến của chi tiết gốc
+        yct_goc.tgTraDk AS TgTraDkCuaChiTiet, -- Thêm thời gian trả dự kiến của chi tiết gốc
         tt_ycdp.TrangThaiYcDoiPID AS TrangThaiYCDP_ID, tt_ycdp.MaTrangThai AS TrangThaiYCDP_Ma, tt_ycdp.TenTrangThai AS TrangThaiYCDP_Ten,
         SUBSTRING(ycdp.LyDoDoiPhong, 1, 100) AS LyDoDoiPhongNganGon
     `;
@@ -122,7 +126,7 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
   if (donViNguoiYeuCauID) {
     // Logic lọc theo donViNguoiYeuCauID cần join phức tạp hơn để xác định đơn vị của NguoiYeuCauID
     // Ví dụ: JOIN ThongTinGiangVien hoặc NguoiDung_VaiTro
-    // Tạm thời bỏ qua để đơn giản hóa, bạn có thể thêm logic này nếu cần thiết.
+
     console.warn(
       'Lọc theo donViNguoiYeuCauID chưa được triển khai chi tiết trong query này.'
     );
@@ -152,6 +156,7 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
         OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
     `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
+  console.log('itemsResult:', itemsResult.recordset);
   const items = itemsResult.recordset.map((row) => ({
     ycDoiPhongID: row.YcDoiPhongID,
     suKien: {
@@ -164,12 +169,11 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
     },
     ngayYeuCauDoi: row.NgayYeuCauDoi.toISOString(),
     phongHienTai: {
-      // <<<< CẬP NHẬT ĐỂ KHỚP PhongResponseMin
       phongID: row.PhongCu_ID,
       tenPhong: row.PhongCu_TenPhong,
       maPhong: row.PhongCu_MaPhong,
       sucChua: row.PhongCu_SucChua,
-      viTri: row.PhongCu_ViTri,
+      toaNhaTangID: row.PhongCu_ToaNhaTangID,
       loaiPhong: row.PhongCu_LoaiPhongID
         ? {
             loaiPhongID: row.PhongCu_LoaiPhongID,
@@ -178,10 +182,10 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
         : null,
       tgNhanPhongTT: row.PhongCu_TgNhanPhongTT
         ? row.PhongCu_TgNhanPhongTT.toISOString()
-        : null, // <<<< MAP CHO PHÒNG CŨ
+        : row.TgMuonDkCuaChiTiet,
       tgTraPhongTT: row.PhongCu_TgTraPhongTT
         ? row.PhongCu_TgTraPhongTT.toISOString()
-        : null, // <<<< MAP CHO PHÒNG CŨ
+        : row.TgTraDkCuaChiTiet,
     },
     trangThaiYeuCauDoiPhong: {
       trangThaiYcDoiPID: row.TrangThaiYCDP_ID,
@@ -193,6 +197,11 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
   return { items, totalItems };
 };
 
+/**
+ * Lấy chi tiết một yêu cầu đổi phòng theo ID.
+ * @param {number} ycDoiPhongID - ID yêu cầu đổi phòng.
+ * @returns {Promise<Object|null>} Đối tượng yêu cầu đổi phòng hoặc null nếu không tồn tại.
+ */
 const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
   const query = `
     SELECT
@@ -201,17 +210,17 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen, nd_yc.Email AS NguoiYeuCau_Email,
         
         p_cu.PhongID AS PhongCu_ID, p_cu.TenPhong AS PhongCu_TenPhong, p_cu.MaPhong AS PhongCu_MaPhong, 
-        p_cu.SucChua AS PhongCu_SucChua, p_cu.ViTri AS PhongCu_ViTri, -- Thêm cho phòng cũ
-        lp_cu.LoaiPhongID AS PhongCu_LoaiPhongID, lp_cu.TenLoaiPhong AS PhongCu_TenLoaiPhong, -- Loại phòng cho phòng cũ
-        cdp_cu.TgNhanPhongTT AS PhongCu_TgNhanPhongTT, -- <<<< Lấy từ cdp_cu
-        cdp_cu.TgTraPhongTT AS PhongCu_TgTraPhongTT,   -- <<<< Lấy từ cdp_cu
+        p_cu.SucChua AS PhongCu_SucChua, p_cu.ToaNhaTangID AS PhongCu_ToaNhaTangID,
+        lp_cu.LoaiPhongID AS PhongCu_LoaiPhongID, lp_cu.TenLoaiPhong AS PhongCu_TenLoaiPhong,
+        cdp_cu.TgNhanPhongTT AS PhongCu_TgNhanPhongTT,
+        cdp_cu.TgTraPhongTT AS PhongCu_TgTraPhongTT,
         tt_ycdp.MaTrangThai AS TrangThaiYCDP_Ma, tt_ycdp.TenTrangThai AS TrangThaiYCDP_Ten,
         
-        lp_moi_yc.LoaiPhongID AS YcPhongMoi_LoaiPhongID_val, lp_moi_yc.TenLoaiPhong AS YcPhongMoi_TenLoaiPhong_val, -- Đổi tên alias để tránh trùng
+        lp_moi_yc.LoaiPhongID AS YcPhongMoi_LoaiPhongID_val, lp_moi_yc.TenLoaiPhong AS YcPhongMoi_TenLoaiPhong_val,
         
         p_moi.PhongID AS PhongMoi_ID, p_moi.TenPhong AS PhongMoi_TenPhong, p_moi.MaPhong AS PhongMoi_MaPhong,
-        p_moi.SucChua AS PhongMoi_SucChua, p_moi.ViTri AS PhongMoi_ViTri, -- Thêm cho phòng mới
-        lp_moi.LoaiPhongID AS PhongMoi_LoaiPhongID, lp_moi.TenLoaiPhong AS PhongMoi_TenLoaiPhong, -- Loại phòng cho phòng mới
+        p_moi.SucChua AS PhongMoi_SucChua, p_moi.ToaNhaTangID AS PhongMoi_ToaNhaTangID,
+        lp_moi.LoaiPhongID AS PhongMoi_LoaiPhongID, lp_moi.TenLoaiPhong AS PhongMoi_TenLoaiPhong,
         cdp_moi.TgNhanPhongTT AS PhongMoi_TgNhanPhongTT, 
         cdp_moi.TgTraPhongTT AS PhongMoi_TgTraPhongTT,   
         nd_duyet.NguoiDungID AS NguoiDuyetCSVC_ID, nd_duyet.HoTen AS NguoiDuyetCSVC_HoTen, nd_duyet.Email AS NguoiDuyetCSVC_Email
@@ -220,15 +229,15 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
     JOIN TrangThaiYeuCauDoiPhong tt_ycdp ON ycdp.TrangThaiYcDoiPID = tt_ycdp.TrangThaiYcDoiPID
     JOIN ChiTietDatPhong cdp_cu ON ycdp.DatPhongID_Cu = cdp_cu.DatPhongID
     JOIN Phong p_cu ON cdp_cu.PhongID = p_cu.PhongID
-    JOIN LoaiPhong lp_cu ON p_cu.LoaiPhongID = lp_cu.LoaiPhongID -- Join loại phòng cho phòng cũ
+    JOIN LoaiPhong lp_cu ON p_cu.LoaiPhongID = lp_cu.LoaiPhongID
     JOIN YcMuonPhongChiTiet yct_goc ON ycdp.YcMuonPhongCtID = yct_goc.YcMuonPhongCtID
     JOIN YeuCauMuonPhong yc_header_goc ON yct_goc.YcMuonPhongID = yc_header_goc.YcMuonPhongID
     JOIN SuKien sk ON yc_header_goc.SuKienID = sk.SuKienID
     LEFT JOIN LoaiPhong lp_moi_yc ON ycdp.YcPhongMoi_LoaiID = lp_moi_yc.LoaiPhongID
     LEFT JOIN ChiTietDatPhong cdp_moi ON ycdp.DatPhongID_Moi = cdp_moi.DatPhongID
     LEFT JOIN Phong p_moi ON cdp_moi.PhongID = p_moi.PhongID
-    LEFT JOIN LoaiPhong lp_moi ON p_moi.LoaiPhongID = lp_moi.LoaiPhongID -- Join loại phòng cho phòng mới
-    LEFT JOIN NguoiDung nd_duyet ON ycdp.NguoiDuyetCSVCID = nd_duyet.NguoiDungID
+    LEFT JOIN LoaiPhong lp_moi ON p_moi.LoaiPhongID = lp_moi.LoaiPhongID
+    LEFT JOIN NguoiDung nd_duyet ON ycdp.NguoiDuyetDoiCSVCID = nd_duyet.NguoiDungID
     WHERE ycdp.YcDoiPhongID = @YcDoiPhongID;
   `;
   const params = [{ name: 'YcDoiPhongID', type: sql.Int, value: ycDoiPhongID }];
@@ -236,6 +245,7 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
   if (result.recordset.length === 0) return null;
 
   const row = result.recordset[0];
+
   return {
     ycDoiPhongID: row.YcDoiPhongID,
     suKien: { suKienID: row.SuKienID, tenSK: row.TenSuKien },
@@ -244,26 +254,27 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
       hoTen: row.NguoiYeuCau_HoTen,
       email: row.NguoiYeuCau_Email,
     },
-    ngayYeuCauDoi: row.NgayYeuCauDoi.toISOString(),
+    ngayYeuCauDoi: row.NgayYeuCauDoi ? row.NgayYeuCauDoi.toISOString() : null,
     phongHienTai: {
       phongID: row.PhongCu_ID,
       tenPhong: row.PhongCu_TenPhong,
       maPhong: row.PhongCu_MaPhong,
       sucChua: row.PhongCu_SucChua,
-      viTri: row.PhongCu_ViTri,
+      toaNhaTangID: row.PhongCu_ToaNhaTangID,
       loaiPhong: row.PhongCu_LoaiPhongID
         ? {
             loaiPhongID: row.PhongCu_LoaiPhongID,
             tenLoaiPhong: row.PhongCu_TenLoaiPhong,
           }
         : null,
+      tgNhanPhongTT: row.PhongCu_TgNhanPhongTT
+        ? (row.PhongCu_TgNhanPhongTT.toISOString?.() ??
+          row.PhongCu_TgNhanPhongTT)
+        : null,
+      tgTraPhongTT: row.PhongCu_TgTraPhongTT
+        ? (row.PhongCu_TgTraPhongTT.toISOString?.() ?? row.PhongCu_TgTraPhongTT)
+        : null,
     },
-    tgNhanPhongTT: row.PhongCu_TgNhanPhongTT
-      ? row.PhongCu_TgNhanPhongTT.toISOString()
-      : null, // <<<< MAP
-    tgTraPhongTT: row.PhongCu_TgTraPhongTT
-      ? row.PhongCu_TgTraPhongTT.toISOString()
-      : null, // <<<< MAP
     trangThaiYeuCauDoiPhong: {
       trangThaiYcDoiPID: row.TrangThaiYcDoiPID,
       maTrangThai: row.TrangThaiYCDP_Ma,
@@ -272,12 +283,11 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
     lyDoDoiPhongNganGon: row.LyDoDoiPhong
       ? row.LyDoDoiPhong.substring(0, 100)
       : null,
-    // Chi tiết thêm
+
     ycMuonPhongCtID: row.YcMuonPhongCtID,
     lyDoDoiPhong: row.LyDoDoiPhong,
     ycPhongMoi_LoaiPhong: row.YcPhongMoi_LoaiPhongID_val
       ? {
-          // Sử dụng alias mới
           loaiPhongID: row.YcPhongMoi_LoaiPhongID_val,
           tenLoaiPhong: row.YcPhongMoi_TenLoaiPhong_val,
         }
@@ -286,26 +296,27 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
     ycPhongMoi_ThietBi: row.YcPhongMoi_ThietBi,
     phongMoiDuocCap: row.PhongMoi_ID
       ? {
-          // <<<< CẬP NHẬT ĐỂ KHỚP PhongResponseMin
           phongID: row.PhongMoi_ID,
           tenPhong: row.PhongMoi_TenPhong,
           maPhong: row.PhongMoi_MaPhong,
           sucChua: row.PhongMoi_SucChua,
-          viTri: row.PhongMoi_ViTri,
+          toaNhaTangID: row.PhongMoi_ToaNhaTangID,
           loaiPhong: row.PhongMoi_LoaiPhongID
             ? {
                 loaiPhongID: row.PhongMoi_LoaiPhongID,
                 tenLoaiPhong: row.PhongMoi_TenLoaiPhong,
               }
             : null,
+          tgNhanPhongTT: row.PhongMoi_TgNhanPhongTT
+            ? (row.PhongMoi_TgNhanPhongTT.toISOString?.() ??
+              row.PhongMoi_TgNhanPhongTT)
+            : null,
+          tgTraPhongTT: row.PhongMoi_TgTraPhongTT
+            ? (row.PhongMoi_TgTraPhongTT.toISOString?.() ??
+              row.PhongMoi_TgTraPhongTT)
+            : null,
         }
       : null,
-    tgNhanPhongTT: row.PhongMoi_TgNhanPhongTT
-      ? row.PhongMoi_TgNhanPhongTT.toISOString()
-      : null, // <<<< MAP
-    tgTraPhongTT: row.PhongMoi_TgTraPhongTT
-      ? row.PhongMoi_TgTraPhongTT.toISOString()
-      : null, // <<<< MAP
     nguoiDuyetCSVC: row.NguoiDuyetCSVC_ID
       ? {
           nguoiDungID: row.NguoiDuyetCSVC_ID,
@@ -313,19 +324,19 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
           email: row.NguoiDuyetCSVC_Email,
         }
       : null,
-    ngayDuyetCSVC: row.NgayDuyetCSVC ? row.NgayDuyetCSVC.toISOString() : null,
+    ngayDuyetCSVC: row.NgayDuyetDoiCSVC
+      ? (row.NgayDuyetDoiCSVC.toISOString?.() ?? row.NgayDuyetDoiCSVC)
+      : null,
     lyDoTuChoiDoiCSVC: row.LyDoTuChoiDoiCSVC,
   };
 };
 
 /**
- * Kiểm tra ChiTietDatPhong có tồn tại và thuộc về YcMuonPhongChiTiet không,
- * và YcMuonPhongChiTiet có thuộc về người dùng không (thông qua SuKien.NguoiTaoID).
- * Đồng thời lấy SuKienID.
+ * Kiểm tra điều kiện trước khi tạo yêu cầu đổi phòng.
  * @param {number} ycMuonPhongCtID
  * @param {number} datPhongID_Cu
  * @param {number} nguoiYeuCauID
- * @returns {Promise<object|null>} { SuKienID, YcMuonPhongCtID, DatPhongID_Cu_Valid: boolean, SuKienNguoiTaoID: number, TgMuonDkCuaChiTiet: Date, TgTraDkCuaChiTiet: Date }
+ * @returns {Promise<Object|null>} Thông tin kiểm tra hợp lệ hoặc null nếu không hợp lệ.
  */
 const validateYcĐoiPhongPreRequisites = async (
   ycMuonPhongCtID,
@@ -354,7 +365,6 @@ const validateYcĐoiPhongPreRequisites = async (
   const params = [
     { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
     { name: 'DatPhongID_Cu', type: sql.Int, value: datPhongID_Cu },
-    // { name: 'NguoiYeuCauID', type: sql.Int, value: nguoiYeuCauID } // Có thể không cần check ở đây, service sẽ check
   ];
   const result = await executeQuery(query, params);
   if (result.recordset.length > 0) {
@@ -373,11 +383,12 @@ const validateYcĐoiPhongPreRequisites = async (
 };
 
 /**
- * Tạo mới một YeuCauDoiPhong
- * @param {object} data - CreateYeuCauDoiPhongPayload & { NguoiYeuCauID, TrangThaiYcDoiPID }
- * @returns {Promise<number>} YcDoiPhongID vừa tạo
+ * Tạo mới một yêu cầu đổi phòng.
+ * @param {Object} data - Dữ liệu tạo yêu cầu đổi phòng.
+ * @param {sql.Transaction} [transaction=null] - Transaction SQL (tùy chọn).
+ * @returns {Promise<number>} ID yêu cầu đổi phòng vừa tạo.
  */
-const createYeuCauDoiPhongRecord = async (data) => {
+const createYeuCauDoiPhongRecord = async (data, transaction = null) => {
   const query = `
     INSERT INTO YeuCauDoiPhong (
         YcMuonPhongCtID, DatPhongID_Cu, NguoiYeuCauID, NgayYeuCauDoi,
@@ -413,15 +424,19 @@ const createYeuCauDoiPhongRecord = async (data) => {
     },
     { name: 'TrangThaiYcDoiPID', type: sql.Int, value: data.trangThaiYcDoiPID },
   ];
-  const result = await executeQuery(query, params);
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  params.forEach((param) => request.input(param.name, param.type, param.value));
+  const result = await request.query(query);
   return result.recordset[0].YcDoiPhongID;
 };
 
 /**
- * Lấy thông tin chi tiết của YeuCauDoiPhong để CSVC xử lý
- * @param {number} ycDoiPhongID
- * @param {sql.Transaction} transaction
- * @returns {Promise<object|null>}
+ * Lấy thông tin chi tiết của yêu cầu đổi phòng để CSVC xử lý.
+ * @param {number} ycDoiPhongID - ID yêu cầu đổi phòng.
+ * @param {sql.Transaction} transaction - Transaction SQL.
+ * @returns {Promise<Object|null>} Đối tượng yêu cầu đổi phòng hoặc null nếu không tồn tại.
  */
 const getYeuCauDoiPhongForProcessing = async (ycDoiPhongID, transaction) => {
   const query = `
@@ -448,14 +463,14 @@ const getYeuCauDoiPhongForProcessing = async (ycDoiPhongID, transaction) => {
 };
 
 /**
- * Cập nhật YeuCauDoiPhong sau khi CSVC xử lý
- * @param {number} ycDoiPhongID
- * @param {number} trangThaiMoiID
- * @param {number|null} datPhongIDMoi (ID của ChiTietDatPhong mới nếu duyệt)
- * @param {number} nguoiDuyetCSVCID
- * @param {string|null} lyDoTuChoi
- * @param {string|null} ghiChuCSVC
- * @param {sql.Transaction} transaction
+ * Cập nhật yêu cầu đổi phòng sau khi CSVC xử lý.
+ * @param {number} ycDoiPhongID - ID yêu cầu đổi phòng.
+ * @param {number} trangThaiMoiID - ID trạng thái mới.
+ * @param {number|null} datPhongIDMoi - ID ChiTietDatPhong mới (nếu duyệt).
+ * @param {number} nguoiDuyetCSVCID - ID người duyệt.
+ * @param {string|null} lyDoTuChoi - Lý do từ chối (nếu có).
+ * @param {string|null} ghiChuCSVC - Ghi chú CSVC (nếu có).
+ * @param {sql.Transaction} transaction - Transaction SQL.
  * @returns {Promise<void>}
  */
 const updateYeuCauDoiPhongAfterProcessing = async (
@@ -471,10 +486,10 @@ const updateYeuCauDoiPhongAfterProcessing = async (
     UPDATE YeuCauDoiPhong
     SET TrangThaiYcDoiPID = @TrangThaiMoiID,
         DatPhongID_Moi = @DatPhongIDMoi,
-        NguoiDuyetCSVCID = @NguoiDuyetCSVCID,
-        NgayDuyetCSVC = GETDATE(),
+        NguoiDuyetDoiCSVCID = @NguoiDuyetCSVCID,
+        NgayDuyetDoiCSVC = GETDATE(),
         LyDoTuChoiDoiCSVC = @LyDoTuChoi,
-        GhiChuCSVC = @GhiChuCSVC -- Giả sử có cột này trong YeuCauDoiPhong để CSVC ghi chú thêm khi duyệt
+        GhiChuDoiCSVC = @GhiChuCSVC -- Giả sử có cột này trong YeuCauDoiPhong để CSVC ghi chú thêm khi duyệt
     WHERE YcDoiPhongID = @YcDoiPhongID;
   `;
   const params = [
@@ -491,36 +506,22 @@ const updateYeuCauDoiPhongAfterProcessing = async (
 };
 
 /**
- * "Giải phóng" phòng cũ trong ChiTietDatPhong bằng cách cập nhật nó
- * Ví dụ: có thể set PhongID = NULL hoặc tạo một trạng thái "Đã đổi" cho ChiTietDatPhong
- * Hoặc đơn giản là xóa bản ghi ChiTietDatPhong cũ nếu nó không còn ý nghĩa.
- * Tạm thời, chúng ta sẽ không xóa mà chỉ ghi nhận là YeuCauDoiPhong đã xử lý phòng này.
- * Nếu cần giải phóng thực sự, có thể cần logic phức tạp hơn (ví dụ, kiểm tra xem phòng đó có được dùng bởi YC chi tiết khác không).
- * Trong trường hợp này, khi duyệt đổi phòng, bản ghi ChiTietDatPhong cũ (DatPhongID_Cu) không còn hợp lệ cho YcMuonPhongCtID đó nữa.
- * Một cách là cập nhật YcMuonPhongCtID của bản ghi ChiTietDatPhong cũ thành NULL hoặc một giá trị đặc biệt
- * Hoặc đơn giản hơn, khi hiển thị phòng của YcMuonPhongCtID, chỉ lấy phòng từ DatPhongID_Moi của YeuCauDoiPhong đã duyệt.
- *
- * Cách tiếp cận đơn giản: không làm gì với ChiTietDatPhong cũ ở đây.
- * Khi lấy thông tin phòng cho YcMuonPhongCtID, sẽ ưu tiên lấy từ YeuCauDoiPhong.DatPhongID_Moi nếu có và đã duyệt.
- *
- * Nếu muốn đánh dấu ChiTietDatPhong cũ là không còn sử dụng cho YCCT này nữa:
+ * Xóa một bản ghi ChiTietDatPhong bằng ID.
+ * @param {number} datPhongID - ID ChiTietDatPhong.
+ * @param {sql.Transaction} transaction - Transaction SQL.
+ * @returns {Promise<void>}
  */
-const markChiTietDatPhongCuAsChanged = async (datPhongIDCu, transaction) => {
-  // Cách 1: Thêm một cột IsActive hoặc Status vào ChiTietDatPhong
-  // UPDATE ChiTietDatPhong SET IsActive = 0 WHERE DatPhongID = @DatPhongIDCu
-  // Cách 2: Xóa nếu chắc chắn không ảnh hưởng
-  // DELETE FROM ChiTietDatPhong WHERE DatPhongID = @DatPhongIDCu
-  // Hiện tại, chúng ta chưa có cơ chế này, để đơn giản, không thực hiện hành động trực tiếp lên ChiTietDatPhong cũ.
-  // Logic hiển thị phòng sẽ phải dựa vào YeuCauDoiPhong được duyệt.
-  console.log(
-    `TODO: Logic to handle old room booking (DatPhongID: ${datPhongIDCu}) after change approved. For now, no direct action on ChiTietDatPhong.`
-  );
+const deleteChiTietDatPhongById = async (datPhongID, transaction) => {
+  const query = `DELETE FROM ChiTietDatPhong WHERE DatPhongID = @DatPhongID;`;
+  const request = transaction.request();
+  request.input('DatPhongID', sql.Int, datPhongID);
+  await request.query(query);
 };
 
 /**
- * Lấy thông tin YeuCauDoiPhong để kiểm tra trước khi người dùng hủy
- * @param {number} ycDoiPhongID
- * @returns {Promise<object|null>} { YcDoiPhongID, NguoiYeuCauID, MaTrangThaiHienTai, SuKienID }
+ * Lấy thông tin yêu cầu đổi phòng để kiểm tra trước khi người dùng hủy.
+ * @param {number} ycDoiPhongID - ID yêu cầu đổi phòng.
+ * @returns {Promise<Object|null>} Thông tin kiểm tra hoặc null nếu không tồn tại.
  */
 const getYeuCauDoiPhongForUserCancel = async (ycDoiPhongID) => {
   const query = `
@@ -541,10 +542,10 @@ const getYeuCauDoiPhongForUserCancel = async (ycDoiPhongID) => {
 };
 
 /**
- * Cập nhật trạng thái của YeuCauDoiPhong thành đã hủy bởi người tạo
- * @param {number} ycDoiPhongID
- * @param {number} trangThaiDaHuyID
- * @param {sql.Transaction} [transaction=null] - Optional transaction
+ * Cập nhật trạng thái của yêu cầu đổi phòng thành đã hủy bởi người tạo.
+ * @param {number} ycDoiPhongID - ID yêu cầu đổi phòng.
+ * @param {number} trangThaiDaHuyID - ID trạng thái đã hủy.
+ * @param {sql.Transaction} [transaction=null] - Transaction SQL (tùy chọn).
  * @returns {Promise<void>}
  */
 const updateUserCancelYeuCauDoiPhong = async (
@@ -576,9 +577,8 @@ export const yeuCauDoiPhongRepository = {
   createYeuCauDoiPhongRecord,
   getYeuCauDoiPhongForProcessing,
   updateYeuCauDoiPhongAfterProcessing,
-  markChiTietDatPhongCuAsChanged,
+
+  deleteChiTietDatPhongById,
   getYeuCauDoiPhongForUserCancel,
   updateUserCancelYeuCauDoiPhong,
 };
-
-// Lưu ý: Việc "giải phóng" phòng cũ (markChiTietDatPhongCuAsChanged) là một điểm cần cân nhắc kỹ. Cách đơn giản nhất là khi hiển thị phòng cho một YcMuonPhongCtID, hệ thống sẽ kiểm tra xem có YeuCauDoiPhong nào đã được duyệt cho chi tiết đó không, nếu có thì hiển thị phòng từ DatPhongID_Moi. Bản ghi ChiTietDatPhong cũ vẫn tồn tại nhưng không được coi là phòng hiện tại của chi tiết đó nữa.

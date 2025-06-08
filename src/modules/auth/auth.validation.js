@@ -1,6 +1,6 @@
 // src/modules/auth/auth.validation.js
-// Cần cài đặt: npm install joi
 import Joi from 'joi';
+import httpStatus from '../../constants/httpStatus.js';
 
 const loginSchema = Joi.object({
   // email được dùng như tên đăng nhập trong logic hiện tại
@@ -16,7 +16,9 @@ const loginSchema = Joi.object({
   }),
 });
 
-// Middleware validation
+/**
+ * Middleware kiểm tra dữ liệu đăng nhập
+ */
 const validateLogin = (req, res, next) => {
   const { error } = loginSchema.validate(req.body, { abortEarly: false }); // abortEarly: false để trả về tất cả lỗi
   if (error) {
@@ -55,7 +57,6 @@ const verifyOtpSchema = Joi.object({
     .pattern(/^[0-9]+$/)
     .required()
     .messages({
-      // Giả sử OTP 6 chữ số
       'string.base': `"otp" phải là một chuỗi`,
       'string.length': `"otp" phải có đúng 6 ký tự`,
       'string.pattern.base': `"otp" chỉ được chứa chữ số`,
@@ -66,10 +67,11 @@ const verifyOtpSchema = Joi.object({
 
 const resetPasswordSchema = Joi.object({
   resetToken: Joi.string().required().messages({
-    /*...*/
+    'string.base': `"resetToken" phải là một chuỗi`,
+    'string.empty': `"resetToken" không được để trống`,
+    'any.required': `"resetToken" là trường bắt buộc`,
   }),
   matKhauMoi: Joi.string().min(6).required().messages({
-    // Ví dụ: mật khẩu mới ít nhất 6 ký tự
     'string.base': `"matKhauMoi" phải là một chuỗi`,
     'string.min': `"matKhauMoi" phải có ít nhất {#limit} ký tự`,
     'string.empty': `"matKhauMoi" không được để trống`,
@@ -77,9 +79,10 @@ const resetPasswordSchema = Joi.object({
   }),
 });
 
-// Middlewares validation (thêm các hàm mới)
+/**
+ * Middleware kiểm tra dữ liệu quên mật khẩu
+ */
 const validateForgotPassword = (req, res, next) => {
-  /* Tương tự validateLogin, dùng forgotPasswordSchema */
   const { error } = forgotPasswordSchema.validate(req.body, {
     abortEarly: false,
   });
@@ -96,8 +99,15 @@ const validateForgotPassword = (req, res, next) => {
   }
   next();
 };
+
+/**
+ * Middleware kiểm tra dữ liệu xác thực OTP.
+ * @param {import('express').Request} req - Request object
+ * @param {import('express').Response} res - Response object
+ * @param {Function} next - Next middleware function
+ * @returns {void} Trả về lỗi 400 nếu dữ liệu không hợp lệ, gọi next() nếu hợp lệ
+ */
 const validateVerifyOtp = (req, res, next) => {
-  /* Dùng verifyOtpSchema */
   const { error } = verifyOtpSchema.validate(req.body, { abortEarly: false });
   if (error) {
     const errors = error.details.reduce((acc, current) => {
@@ -112,8 +122,15 @@ const validateVerifyOtp = (req, res, next) => {
   }
   next();
 };
+
+/**
+ * Middleware kiểm tra dữ liệu đặt lại mật khẩu.
+ * @param {import('express').Request} req - Request object
+ * @param {import('express').Response} res - Response object
+ * @param {Function} next - Next middleware function
+ * @returns {void} Trả về lỗi 400 nếu dữ liệu không hợp lệ, gọi next() nếu hợp lệ
+ */
 const validateResetPassword = (req, res, next) => {
-  /* Dùng resetPasswordSchema */
   const { error } = resetPasswordSchema.validate(req.body, {
     abortEarly: false,
   });
@@ -132,9 +149,9 @@ const validateResetPassword = (req, res, next) => {
 };
 
 export const authValidation = {
-  login: validateLogin, // Sử dụng middleware này trong route
-  forgotPassword: validateForgotPassword, // Sử dụng middleware này trong route
-  verifyOtp: validateVerifyOtp, // Sử dụng middleware này trong route
-  resetPassword: validateResetPassword, // Sử dụng middleware này trong route
+  login: validateLogin,
+  forgotPassword: validateForgotPassword,
+  verifyOtp: validateVerifyOtp,
+  resetPassword: validateResetPassword,
   resendOtp: validateForgotPassword,
 };

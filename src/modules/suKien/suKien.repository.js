@@ -1,19 +1,19 @@
 // src/modules/suKien/suKien.repository.js
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
-import { executeQuery } from '../../utils/database.js';
+import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
-
+import logger from '../../utils/logger.util.js';
+import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 const PUBLIC_VISIBLE_STATUS_CODES = [
   MaTrangThaiSK.DA_DUYET_BGH,
-  MaTrangThaiSK.CHO_DUYET_PHONG, // Tùy nghiệp vụ có cho hiển thị khi đang chờ phòng không
+  MaTrangThaiSK.CHO_DUYET_PHONG,
   MaTrangThaiSK.DA_XAC_NHAN_PHONG,
   MaTrangThaiSK.HOAN_THANH,
-  // MaTrangThaiSK.PHONG_BI_TU_CHOI, // Tùy nghiệp vụ
 ];
 
 /**
- * Lấy danh sách sự kiện có phân trang và bộ lọc
- * @param {object} params - Các tham số filter và pagination từ GetSuKienParams
+ * Lấy danh sách sự kiện có phân trang và bộ lọc.
+ * @param {object} params - Tham số filter và pagination.
  * @returns {Promise<{ items: Array<object>, totalItems: number }>}
  */
 const getSuKienListWithPagination = async (params) => {
@@ -148,23 +148,21 @@ const getSuKienListWithPagination = async (params) => {
   const countResult = await executeQuery(countQuery, queryParams);
   const totalItems = countResult.recordset[0].TotalItems;
 
-  // Query để lấy danh sách items với phân trang và sắp xếp
-  // Kiểm tra sortBy có hợp lệ không để tránh SQL Injection (nên có danh sách các cột được phép sort)
   const allowedSortBy = [
     'sk.TenSK',
     'sk.TgBatDauDK',
     'sk.NgayTaoSK',
     'dv_chutri.TenDonVi',
     'lsk.TenLoaiSK',
-  ]; // Ví dụ
+  ];
   const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'sk.NgayTaoSK';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
-
+  // + (CASE WHEN p.ViTri IS NOT NULL THEN ' (' + p.ViTri + ')' ELSE '' END)
   const itemsQuery = `
     SELECT DISTINCT
         sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK, sk.NgayTaoSK,
-        (SELECT TOP 1 p.TenPhong + (CASE WHEN p.ViTri IS NOT NULL THEN ' (' + p.ViTri + ')' ELSE '' END)
+        (SELECT TOP 1 p.TenPhong
          FROM ChiTietDatPhong ctdp
          JOIN YcMuonPhongChiTiet yct_phong ON ctdp.YcMuonPhongCtID = yct_phong.YcMuonPhongCtID
          JOIN YeuCauMuonPhong yc_phong ON yct_phong.YcMuonPhongID = yc_phong.YcMuonPhongID
@@ -205,7 +203,6 @@ const getSuKienListWithPagination = async (params) => {
     },
     loaiSuKien: row.LoaiSK_ID
       ? {
-          // <<<<<< THÊM VÀO OBJECT TRẢ VỀ
           loaiSuKienID: row.LoaiSK_ID,
           maLoaiSK: row.LoaiSK_Ma,
           tenLoaiSK: row.LoaiSK_Ten,
@@ -213,7 +210,6 @@ const getSuKienListWithPagination = async (params) => {
       : null,
     isCongKhaiNoiBo: row.IsCongKhaiNoiBo,
     slThamDuDK: row.SlThamDuDK,
-    // imageUrl: row.imageUrl,
     daCoPhong: row.DaCoPhong,
     nguoiTao: {
       nguoiDungID: row.NguoiTao_ID,
@@ -226,9 +222,9 @@ const getSuKienListWithPagination = async (params) => {
 };
 
 /**
- * Lấy thông tin chi tiết của một sự kiện bằng ID
- * @param {number} suKienID
- * @returns {Promise<object|null>} Chi tiết sự kiện hoặc null nếu không tìm thấy
+ * Lấy thông tin chi tiết của một sự kiện bằng ID.
+ * @param {number} suKienID - ID sự kiện.
+ * @returns {Promise<object|null>} Chi tiết sự kiện hoặc null nếu không tìm thấy.
  */
 const getSuKienDetailById = async (suKienID) => {
   // --- 1. Lấy thông tin cơ bản của sự kiện ---
@@ -258,7 +254,7 @@ const getSuKienDetailById = async (suKienID) => {
   const suKienResult = await executeQuery(suKienQuery, suKienParams);
 
   if (suKienResult.recordset.length === 0) {
-    return null; // Sự kiện không tồn tại
+    return null;
   }
   const suKienData = suKienResult.recordset[0];
 
@@ -300,15 +296,37 @@ const getSuKienDetailById = async (suKienID) => {
     isChapNhanMoi: ndm.IsChapNhanMoi,
   }));
 
-  // --- 4. Lấy chi tiết phòng đã đặt (nếu có) ---
+  // --- 4. Lấy chi tiết phòng đã đặt ---
   const chiTietDatPhongQuery = `
-    SELECT p.PhongID, p.TenPhong, p.MaPhong, ctdp.TgNhanPhongTT, ctdp.TgTraPhongTT
-    FROM ChiTietDatPhong ctdp
-    JOIN YcMuonPhongChiTiet yct ON ctdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
-    JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
-    JOIN Phong p ON ctdp.PhongID = p.PhongID
-    WHERE yc.SuKienID = @SuKienID;
-  `;
+        WITH CurrentBookings AS (
+            SELECT 
+                cdp.DatPhongID,
+                yct.YcMuonPhongCtID,
+                -- Ưu tiên phòng từ yêu cầu đổi đã được duyệt
+                COALESCE(ycdp_approved.DatPhongID_Moi, cdp.DatPhongID) AS ActiveDatPhongID
+            FROM YcMuonPhongChiTiet yct
+            JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
+            LEFT JOIN (
+                -- Tìm yêu cầu đổi phòng đã được duyệt gần nhất cho mỗi chi tiết
+                SELECT 
+                    ycdp_inner.YcMuonPhongCtID, -- Chỉ chọn các cột cần thiết
+                    ycdp_inner.DatPhongID_Moi,
+                    ROW_NUMBER() OVER(PARTITION BY ycdp_inner.YcMuonPhongCtID ORDER BY ycdp_inner.NgayDuyetDoiCSVC DESC) as rn -- Sửa tên cột
+                FROM YeuCauDoiPhong ycdp_inner
+                JOIN TrangThaiYeuCauDoiPhong tt ON ycdp_inner.TrangThaiYcDoiPID = tt.TrangThaiYcDoiPID
+                WHERE tt.MaTrangThai = 'DA_DUYET_DOI_PHONG'
+            ) ycdp_approved ON yct.YcMuonPhongCtID = ycdp_approved.YcMuonPhongCtID AND ycdp_approved.rn = 1
+            JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+            WHERE yc.SuKienID = @SuKienID
+        )
+        SELECT 
+            p.PhongID, p.TenPhong, p.MaPhong, 
+            cdp_active.TgNhanPhongTT, cdp_active.TgTraPhongTT
+        FROM CurrentBookings cb
+        JOIN ChiTietDatPhong cdp_active ON cb.ActiveDatPhongID = cdp_active.DatPhongID
+        JOIN Phong p ON cdp_active.PhongID = p.PhongID;
+    `;
+
   const chiTietDatPhongResult = await executeQuery(
     chiTietDatPhongQuery,
     suKienParams
@@ -321,7 +339,7 @@ const getSuKienDetailById = async (suKienID) => {
     tgTraPhongTT: p.TgTraPhongTT ? p.TgTraPhongTT.toISOString() : null,
   }));
 
-  // --- 5. Lấy thông tin yêu cầu hủy gần nhất (nếu có) ---
+  // --- 5. Lấy thông tin yêu cầu hủy gần nhất  ---
   const yeuCauHuyQuery = `
     SELECT TOP 1
         ych.YcHuySkID, ych.LyDoHuy, ttyc.MaTrangThai AS MaTrangThaiYcHuy, ttyc.TenTrangThai AS TenTrangThaiYcHuy,
@@ -392,7 +410,7 @@ const getSuKienDetailById = async (suKienID) => {
         ? chiTietDatPhongData
             .map((p) => p.tenPhong + (p.maPhong ? ` (${p.maPhong})` : ''))
             .join(', ')
-        : null, // Ví dụ hiển thị tên các phòng
+        : null,
     daCoPhong: chiTietDatPhongData.length > 0,
     donViThamGia: donViThamGiaData,
     nguoiDuocMoi: nguoiDuocMoiData,
@@ -417,8 +435,8 @@ const getSuKienDetailById = async (suKienID) => {
     lyDoTuChoiBGH: suKienData.LyDoTuChoiBGH,
     lyDoHuyNguoiTao: suKienData.LyDoHuyNguoiTao,
     chiTietDatPhong:
-      chiTietDatPhongData.length > 0 ? chiTietDatPhongData : undefined, // Chỉ trả về nếu có
-    yeuCauHuy: yeuCauHuyData, // Có thể null
+      chiTietDatPhongData.length > 0 ? chiTietDatPhongData : undefined,
+    yeuCauHuy: yeuCauHuyData,
   };
 };
 
@@ -468,7 +486,7 @@ const updateSuKienTrangThaiVaLyDo = async (
       value: lyDoHuyNguoiTao,
     });
   }
-  // Thêm các trường khác cần cập nhật nếu có (ví dụ: NgayCapNhat)
+  // Thêm các trường khác cần cập nhật
   // query += `, NgayCapNhat = GETDATE()`;
 
   query += ` WHERE SuKienID = @SuKienID;`;
@@ -477,21 +495,64 @@ const updateSuKienTrangThaiVaLyDo = async (
 };
 
 /**
- * Lấy TrangThaiSkID từ MaTrangThai
- * @param {string} maTrangThai
- * @returns {Promise<number|null>}
+ * Lấy ID của một trạng thái từ mã trạng thái, tên bảng, tên cột ID, tên cột Mã.
+ * @param {string} maTrangThai Mã trạng thái cần tìm
+ * @param {string} tenBangTrangThai Tên bảng trạng thái (VD: 'TrangThaiSK', 'TrangThaiYeuCauPhong')
+ * @param {string} tenCotID Tên cột ID trong bảng trạng thái (VD: 'TrangThaiSkID', 'TrangThaiYcpID')
+ * @param {string} tenCotMa Tên cột chứa mã trạng thái (VD: 'MaTrangThai')
+ * @param {sql.Transaction} [transaction=null] Transaction đang hoạt động (nếu có)
+ * @returns {Promise<number|null>} ID của trạng thái hoặc null nếu không tìm thấy
  */
-const getTrangThaiSkIDByMa = async (maTrangThai, transaction = null) => {
-  const query = `SELECT TrangThaiSkID FROM TrangThaiSK WHERE MaTrangThai = @MaTrangThai;`;
+const getTrangThaiIDByMaGeneric = async (
+  maTrangThai,
+  tenBangTrangThai,
+  tenCotID,
+  tenCotMa,
+  transaction = null
+) => {
+  const query = `SELECT ${tenCotID} FROM ${tenBangTrangThai} WHERE ${tenCotMa} = @MaTrangThai;`;
   const params = [
     { name: 'MaTrangThai', type: sql.VarChar, value: maTrangThai },
   ];
-  const request = transaction
-    ? transaction.request()
-    : (await getPool()).request();
-  params.forEach((param) => request.input(param.name, param.type, param.value));
-  const result = await request.query(query);
-  return result.recordset.length > 0 ? result.recordset[0].TrangThaiSkID : null;
+  let request;
+  try {
+    if (transaction && typeof transaction.request === 'function') {
+      if (transaction.finished || transaction._aborted) {
+        throw new Error('Transaction is not active.');
+      }
+      request = transaction.request();
+    } else {
+      const pool = await getPool();
+      request = pool.request();
+    }
+    if (request.timeout) request.timeout = 10000;
+    params.forEach((param) =>
+      request.input(param.name, param.type, param.value)
+    );
+    const result = await request.query(query);
+    if (result.recordset.length > 0) {
+      return result.recordset[0][tenCotID];
+    }
+    throw new Error(
+      `Lỗi cấu hình: Không tìm thấy mã trạng thái '${maTrangThai}' trong bảng '${tenBangTrangThai}'.`
+    );
+  } catch (error) {
+    logger.error(
+      `Error in getTrangThaiIDByMaGeneric for ${tenBangTrangThai} with MaTrangThai ${maTrangThai}:`,
+      error
+    );
+    throw error;
+  }
+};
+
+const getTrangThaiSkIDByMa = async (maTrangThai, transaction = null) => {
+  return getTrangThaiIDByMaGeneric(
+    maTrangThai,
+    'TrangThaiSK',
+    'TrangThaiSkID',
+    'MaTrangThai',
+    transaction
+  );
 };
 
 /**
@@ -502,17 +563,16 @@ const getTrangThaiSkIDByMa = async (maTrangThai, transaction = null) => {
 const getPublicSuKienListWithPagination = async (params) => {
   const {
     searchTerm,
-    loaiSuKienMa, // Chưa có bảng LoaiSuKien
+    loaiSuKienMa,
     tuNgay,
     denNgay,
-    sapDienRa, // true: chỉ sắp diễn ra, false/undefined: cả sắp diễn ra và đã hoàn thành gần đây
+    sapDienRa,
     page = 1,
     limit = 9,
     sortBy = 'sk.TgBatDauDK',
-    sortOrder = 'ASC', // Mặc định ASC cho sự kiện sắp diễn ra
+    sortOrder = 'ASC',
   } = params;
 
-  // Chuyển mảng mã trạng thái thành chuỗi cho IN clause, đảm bảo an toàn
   const statusCodesInClause = PUBLIC_VISIBLE_STATUS_CODES.map(
     (code) => `'${code.replace(/'/g, "''")}'`
   ).join(',');
@@ -522,7 +582,7 @@ const getPublicSuKienListWithPagination = async (params) => {
     JOIN DonVi dv_chutri ON sk.DonViChuTriID = dv_chutri.DonViID
     JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
     JOIN NguoiDung nd_tao ON sk.NguoiTaoID = nd_tao.NguoiDungID
-    LEFT JOIN LoaiSuKien lsk ON sk.LoaiSuKienID = lsk.LoaiSuKienID -- <<<<<< THÊM JOIN
+    LEFT JOIN LoaiSuKien lsk ON sk.LoaiSuKienID = lsk.LoaiSuKienID 
     LEFT JOIN (
         SELECT yc_main.SuKienID, COUNT(DISTINCT ctdp.PhongID) AS SoLuongPhongDaXep
         FROM YeuCauMuonPhong yc_main
@@ -596,17 +656,17 @@ const getPublicSuKienListWithPagination = async (params) => {
     'sk.TgBatDauDK',
     'dv_chutri.TenDonVi',
     'lsk.TenLoaiSK',
-  ]; // Thêm sort
+  ];
   const safeSortBy = allowedSortByPublic.includes(sortBy)
     ? sortBy
     : 'sk.TgBatDauDK';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
-
+  // + (CASE WHEN p.ViTri IS NOT NULL THEN ' (' + p.ViTri + ')' ELSE '' END)
   const itemsQuery = `
     SELECT DISTINCT
         sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK,
-        (SELECT TOP 1 p.TenPhong + (CASE WHEN p.ViTri IS NOT NULL THEN ' (' + p.ViTri + ')' ELSE '' END)
+        (SELECT TOP 1 p.TenPhong
          FROM ChiTietDatPhong ctdp
          JOIN YcMuonPhongChiTiet yct_phong ON ctdp.YcMuonPhongCtID = yct_phong.YcMuonPhongCtID
          JOIN YeuCauMuonPhong yc_phong ON yct_phong.YcMuonPhongID = yc_phong.YcMuonPhongID
@@ -618,7 +678,6 @@ const getPublicSuKienListWithPagination = async (params) => {
         ttsk.TrangThaiSkID AS TrangThaiSK_ID, ttsk.MaTrangThai AS TrangThaiSK_Ma, ttsk.TenTrangThai AS TrangThaiSK_Ten,
         lsk.LoaiSuKienID AS LoaiSK_ID, lsk.MaLoaiSK AS LoaiSK_Ma, lsk.TenLoaiSK AS LoaiSK_Ten,
         sk.IsCongKhaiNoiBo, sk.SlThamDuDK,
-        -- sk.imageUrl, -- Nếu có
         CASE WHEN ISNULL(phong_xep.SoLuongPhongDaXep, 0) > 0 THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS DaCoPhong,
         nd_tao.NguoiDungID AS NguoiTao_ID, nd_tao.HoTen AS NguoiTao_HoTen, nd_tao.Email AS NguoiTao_Email
     ${query}
@@ -627,7 +686,7 @@ const getPublicSuKienListWithPagination = async (params) => {
     FETCH NEXT ${limit} ROWS ONLY;
   `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-  // Map kết quả tương tự hàm getSuKienListWithPagination
+
   const items = itemsResult.recordset.map((row) => ({
     suKienID: row.SuKienID,
     tenSK: row.TenSK,
@@ -657,7 +716,6 @@ const getPublicSuKienListWithPagination = async (params) => {
     slThamDuDK: row.SlThamDuDK,
     daCoPhong: row.DaCoPhong,
     nguoiTao: {
-      // Thông tin người tạo có thể không cần thiết cho public list, tùy bạn
       nguoiDungID: row.NguoiTao_ID,
       hoTen: row.NguoiTao_HoTen,
       email: row.NguoiTao_Email,
@@ -673,24 +731,21 @@ const getPublicSuKienListWithPagination = async (params) => {
  * @returns {Promise<object|null>}
  */
 const getPublicSuKienDetailById = async (suKienID) => {
-  // Sử dụng lại hàm getSuKienDetailById đã có, nhưng service sẽ kiểm tra thêm điều kiện công khai
-  const suKienDetail = await getSuKienDetailById(suKienID); // Gọi hàm đã viết trước đó
+  const suKienDetail = await getSuKienDetailById(suKienID);
 
   if (suKienDetail) {
-    // Kiểm tra điều kiện công khai ở đây hoặc ở service
     if (
       suKienDetail.isCongKhaiNoiBo !== true ||
       !PUBLIC_VISIBLE_STATUS_CODES.includes(
         suKienDetail.trangThaiSK.maTrangThai
       )
     ) {
-      return null; // Không thỏa mãn điều kiện công khai
+      return null;
     }
   }
   return suKienDetail;
 };
 
-// Repository cho Tạo/Sửa Sự kiện (ví dụ)
 const createSuKien = async (suKienData, transaction = null) => {
   const query = `
     INSERT INTO SuKien (
@@ -755,15 +810,14 @@ const createSuKien = async (suKienData, transaction = null) => {
       name: 'TgBatDauThucTe',
       type: sql.DateTime,
       value: suKienData.tgBatDauThucTe,
-    }, // Thêm
+    },
     {
       name: 'TgKetThucThucTe',
       type: sql.DateTime,
       value: suKienData.tgKetThucThucTe,
-    }, // Thêm
+    },
   ];
 
-  // Tạo request từ transaction nếu có, ngược lại từ pool
   const request = transaction
     ? transaction.request()
     : (await getPool()).request();
@@ -773,52 +827,63 @@ const createSuKien = async (suKienData, transaction = null) => {
   return result.recordset[0];
 };
 
-const addDonViThamGiaToSuKien = async (suKienID, donViIDs) => {
+/**
+ * Thêm các đơn vị tham gia vào một sự kiện.
+ * Sử dụng vòng lặp để INSERT từng bản ghi.
+ * @param {number} suKienID
+ * @param {number[]} donViIDs Mảng các DonViID
+ * @param {sql.Transaction} [transaction=null] Transaction đang hoạt động (nếu có)
+ * @returns {Promise<void>}
+ */
+const addDonViThamGiaToSuKien = async (
+  suKienID,
+  donViIDs,
+  transaction = null
+) => {
   if (!donViIDs || donViIDs.length === 0) {
     return;
   }
-  // Cách 1: Dùng nhiều INSERT (đơn giản, nhưng có thể không tối ưu nếu nhiều đơn vị)
-  // for (const donViID of donViIDs) {
-  //   const query = `INSERT INTO SK_DonViThamGia (SuKienID, DonViID) VALUES (@SuKienID, @DonViID);`;
-  //   await executeQuery(query, [
-  //     { name: 'SuKienID', type: sql.Int, value: suKienID },
-  //     { name: 'DonViID', type: sql.Int, value: donViID },
-  //   ]);
-  // }
 
-  // Cách 2: Dùng Table-Valued Parameter (TVP) - hiệu quả hơn cho nhiều bản ghi
-  // Bước 1: Tạo User-Defined Table Type trong SQL Server (chạy một lần)
-  /*
-  IF TYPE_ID(N'DonViIDList') IS NULL
-  BEGIN
-      CREATE TYPE dbo.DonViIDList AS TABLE (DonViID INT NOT NULL PRIMARY KEY);
-  END
-  GO
-  */
-  const table = new sql.Table('DonViIDList'); // Tên TVP phải khớp
-  table.columns.add('DonViID', sql.Int);
-  donViIDs.forEach((id) => table.rows.add(id));
+  // Sử dụng Cách 1: Vòng lặp và nhiều lệnh INSERT
+  for (const donViID of donViIDs) {
+    const query = `
+        IF NOT EXISTS (SELECT 1 FROM SK_DonViThamGia WHERE SuKienID = @SuKienID AND DonViID = @DonViID)
+        BEGIN
+            INSERT INTO SK_DonViThamGia (SuKienID, DonViID)
+            VALUES (@SuKienID, @DonViID);
+        END
+    `;
 
-  const query = `
-    INSERT INTO SK_DonViThamGia (SuKienID, DonViID)
-    SELECT @SuKienID, tvp.DonViID
-    FROM @DonViIDTable tvp
-    WHERE NOT EXISTS ( -- Tránh insert trùng lặp nếu có
-        SELECT 1 FROM SK_DonViThamGia existing WHERE existing.SuKienID = @SuKienID AND existing.DonViID = tvp.DonViID
+    // const query = `INSERT INTO SK_DonViThamGia (SuKienID, DonViID) VALUES (@SuKienID, @DonViID);`;
+
+    const params = [
+      { name: 'SuKienID', type: sql.Int, value: suKienID },
+      { name: 'DonViID', type: sql.Int, value: donViID },
+    ];
+
+    const request = transaction
+      ? transaction.request()
+      : (await getPool()).request();
+    params.forEach((param) =>
+      request.input(param.name, param.type, param.value)
     );
-  `;
-  const request = (await getPool()).request(); // Lấy request từ pool
-  request.input('SuKienID', sql.Int, suKienID);
-  request.input('DonViIDTable', table); // Truyền TVP
-  await request.query(query);
+
+    try {
+      await request.query(query);
+    } catch (error) {
+      console.error(
+        `Error inserting DonViID ${donViID} for SuKienID ${suKienID}:`,
+        error
+      );
+      throw error;
+    }
+  }
 };
 
-const updateSuKienById = async (suKienID, updateData) => {
-  // updateData sẽ chứa LoaiSuKienID nếu muốn cập nhật
+const updateSuKienById = async (suKienID, updateData, transaction = null) => {
   const setClauses = [];
   const params = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
 
-  // Helper function to add to SET clause and params
   const addUpdateParam = (fieldName, sqlParamName, sqlParamType, value) => {
     if (value !== undefined) {
       setClauses.push(`${fieldName} = @${sqlParamName}`);
@@ -826,33 +891,87 @@ const updateSuKienById = async (suKienID, updateData) => {
     }
   };
 
-  addUpdateParam('TenSK', 'TenSK', sql.NVarChar, updateData.tenSK);
+  addUpdateParam('TenSK', 'TenSK', sql.NVarChar(300), updateData.tenSK);
+  addUpdateParam(
+    'MoTaChiTiet',
+    'MoTaChiTiet',
+    sql.NVarChar(sql.MAX),
+    updateData.moTaChiTiet
+  );
   addUpdateParam(
     'TgBatDauDK',
     'TgBatDauDK',
     sql.DateTime,
-    updateData.tgBatDauDK
+    updateData.tgBatDauDK ? new Date(updateData.tgBatDauDK) : undefined
   );
-  // ... thêm các trường khác có thể cập nhật ...
+  addUpdateParam(
+    'TgKetThucDK',
+    'TgKetThucDK',
+    sql.DateTime,
+    updateData.tgKetThucDK ? new Date(updateData.tgKetThucDK) : undefined
+  );
+  addUpdateParam('SlThamDuDK', 'SlThamDuDK', sql.Int, updateData.slThamDuDK);
+  // addUpdateParam('DonViChuTriID', 'DonViChuTriID', sql.Int, updateData.donViChuTriID); // Cân nhắc không cho sửa
+  addUpdateParam(
+    'NguoiChuTriID',
+    'NguoiChuTriID',
+    sql.Int,
+    updateData.nguoiChuTriID
+  );
+  addUpdateParam(
+    'TenChuTriNgoai',
+    'TenChuTriNgoai',
+    sql.NVarChar(150),
+    updateData.tenChuTriNgoai
+  );
+  addUpdateParam(
+    'DonViChuTriNgoai',
+    'DonViChuTriNgoai',
+    sql.NVarChar(200),
+    updateData.donViChuTriNgoai
+  );
+  addUpdateParam(
+    'KhachMoiNgoaiGhiChu',
+    'KhachMoiNgoaiGhiChu',
+    sql.NVarChar(sql.MAX),
+    updateData.khachMoiNgoaiGhiChu
+  );
+  addUpdateParam(
+    'IsCongKhaiNoiBo',
+    'IsCongKhaiNoiBo',
+    sql.Bit,
+    updateData.isCongKhaiNoiBo
+  );
   addUpdateParam(
     'LoaiSuKienID',
     'LoaiSuKienID',
     sql.Int,
     updateData.loaiSuKienID
-  ); // <<<<<< CẬP NHẬT LOẠI SỰ KIỆN
+  );
 
-  if (setClauses.length === 0) {
-    return getSuKienDetailById(suKienID); // Không có gì cập nhật
+  if (setClauses.length === 0 && !updateData.cacDonViThamGiaIDs) {
+    return { SuKienID: suKienID };
   }
+  if (setClauses.length > 0) {
+    const query = `UPDATE SuKien SET ${setClauses.join(', ')} WHERE SuKienID = @SuKienID;`;
+    const request = transaction
+      ? transaction.request()
+      : (await getPool()).request();
+    params.forEach((param) =>
+      request.input(param.name, param.type, param.value)
+    );
+    await request.query(query);
+  }
+  return { SuKienID: suKienID };
+};
 
-  const query = `
-    UPDATE SuKien
-    SET ${setClauses.join(', ')}
-    OUTPUT inserted.* 
-    WHERE SuKienID = @SuKienID;
-  `;
-  const result = await executeQuery(query, params);
-  return result.recordset.length > 0 ? result.recordset[0] : null;
+const clearDonViThamGiaFromSuKien = async (suKienID, transaction = null) => {
+  const query = `DELETE FROM SK_DonViThamGia WHERE SuKienID = @SuKienID;`;
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  request.input('SuKienID', sql.Int, suKienID);
+  await request.query(query);
 };
 
 const updateSuKienTrangThai = async (
@@ -860,6 +979,9 @@ const updateSuKienTrangThai = async (
   trangThaiSkIDMoi,
   transaction = null
 ) => {
+  console.log(
+    `Updating SuKienID ${suKienID} to TrangThaiSkID ${trangThaiSkIDMoi}`
+  );
   const query = `UPDATE SuKien SET TrangThaiSkID = @TrangThaiSkIDMoi WHERE SuKienID = @SuKienID;`;
   const params = [
     { name: 'TrangThaiSkIDMoi', type: sql.Int, value: trangThaiSkIDMoi },
@@ -903,12 +1025,6 @@ const updateSuKienByBGHAction = async (
   ];
 
   if (ghiChuBGH !== null) {
-    // Giả sử bạn có cột GhiChuBGH trong bảng SuKien
-    // Nếu không, bạn có thể bỏ qua phần này hoặc lưu vào một bảng log khác
-    // setClauses += `, GhiChuBGH = @GhiChuBGH`;
-    // params.push({ name: 'GhiChuBGH', type: sql.NVarChar(sql.MAX), value: ghiChuBGH });
-    // Hiện tại, chúng ta chưa có cột GhiChuBGH riêng, nên có thể bỏ qua hoặc bạn thêm cột đó vào DB.
-    // Để đơn giản, tôi sẽ không thêm vào query này, bạn có thể thêm nếu cần.
     console.warn(
       'Cột GhiChuBGH chưa được thêm vào bảng SuKien, ghi chú này sẽ không được lưu vào DB trực tiếp từ hàm này.'
     );
@@ -922,7 +1038,6 @@ const updateSuKienByBGHAction = async (
       value: lyDoTuChoiBGH,
     });
   } else {
-    // Nếu duyệt, có thể muốn xóa lý do từ chối cũ (nếu có)
     setClauses += `, LyDoTuChoiBGH = NULL`;
   }
 
@@ -942,6 +1057,7 @@ const updateSuKienByBGHAction = async (
  * @param {object} params - { nguoiTaoID, donViChuTriID, searchTerm, page, limit }
  * @returns {Promise<{ items: Array<object>, totalItems: number }>}
  */
+
 /**
  * Lấy danh sách sự kiện để chọn khi tạo yêu cầu phòng
  * @param {object} params - { nguoiTaoID, donViChuTriID, searchTerm, page, limit, coTheTaoYeuCauPhongMoi }
@@ -954,7 +1070,7 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
     searchTerm,
     page = 1,
     limit = 20,
-    coTheTaoYeuCauPhongMoi = true, // Mặc định là true
+    coTheTaoYeuCauPhongMoi = true,
     sortBy = 'sk.TgBatDauDK',
     sortOrder = 'ASC',
   } = params;
@@ -968,7 +1084,6 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
   const queryParams = [];
 
   if (coTheTaoYeuCauPhongMoi) {
-    // Chỉ lấy sự kiện đã được BGH duyệt VÀ (chưa có YC phòng nào HOẶC tất cả YC phòng của nó đã bị hủy/từ chối toàn bộ)
     baseQuery += ` AND ttsk.MaTrangThai = @MaTrangThaiDaDuyetBGH `;
     queryParams.push({
       name: 'MaTrangThaiDaDuyetBGH',
@@ -985,15 +1100,12 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
                   AND tt_yc_check.MaTrangThai NOT IN (
                         '${MaTrangThaiYeuCauPhong.YCCP_DA_HUY_BOI_NGUOI_TAO}',
                         '${MaTrangThaiYeuCauPhong.YCCP_TU_CHOI_TOAN_BO}'
-                        // Thêm các mã trạng thái "kết thúc" khác của YC Phòng nếu có
+
                   )
             )
         `;
   } else {
-    // Nếu coTheTaoYeuCauPhongMoi = false, có thể lấy tất cả sự kiện đã duyệt BGH (tùy nghiệp vụ)
-    // Hoặc vẫn giữ logic như trên nếu false chỉ mang ý nghĩa "không ưu tiên"
-    // Để đơn giản, nếu false, chúng ta có thể bỏ qua điều kiện phức tạp về YC phòng, chỉ lấy SK đã duyệt BGH
-    baseQuery += ` AND ttsk.MaTrangThai = @MaTrangThaiDaDuyetBGH_All `; // Dùng param khác để tránh trùng
+    baseQuery += ` AND ttsk.MaTrangThai = @MaTrangThaiDaDuyetBGH_All `;
     queryParams.push({
       name: 'MaTrangThaiDaDuyetBGH_All',
       type: sql.VarChar,
@@ -1014,7 +1126,7 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
     });
   }
   if (searchTerm) {
-    baseQuery += ` AND sk.TenSK LIKE @SearchTerm`; // Chỉ tìm theo TenSK cho đơn giản
+    baseQuery += ` AND sk.TenSK LIKE @SearchTerm`;
     queryParams.push({
       name: 'SearchTerm',
       type: sql.NVarChar,
@@ -1025,12 +1137,12 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
   const countQuery = `SELECT COUNT(DISTINCT sk.SuKienID) AS TotalItems ${baseQuery}`;
   const countResult = await executeQuery(countQuery, queryParams);
   const totalItems = countResult.recordset[0].TotalItems;
-  // Kiểm tra sortBy hợp lệ
+
   const allowedSortByForSelect = [
     'sk.TenSK',
     'sk.TgBatDauDK',
     'dv_chutri.TenDonVi',
-  ]; // Danh sách cột được phép sort
+  ];
   const safeSortBy = allowedSortByForSelect.includes(sortBy)
     ? sortBy
     : 'sk.TgBatDauDK';
@@ -1063,6 +1175,114 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
   return { items, totalItems };
 };
 
+/**
+ * Tìm các sự kiện đang chờ BGH duyệt quá X ngày
+ * @param {number} soNgayQuaHan Số ngày được coi là quá hạn
+ * @returns {Promise<Array<object>>} Danh sách sự kiện { SuKienID, TenSK, NguoiTaoID, EmailNguoiTao }
+ */
+const findSuKienChoBGHQuaHan = async (soNgayQuaHan) => {
+  const query = `
+    SELECT sk.SuKienID, sk.TenSK, sk.NguoiTaoID, nd.Email AS EmailNguoiTao
+    FROM SuKien sk
+    JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+    JOIN NguoiDung nd ON sk.NguoiTaoID = nd.NguoiDungID
+    WHERE ttsk.MaTrangThai = @MaChoDuyetBGH
+      AND sk.NgayTaoSK < DATEADD(day, -@SoNgayQuaHan, GETDATE());
+  `;
+  const params = [
+    {
+      name: 'MaChoDuyetBGH',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.CHO_DUYET_BGH,
+    },
+    { name: 'SoNgayQuaHan', type: sql.Int, value: soNgayQuaHan },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
+/**
+ * Tìm các sự kiện sắp diễn ra nhưng vẫn đang chờ BGH duyệt để tự động hủy
+ * @returns {Promise<Array<object>>} Danh sách sự kiện { SuKienID, TenSK, NguoiTaoID, EmailNguoiTao }
+ */
+const findSuKienSapDienRaChoBGHDeHuy = async () => {
+  const query = `
+    SELECT sk.SuKienID, sk.TenSK, sk.NguoiTaoID, nd.Email AS EmailNguoiTao
+    FROM SuKien sk
+    JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+    JOIN NguoiDung nd ON sk.NguoiTaoID = nd.NguoiDungID
+    WHERE ttsk.MaTrangThai = @MaChoDuyetBGH
+      AND sk.TgBatDauDK <= GETDATE(); -- Thời gian bắt đầu dự kiến đã đến hoặc đã qua
+  `;
+  const params = [
+    {
+      name: 'MaChoDuyetBGH',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.CHO_DUYET_BGH,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
+/**
+ * Cập nhật trạng thái cho nhiều sự kiện (dùng cho tự động hủy)
+ * @param {Array<number>} suKienIDs Mảng các SuKienID
+ * @param {number} trangThaiSkIDMoi ID của trạng thái mới
+ * @param {sql.Transaction} [transaction=null]
+ * @returns {Promise<void>}
+ */
+const updateTrangThaiNhieuSuKien = async (
+  suKienIDs,
+  trangThaiSkIDMoi,
+  transaction = null
+) => {
+  if (!suKienIDs || suKienIDs.length === 0) return;
+
+  const idTable = new sql.Table();
+  idTable.columns.add('ID', sql.Int);
+  suKienIDs.forEach((id) => idTable.rows.add(id));
+
+  const query = `
+        UPDATE SuKien
+        SET TrangThaiSkID = @TrangThaiSkIDMoi
+        -- Có thể thêm cột LyDoHuyTuDong nếu muốn
+        WHERE SuKienID IN (SELECT ID FROM @SuKienIDTable);
+    `;
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  request.input('TrangThaiSkIDMoi', sql.Int, trangThaiSkIDMoi);
+  request.input('SuKienIDTable', idTable);
+  await request.query(query);
+};
+
+/**
+ * Tìm các sự kiện đã kết thúc nhưng chưa được cập nhật trạng thái Hoàn thành.
+ * @returns {Promise<Array<number>>} Mảng các SuKienID
+ */
+const findFinishedEventsToUpdateStatus = async () => {
+  const query = `
+    SELECT sk.SuKienID
+    FROM SuKien sk
+    JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+    WHERE 
+      -- Đã qua thời gian kết thúc dự kiến
+      sk.TgKetThucDK < GETDATE() 
+      -- Và trạng thái hiện tại là các trạng thái "đang diễn ra"
+      AND ttsk.MaTrangThai IN (
+        '${MaTrangThaiSK.DA_XAC_NHAN_PHONG}', 
+        '${MaTrangThaiSK.DA_DUYET_BGH}', 
+        '${MaTrangThaiSK.CHO_DUYET_PHONG}'
+      );
+  `;
+
+  // WHERE COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) < GETDATE()
+
+  const result = await executeQuery(query);
+  return result.recordset.map((row) => row.SuKienID);
+};
+
 export const suKienRepository = {
   addDonViThamGiaToSuKien,
   getSuKienListWithPagination,
@@ -1070,6 +1290,7 @@ export const suKienRepository = {
   findSuKienForStatusUpdate,
   updateSuKienTrangThaiVaLyDo,
   getTrangThaiSkIDByMa,
+  getTrangThaiIDByMaGeneric,
   updateSuKienTrangThai,
   getPublicSuKienListWithPagination,
   getPublicSuKienDetailById,
@@ -1077,4 +1298,9 @@ export const suKienRepository = {
   updateSuKienById,
   updateSuKienByBGHAction,
   getSuKienForYeuCauPhongSelect,
+  findSuKienChoBGHQuaHan,
+  findSuKienSapDienRaChoBGHDeHuy,
+  updateTrangThaiNhieuSuKien,
+  clearDonViThamGiaFromSuKien,
+  findFinishedEventsToUpdateStatus,
 };

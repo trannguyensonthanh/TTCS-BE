@@ -3,6 +3,11 @@ import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 
+/**
+ * Lấy danh sách phòng cho select theo các tiêu chí lọc, phân trang, kiểm tra phòng trống nếu có thời gian.
+ * @param {object} params - Tham số lọc, phân trang, kiểm tra phòng trống (searchTerm, loaiPhongID, sucChuaToiThieu, thoiGianMuon, thoiGianTra, trangThaiPhongMa, page, limit, sortBy, sortOrder)
+ * @returns {Promise<{items: Array<object>, totalItems: number}>} Danh sách phòng phù hợp và tổng số phòng
+ */
 const getPhongForSelect = async (params) => {
   const {
     searchTerm,
@@ -16,20 +21,23 @@ const getPhongForSelect = async (params) => {
     sortBy = 'p.TenPhong',
     sortOrder = 'ASC',
   } = params;
-
-  let selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.ViTri `;
+  let selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.SoThuTuPhong, p.ToaNhaTangID `;
   let fromClause = `
         FROM Phong p
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
         JOIN TrangThaiPhong ttp ON p.TrangThaiPhongID = ttp.TrangThaiPhongID
+        JOIN ToaNha_Tang tn ON p.ToaNhaTangID = tn.ToaNhaTangID
+        JOIN LoaiTang lt ON tn.LoaiTangID = lt.LoaiTangID
+        JOIN ToaNha t ON tn.ToaNhaID = t.ToaNhaID
+   
     `;
-  let whereClause = ` WHERE ttp.TenTrangThai = @TrangThaiPhong `; // Giả sử TenTrangThai là mã hoặc bạn dùng MaTrangThai
+  let whereClause = ` WHERE ttp.MaTrangThai = @TrangThaiPhong `;
   const queryParams = [
     { name: 'TrangThaiPhong', type: sql.NVarChar, value: trangThaiPhongMa },
-  ]; // Hoặc VarChar nếu mã là varchar
+  ];
 
   if (searchTerm) {
-    whereClause += ` AND (p.TenPhong LIKE @SearchTerm OR p.MaPhong LIKE @SearchTerm OR p.ViTri LIKE @SearchTerm) `;
+    whereClause += ` AND (p.TenPhong LIKE @SearchTerm OR p.MaPhong LIKE @SearchTerm OR p.SoThuTuPhong LIKE @SearchTerm OR tn.TenToaNha LIKE @SearchTerm OR lt.TenLoaiTang LIKE @SearchTerm) `;
     queryParams.push({
       name: 'SearchTerm',
       type: sql.NVarChar,
@@ -114,13 +122,11 @@ const getPhongForSelect = async (params) => {
     sucChua: p.SucChua,
     tenLoaiPhong: p.TenLoaiPhong,
     loaiPhongID: p.LoaiPhongID,
-    viTri: p.ViTri,
+    toaNhaTangID: p.ToaNhaTangID,
   }));
   return { items, totalItems };
 };
 
 export const phongRepository = {
-  // Hoặc tên export của bạn
   getPhongForSelect,
-  // ... các hàm khác cho phòng
 };

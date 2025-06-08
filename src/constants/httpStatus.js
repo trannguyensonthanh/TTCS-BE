@@ -8,7 +8,6 @@ const httpStatus = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   INTERNAL_SERVER_ERROR: 500,
-  // Thêm các mã trạng thái khác nếu cần
 };
 
 export default httpStatus;

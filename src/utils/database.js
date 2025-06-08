@@ -4,9 +4,13 @@ import sqlConfig from '../config/db.config.js';
 
 let pool = null;
 
+/**
+ * Lấy hoặc tạo pool kết nối database (singleton).
+ * Đầu vào: không
+ * Đầu ra: Promise<sql.ConnectionPool> hoặc null nếu lỗi
+ */
 const getPool = async () => {
   if (pool) {
-    // console.log('Returning existing pool');
     return pool;
   }
   try {
@@ -27,7 +31,11 @@ const getPool = async () => {
   }
 };
 
-// Hàm tiện ích để thực thi query
+/**
+ * Thực thi một truy vấn SQL với tham số truyền vào.
+ * Đầu vào: query (string), params (array các object {name, type, value})
+ * Đầu ra: Promise<object> kết quả truy vấn
+ */
 const executeQuery = async (query, params = []) => {
   const pool = await getPool();
   if (!pool) {
@@ -55,7 +63,11 @@ const executeQuery = async (query, params = []) => {
   }
 };
 
-// Đảm bảo đóng pool khi ứng dụng tắt (ví dụ khi nhận SIGINT)
+/**
+ * Đóng pool kết nối database nếu có.
+ * Đầu vào: không
+ * Đầu ra: Promise<void>
+ */
 const closePool = async () => {
   if (pool) {
     try {
@@ -68,8 +80,5 @@ const closePool = async () => {
     }
   }
 };
-
-// Lắng nghe sự kiện tắt ứng dụng để đóng pool
-// process.on('SIGINT', closePool).on('SIGTERM', closePool);
 
 export { getPool, executeQuery, closePool };

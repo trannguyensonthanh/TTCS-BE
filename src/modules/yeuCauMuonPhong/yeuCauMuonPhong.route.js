@@ -5,23 +5,37 @@ import asyncHandler from '../../utils/asyncHandler.util.js';
 import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import { yeuCauMuonPhongValidation } from './yeuCauMuonPhong.validation.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
-// import MaVaiTro from '../../enums/maVaiTro.enum.js'; // Sẽ cần cho các API POST, PUT
 
 const router = express.Router();
 router.use(authMiddleware.authenticateToken);
 
+/**
+ * Lấy danh sách yêu cầu mượn phòng
+ * Đầu vào: query params (searchTerm, trangThaiChungMa, suKienID, nguoiYeuCauID, donViYeuCauID, tuNgayYeuCau, denNgayYeuCau, page, limit, sortBy, sortOrder)
+ * Đầu ra: Danh sách yêu cầu mượn phòng
+ */
 router.get(
   '/',
   yeuCauMuonPhongValidation.validateGetYeuCauMuonPhongParams,
   asyncHandler(yeuCauMuonPhongController.getYeuCauMuonPhongsController)
 );
 
+/**
+ * Lấy chi tiết một yêu cầu mượn phòng
+ * Đầu vào: params.id (ID yêu cầu)
+ * Đầu ra: Chi tiết yêu cầu mượn phòng
+ */
 router.get(
   '/:id',
   yeuCauMuonPhongValidation.validateYcMuonPhongIDParam,
   asyncHandler(yeuCauMuonPhongController.getYeuCauMuonPhongDetailController)
 );
 
+/**
+ * Tạo mới yêu cầu mượn phòng
+ * Đầu vào: body (payload tạo yêu cầu), user phải có vai trò phù hợp
+ * Đầu ra: Thông tin yêu cầu mượn phòng vừa tạo
+ */
 router.post(
   '/',
   authMiddleware.authorizeRoles(
@@ -32,36 +46,48 @@ router.post(
   asyncHandler(yeuCauMuonPhongController.createYeuCauMuonPhongController)
 );
 
+/**
+ * Xử lý chi tiết yêu cầu mượn phòng
+ * Đầu vào: params (ycMuonPhongID, ycMuonPhongCtID), body (payload xử lý), user phải có vai trò phù hợp
+ * Đầu ra: Kết quả xử lý chi tiết yêu cầu
+ */
 router.put(
   '/:ycMuonPhongID/chitiet/:ycMuonPhongCtID/xu-ly',
   authMiddleware.authorizeRoles(MaVaiTro.QUAN_LY_CSVC, MaVaiTro.ADMIN_HE_THONG),
-  yeuCauMuonPhongValidation.validateYcMuonPhongChiTietIDParams, // Validate cả 2 ID
+  yeuCauMuonPhongValidation.validateYcMuonPhongChiTietIDParams,
   yeuCauMuonPhongValidation.validateXuLyYcChiTietPayload,
   asyncHandler(yeuCauMuonPhongController.xuLyChiTietYeuCauController)
 );
 
+/**
+ * Hủy yêu cầu mượn phòng bởi người dùng
+ * Đầu vào: params.id (ID yêu cầu), user phải có vai trò phù hợp
+ * Đầu ra: Kết quả hủy yêu cầu
+ */
 router.put(
-  '/:id/huy', // Endpoint: PUT /v1/yeucaumuonphong/{id}/huy
+  '/:id/huy',
   authMiddleware.authorizeRoles(
     MaVaiTro.CB_TO_CHUC_SU_KIEN,
     MaVaiTro.ADMIN_HE_THONG
-  ), // Chỉ người tạo YC hoặc Admin
-  yeuCauMuonPhongValidation.validateYcMuonPhongIDParam, // Validate ID của YC Header
+  ),
+  yeuCauMuonPhongValidation.validateYcMuonPhongIDParam,
   asyncHandler(yeuCauMuonPhongController.huyYeuCauMuonPhongByUserController)
 );
 
-export default router;
+/**
+ * Cập nhật yêu cầu mượn phòng bởi người dùng
+ * Đầu vào: params.id (ID yêu cầu), body (payload cập nhật), user phải có vai trò phù hợp
+ * Đầu ra: Kết quả cập nhật yêu cầu
+ */
+router.put(
+  '/chitiet/:id/cap-nhat-boi-nguoi-dung',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CB_TO_CHUC_SU_KIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  yeuCauMuonPhongValidation.validateYcMuonPhongIDParam,
+  yeuCauMuonPhongValidation.validateUpdateYeuCauMuonPhongPayload,
+  asyncHandler(yeuCauMuonPhongController.updateYeuCauMuonPhongByUserController)
+);
 
-// NguoiDuyetTongCSVCID khi hủy: Khi hủy yêu cầu header, NguoiDuyetTongCSVCID và NgayDuyetTongCSVC trong YeuCauMuonPhong cũng nên được set lại thành NULL nếu việc hủy xảy ra trước khi CSVC duyệt tổng thể. Hàm updateYeuCauMuonPhongHeaderStatus cần được điều chỉnh để hỗ trợ việc này khi trạng thái là hủy.
-// // Trong yeuCauMuonPhongRepository.updateYeuCauMuonPhongHeaderStatus
-// // ...
-// // Nếu trangThaiChungIDMoi là trạng thái hủy, có thể set NguoiDuyetTongCSVCID và NgayDuyetTongCSVC về NULL
-// let query = `
-//     UPDATE YeuCauMuonPhong
-//     SET TrangThaiChungID = @TrangThaiChungIDMoi,
-//         NguoiDuyetTongCSVCID = CASE WHEN @IsHuyAction = 1 THEN NULL ELSE @NguoiDuyetTongCSVCID END,
-//         NgayDuyetTongCSVC = CASE WHEN @IsHuyAction = 1 THEN NULL ELSE GETDATE() END
-//     WHERE YcMuonPhongID = @YcMuonPhongID;
-// `;
-// // Và thêm param @IsHuyAction (BIT)
-// Tuy nhiên, để đơn giản, script hiện tại chỉ cập nhật trạng thái. Nếu NguoiDuyetTongCSVCID chưa có giá trị (do CSVC chưa duyệt) thì nó vẫn là NULL.
+export default router;

@@ -8,14 +8,24 @@ import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
 const router = express.Router();
 
+// Áp dụng middleware xác thực cho tất cả các route
 router.use(authMiddleware.authenticateToken);
 
+/**
+ * Route: Lấy danh sách các phòng đã đặt mà người dùng có thể yêu cầu đổi.
+ * Yêu cầu xác thực, phân quyền và kiểm tra tham số hợp lệ.
+ * @route GET /v1/chitietsudungphong/co-the-doi
+ * @header {string} Authorization - Bearer access token
+ * @query {number} nguoiYeuCauID - ID người yêu cầu
+ * @query {number} [limit] - Số lượng kết quả tối đa
+ * @returns {Array<object>} Danh sách phòng đã đặt còn hiệu lực
+ */
 router.get(
-  '/co-the-doi', // Endpoint: /v1/chitietsudungphong/co-the-doi
+  '/co-the-doi',
   authMiddleware.authorizeRoles(
     MaVaiTro.CB_TO_CHUC_SU_KIEN,
     MaVaiTro.ADMIN_HE_THONG
-  ), // Ai được xem danh sách này
+  ),
   chiTietSuDungPhongValidation.validateGetMyActiveBookedRoomsParams,
   asyncHandler(chiTietSuDungPhongController.getMyActiveBookedRoomsController)
 );

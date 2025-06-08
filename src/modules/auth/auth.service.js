@@ -6,14 +6,14 @@ import { comparePassword, hashPassword } from '../../utils/password.util.js';
 import { generateAuthTokens, verifyToken } from '../../utils/jwt.util.js';
 import { authRepository } from './auth.repository.js';
 import crypto from 'crypto';
-import emailService from '../../services/email.service.js'; // Giả sử bạn có service gửi email
+import emailService from '../../services/email.service.js';
 import jwtConfig from '../../config/jwt.config.js';
 
 /**
- * Đăng nhập người dùng bằng Email và Mật khẩu
+ * Đăng nhập người dùng bằng email và mật khẩu.
  * @param {string} email
  * @param {string} matKhau
- * @returns {Promise<object>} LoginSuccessResponse
+ * @returns {Promise<object>} Thông tin đăng nhập thành công.
  */
 const loginUser = async (email, matKhau) => {
   const taiKhoanNguoiDung =
@@ -98,17 +98,26 @@ const loginUser = async (email, matKhau) => {
   };
 };
 
-const generateOtp = () => crypto.randomInt(100000, 999999).toString(); // OTP 6 chữ số
+/**
+ * Sinh mã OTP ngẫu nhiên 6 chữ số.
+ * @returns {string} Mã OTP.
+ */
+const generateOtp = () => crypto.randomInt(100000, 999999).toString();
+
+/**
+ * Sinh reset token ngẫu nhiên.
+ * @returns {string} Reset token.
+ */
 const generateResetToken = () => crypto.randomBytes(32).toString('hex');
 
+/**
+ * Xử lý quên mật khẩu, gửi OTP về email nếu tồn tại.
+ * @param {string} email
+ * @returns {Promise<object>} Thông báo gửi OTP.
+ */
 const forgotPassword = async (email) => {
   const user = await authRepository.findNguoiDungByEmail(email);
   if (!user) {
-    // Không nên báo lỗi "User not found" để tránh dò email
-    // Chỉ đơn giản là trả về success message nhưng không thực sự gửi OTP nếu email không tồn tại
-    // Hoặc bạn có thể log lỗi này phía server để theo dõi
-    // throw new ApiError(httpStatus.NOT_FOUND, errorMessages.USER_NOT_FOUND);
-    // Để an toàn, vẫn trả về thông báo thành công để tránh lộ thông tin email
     return {
       message:
         'Nếu email của bạn tồn tại trong hệ thống, một mã OTP sẽ được gửi đến.',
@@ -131,6 +140,12 @@ const forgotPassword = async (email) => {
   };
 };
 
+/**
+ * Xác thực OTP quên mật khẩu và sinh reset token.
+ * @param {string} email
+ * @param {string} otp
+ * @returns {Promise<object>} Thông báo xác thực OTP thành công và reset token.
+ */
 const verifyOtp = async (email, otp) => {
   const validOtpEntry = await authRepository.findValidOtp(email, otp);
   if (!validOtpEntry) {
@@ -148,6 +163,12 @@ const verifyOtp = async (email, otp) => {
   return { message: 'Xác thực OTP thành công.', resetToken };
 };
 
+/**
+ * Đặt lại mật khẩu mới bằng reset token hợp lệ.
+ * @param {string} resetToken
+ * @param {string} matKhauMoi
+ * @returns {Promise<object>} Thông báo đặt lại mật khẩu thành công.
+ */
 const resetPassword = async (resetToken, matKhauMoi) => {
   const validResetTokenEntry =
     await authRepository.findValidResetToken(resetToken);
@@ -169,11 +190,20 @@ const resetPassword = async (resetToken, matKhauMoi) => {
   return { message: 'Đặt lại mật khẩu thành công.' };
 };
 
+/**
+ * Gửi lại OTP quên mật khẩu (dùng lại logic forgotPassword).
+ * @param {string} email
+ * @returns {Promise<object>} Thông báo gửi lại OTP.
+ */
 const resendOtp = async (email) => {
-  // Logic tương tự forgotPassword
   return forgotPassword(email);
 };
 
+/**
+ * Làm mới access token từ refresh token.
+ * @param {string} refreshTokenFromCookie
+ * @returns {Promise<object>} Access token mới.
+ */
 const refreshTokens = async (refreshTokenFromCookie) => {
   if (!refreshTokenFromCookie) {
     throw new ApiError(httpStatus.UNAUTHORIZED, 'Refresh token is required');
@@ -187,12 +217,6 @@ const refreshTokens = async (refreshTokenFromCookie) => {
     );
   }
 
-  // Kiểm tra xem người dùng có tồn tại và active không (tùy chọn, nhưng nên có)
-  // const userAccount = await authRepository.findTaiKhoanByNguoiDungID(payload.sub);
-  // if (!userAccount || userAccount.TrangThaiTk !== 'Active') {
-  //   throw new ApiError(httpStatus.UNAUTHORIZED, 'User account is not active or not found');
-  // }
-
   // Tạo accessToken mới
   const accessTokenPayload = {
     sub: payload.sub /*, roles: userAccount.roles */,
@@ -205,13 +229,14 @@ const refreshTokens = async (refreshTokenFromCookie) => {
   return { accessToken: newAccessToken };
 };
 
-const logoutUser =
-  async (/* refreshTokenFromCookie - có thể dùng để vô hiệu hóa phía server nếu lưu trữ */) => {
-    // Nếu bạn lưu trữ refresh token trong DB và muốn vô hiệu hóa nó:
-    // await authRepository.invalidateRefreshToken(refreshTokenFromCookie);
-    // Hiện tại, việc xóa cookie sẽ do controller thực hiện.
-    return { message: 'Đăng xuất thành công.' };
-  };
+/**
+ * Đăng xuất người dùng.
+ * Không thực hiện thao tác với refresh token (nếu có lưu trữ thì cần vô hiệu hóa ở đây).
+ * @returns {Promise<{message: string}>} Thông báo đăng xuất thành công.
+ */
+const logoutUser = async () => {
+  return { message: 'Đăng xuất thành công.' };
+};
 
 export const authService = {
   loginUser,

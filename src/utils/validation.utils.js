@@ -1,5 +1,11 @@
 import ApiError from './ApiError.util.js';
 import httpStatus from '../constants/httpStatus.js';
+
+/**
+ * Middleware validate dữ liệu đầu vào theo schema và nguồn (body, query, params).
+ * Đầu vào: schema (Joi schema), source (string: 'body' | 'query' | 'params')
+ * Đầu ra: middleware function cho Express (req, res, next)
+ */
 const validate =
   (schema, source = 'body') =>
   (req, res, next) => {
@@ -11,8 +17,6 @@ const validate =
           : req.body;
     const { error, value } = schema.validate(dataToValidate, {
       abortEarly: false,
-      // stripUnknown: true, // Vẫn có thể giữ nếu muốn loại bỏ các trường không mong muốn, đặc biệt cho query/params
-      // allowUnknown: source === 'body', // Cho phép trường lạ trong body nếu cần
     });
 
     if (error) {
@@ -40,8 +44,7 @@ const validate =
         }
       }
     } else {
-      // source === 'body'
-      req.body = value; // Đối với req.body, việc gán lại thường an toàn hơn
+      req.body = value;
     }
 
     return next();

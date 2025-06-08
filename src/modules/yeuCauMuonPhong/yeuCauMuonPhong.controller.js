@@ -1,8 +1,13 @@
 // src/modules/yeuCauMuonPhong/yeuCauMuonPhong.controller.js
 import { yeuCauMuonPhongService } from './yeuCauMuonPhong.service.js';
-import { okResponse } from '../../utils/response.util.js';
+import { createdResponse, okResponse } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 
+/**
+ * Lấy danh sách yêu cầu mượn phòng.
+ * Đầu vào: req.query (searchTerm, trangThaiChungMa, suKienID, nguoiYeuCauID, donViYeuCauID, tuNgayYeuCau, denNgayYeuCau, page, limit, sortBy, sortOrder), req.user
+ * Đầu ra: Response trả về danh sách yêu cầu mượn phòng
+ */
 const getYeuCauMuonPhongsController = async (req, res) => {
   const params = pick(req.query, [
     'searchTerm',
@@ -17,7 +22,7 @@ const getYeuCauMuonPhongsController = async (req, res) => {
     'sortBy',
     'sortOrder',
   ]);
-  const currentUser = req.user; // Từ authMiddleware
+  const currentUser = req.user;
   const result = await yeuCauMuonPhongService.getYeuCauMuonPhongs(
     params,
     currentUser
@@ -25,6 +30,11 @@ const getYeuCauMuonPhongsController = async (req, res) => {
   okResponse(res, result, 'Lấy danh sách yêu cầu mượn phòng thành công.');
 };
 
+/**
+ * Lấy chi tiết một yêu cầu mượn phòng.
+ * Đầu vào: req.params.id (ID yêu cầu), req.user
+ * Đầu ra: Response trả về chi tiết yêu cầu mượn phòng
+ */
 const getYeuCauMuonPhongDetailController = async (req, res) => {
   const ycMuonPhongID = parseInt(req.params.id);
   const currentUser = req.user;
@@ -35,9 +45,14 @@ const getYeuCauMuonPhongDetailController = async (req, res) => {
   okResponse(res, result, 'Lấy chi tiết yêu cầu mượn phòng thành công.');
 };
 
+/**
+ * Tạo mới yêu cầu mượn phòng.
+ * Đầu vào: req.body (payload yêu cầu mượn phòng), req.user
+ * Đầu ra: Response trả về yêu cầu mượn phòng vừa tạo
+ */
 const createYeuCauMuonPhongController = async (req, res) => {
-  const payload = req.body; // Đã được validate bởi middleware
-  const nguoiYeuCau = req.user; // Từ authMiddleware
+  const payload = req.body;
+  const nguoiYeuCau = req.user;
 
   const newYeuCau = await yeuCauMuonPhongService.createYeuCauMuonPhong(
     payload,
@@ -46,10 +61,15 @@ const createYeuCauMuonPhongController = async (req, res) => {
   createdResponse(res, newYeuCau, 'Tạo yêu cầu mượn phòng thành công.');
 };
 
+/**
+ * Xử lý chi tiết yêu cầu mượn phòng.
+ * Đầu vào: req.params (ycMuonPhongID, ycMuonPhongCtID), req.body (payload xử lý), req.user
+ * Đầu ra: Response trả về kết quả xử lý chi tiết yêu cầu
+ */
 const xuLyChiTietYeuCauController = async (req, res) => {
-  const { ycMuonPhongID, ycMuonPhongCtID } = req.params; // Đã validate là số
-  const payload = req.body; // Đã validate
-  const nguoiXuLy = req.user; // Từ authMiddleware
+  const { ycMuonPhongID, ycMuonPhongCtID } = req.params;
+  const payload = req.body;
+  const nguoiXuLy = req.user;
 
   const updatedYeuCau = await yeuCauMuonPhongService.xuLyChiTietYeuCau(
     parseInt(ycMuonPhongCtID),
@@ -63,9 +83,14 @@ const xuLyChiTietYeuCauController = async (req, res) => {
   );
 };
 
+/**
+ * Hủy yêu cầu mượn phòng bởi người dùng.
+ * Đầu vào: req.params.id (ID yêu cầu), req.user
+ * Đầu ra: Response trả về kết quả hủy yêu cầu
+ */
 const huyYeuCauMuonPhongByUserController = async (req, res) => {
   const ycMuonPhongID = parseInt(req.params.id);
-  const nguoiHuy = req.user; // Từ authMiddleware
+  const nguoiHuy = req.user;
 
   const updatedYeuCau = await yeuCauMuonPhongService.huyYeuCauMuonPhongByUser(
     ycMuonPhongID,
@@ -74,10 +99,32 @@ const huyYeuCauMuonPhongByUserController = async (req, res) => {
   okResponse(res, updatedYeuCau, 'Yêu cầu mượn phòng đã được hủy thành công.');
 };
 
+/**
+ * Cập nhật yêu cầu mượn phòng bởi người dùng.
+ * Đầu vào: req.params.id (ID yêu cầu), req.body (payload cập nhật), req.user
+ * Đầu ra: Response trả về kết quả cập nhật yêu cầu
+ */
+const updateYeuCauMuonPhongByUserController = async (req, res) => {
+  const ycMuonPhongID = parseInt(req.params.id);
+  const payload = req.body;
+  const nguoiThucHien = req.user;
+
+  const updatedYeuCau =
+    await yeuCauMuonPhongService.updateYeuCauMuonPhongByUser(
+      ycMuonPhongID,
+      payload,
+      nguoiThucHien
+    );
+
+  okResponse(res, updatedYeuCau, 'Cập nhật yêu cầu mượn phòng thành công.');
+};
+
 export const yeuCauMuonPhongController = {
   getYeuCauMuonPhongsController,
   getYeuCauMuonPhongDetailController,
   createYeuCauMuonPhongController,
   xuLyChiTietYeuCauController,
   huyYeuCauMuonPhongByUserController,
+
+  updateYeuCauMuonPhongByUserController,
 };

@@ -49,30 +49,39 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
         ) AS SoLuongChiTietDaXepPhong
   `;
   let queryFrom = `
-    FROM YeuCauMuonPhong yc
+       FROM YeuCauMuonPhong yc
     JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
     JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
     JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
-    -- Lấy đơn vị của người yêu cầu (giả định người yêu cầu là Cán bộ hoặc Giảng viên có DonViCongTacID)
-    -- Logic này cần xem xét kỹ: Đơn vị yêu cầu là đơn vị của người tạo yêu cầu hay đơn vị chủ trì sự kiện?
-    -- Giả định là đơn vị của người tạo yêu cầu (nếu họ là GV/CB)
     LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
     LEFT JOIN DonVi dv_tgv_yc ON tgv_yc.DonViCongTacID = dv_tgv_yc.DonViID
-    -- Hoặc nếu người yêu cầu là CB_TO_CHUC_SU_KIEN được gán cho 1 đơn vị
     LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID
         AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= GETDATE())
     LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID
-        AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}' -- Hoặc các vai trò được phép tạo YC
+        AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}' 
     LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
-    -- Ưu tiên đơn vị từ vai trò chức năng, sau đó đến đơn vị công tác của giảng viên
-    CROSS APPLY (
-        SELECT TOP 1 DonViID, TenDonVi, MaDonVi, LoaiDonVi
+    OUTER APPLY (
+        SELECT TOP 1 DonViID_src AS DonViID, TenDonVi_src AS TenDonVi, MaDonVi_src AS MaDonVi, LoaiDonVi_src AS LoaiDonVi
         FROM (
-            SELECT dv_ndvt_yc.DonViID, dv_ndvt_yc.TenDonVi, dv_ndvt_yc.MaDonVi, dv_ndvt_yc.LoaiDonVi, 1 as priority FROM DonVi dv_ndvt_yc WHERE dv_ndvt_yc.DonViID = ndvt_yc.DonViID
+            -- Ưu tiên đơn vị từ vai trò được gán
+            SELECT 
+                dv_ndvt_yc.DonViID AS DonViID_src, 
+                dv_ndvt_yc.TenDonVi AS TenDonVi_src, 
+                dv_ndvt_yc.MaDonVi AS MaDonVi_src, 
+                dv_ndvt_yc.LoaiDonVi AS LoaiDonVi_src, 
+                1 as priority 
+            WHERE dv_ndvt_yc.DonViID IS NOT NULL -- Chỉ lấy nếu join dv_ndvt_yc thành công
             UNION ALL
-            SELECT dv_tgv_yc.DonViID, dv_tgv_yc.TenDonVi, dv_tgv_yc.MaDonVi, dv_tgv_yc.LoaiDonVi, 2 as priority FROM DonVi dv_tgv_yc WHERE dv_tgv_yc.DonViID = tgv_yc.DonViCongTacID
-            -- Thêm logic lấy đơn vị cho các loại người dùng khác nếu cần
-        ) AS dv_src
+            -- Sau đó đến đơn vị công tác của giảng viên
+            SELECT 
+                dv_tgv_yc.DonViID AS DonViID_src, 
+                dv_tgv_yc.TenDonVi AS TenDonVi_src, 
+                dv_tgv_yc.MaDonVi AS MaDonVi_src, 
+                dv_tgv_yc.LoaiDonVi AS LoaiDonVi_src, 
+                2 as priority 
+            WHERE dv_tgv_yc.DonViID IS NOT NULL -- Chỉ lấy nếu join dv_tgv_yc thành công
+            -- Thêm logic lấy đơn vị cho các loại người dùng khác nếu cần (ví dụ: sinh viên thuộc CLB, CLB là đơn vị yêu cầu)
+        ) AS dv_src_ordered
         ORDER BY priority ASC
     ) AS dv_nguoi_yc
   `;
@@ -164,6 +173,7 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
     OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
   `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
+  console.log('itemsResult:', itemsResult);
   const items = itemsResult.recordset.map((row) => ({
     ycMuonPhongID: row.YcMuonPhongID,
     suKien: {
@@ -223,7 +233,7 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
     LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= GETDATE())
     LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}'
     LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
-    CROSS APPLY (
+    OUTER APPLY (
         SELECT TOP 1 DonViID, TenDonVi, MaDonVi, LoaiDonVi
         FROM (
             SELECT dv_ndvt_yc.DonViID, dv_ndvt_yc.TenDonVi, dv_ndvt_yc.MaDonVi, dv_ndvt_yc.LoaiDonVi, 1 as priority FROM DonVi dv_ndvt_yc WHERE dv_ndvt_yc.DonViID = ndvt_yc.DonViID
@@ -243,18 +253,39 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
 
   // 2. Lấy danh sách chi tiết yêu cầu (YcMuonPhongChiTiet) và phòng được cấp
   const detailQuery = `
+    WITH ActiveBookings AS (
+        SELECT
+            yct.YcMuonPhongCtID,
+            -- Lấy DatPhongID đang hoạt động, ưu tiên phòng từ YC đổi đã duyệt
+            COALESCE(ycdp_approved.DatPhongID_Moi, cdp.DatPhongID) AS ActiveDatPhongID
+        FROM YcMuonPhongChiTiet yct
+        LEFT JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
+        LEFT JOIN (
+            -- Tìm yêu cầu đổi phòng đã được duyệt gần nhất cho mỗi chi tiết
+            SELECT 
+                ycdp_inner.YcMuonPhongCtID,
+                ycdp_inner.DatPhongID_Moi,
+                ROW_NUMBER() OVER(PARTITION BY ycdp_inner.YcMuonPhongCtID ORDER BY ycdp_inner.NgayDuyetDoiCSVC DESC) as rn
+            FROM YeuCauDoiPhong ycdp_inner
+            JOIN TrangThaiYeuCauDoiPhong tt ON ycdp_inner.TrangThaiYcDoiPID = tt.TrangThaiYcDoiPID
+            WHERE tt.MaTrangThai = 'DA_DUYET_DOI_PHONG'
+        ) ycdp_approved ON yct.YcMuonPhongCtID = ycdp_approved.YcMuonPhongCtID AND ycdp_approved.rn = 1
+        WHERE yct.YcMuonPhongID = @YcMuonPhongID
+    )
     SELECT
         yct.YcMuonPhongCtID, yct.YcMuonPhongID, yct.MoTaNhomPhong, yct.SlPhongNhomNay,
         yct.LoaiPhongYcID, lp.TenLoaiPhong,
         yct.SucChuaYc, yct.ThietBiThemYc, yct.TgMuonDk, yct.TgTraDk,
         tt_ct.TrangThaiYcpID AS TrangThaiChiTiet_ID, tt_ct.MaTrangThai AS TrangThaiChiTiet_Ma, tt_ct.TenTrangThai AS TrangThaiChiTiet_Ten,
         yct.GhiChuCtCSVC,
-        cdp.DatPhongID, p.PhongID AS PhongDuocCap_ID, p.TenPhong AS PhongDuocCap_Ten, p.MaPhong AS PhongDuocCap_Ma
+        -- Lấy thông tin phòng từ ActiveDatPhongID
+        cdp_active.DatPhongID, p.PhongID AS PhongDuocCap_ID, p.TenPhong AS PhongDuocCap_Ten, p.MaPhong AS PhongDuocCap_Ma
     FROM YcMuonPhongChiTiet yct
-    LEFT JOIN LoaiPhong lp ON yct.LoaiPhongYcID = lp.LoaiPhongID
     JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID AND tt_ct.LoaiApDung = 'CHI_TIET'
-    LEFT JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
-    LEFT JOIN Phong p ON cdp.PhongID = p.PhongID
+    LEFT JOIN LoaiPhong lp ON yct.LoaiPhongYcID = lp.LoaiPhongID
+    LEFT JOIN ActiveBookings ab ON yct.YcMuonPhongCtID = ab.YcMuonPhongCtID
+    LEFT JOIN ChiTietDatPhong cdp_active ON ab.ActiveDatPhongID = cdp_active.DatPhongID
+    LEFT JOIN Phong p ON cdp_active.PhongID = p.PhongID
     WHERE yct.YcMuonPhongID = @YcMuonPhongID;
   `;
   const detailResult = await executeQuery(detailQuery, headerParams); // Dùng lại headerParams
@@ -560,7 +591,7 @@ const updateYcMuonPhongChiTietStatus = async (
   ycMuonPhongCtID,
   trangThaiCtIDMoi,
   ghiChuCSVC,
-  transaction
+  transaction = null
 ) => {
   const query = `
     UPDATE YcMuonPhongChiTiet
@@ -572,16 +603,100 @@ const updateYcMuonPhongChiTietStatus = async (
     { name: 'GhiChuCSVC', type: sql.NVarChar(sql.MAX), value: ghiChuCSVC },
     { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
   ];
-  const request = transaction.request();
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
   params.forEach((param) => request.input(param.name, param.type, param.value));
   await request.query(query);
+};
+
+/**
+ * Cập nhật thông tin chi tiết của YcMuonPhongChiTiet
+ * @param {number} ycMuonPhongCtID
+ * @param {object} updateData - Dữ liệu cập nhật
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<{ YcMuonPhongCtID: number }>} - Trả về ID của chi tiết đã cập nhật
+ * */
+const updateYcMuonPhongChiTietRecord = async (
+  ycMuonPhongCtID,
+  updateData,
+  transaction
+) => {
+  const setClauses = [];
+  const params = [
+    { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
+  ];
+  const addUpdateField = (dbField, paramName, paramType, value) => {
+    if (typeof value !== 'undefined') {
+      setClauses.push(`${dbField} = @${paramName}`);
+      params.push({ name: paramName, type: paramType, value });
+    }
+  };
+
+  addUpdateField(
+    'MoTaNhomPhong',
+    'MoTaNhomPhong',
+    sql.NVarChar(200),
+    updateData.moTaNhomPhong
+  );
+  addUpdateField(
+    'SlPhongNhomNay',
+    'SlPhongNhomNay',
+    sql.Int,
+    updateData.slPhongNhomNay
+  );
+  addUpdateField(
+    'LoaiPhongYcID',
+    'LoaiPhongYcID',
+    sql.Int,
+    updateData.loaiPhongYcID
+  );
+  addUpdateField('SucChuaYc', 'SucChuaYc', sql.Int, updateData.sucChuaYc);
+  addUpdateField(
+    'ThietBiThemYc',
+    'ThietBiThemYc',
+    sql.NVarChar(sql.MAX),
+    updateData.thietBiThemYc
+  );
+  if (updateData.tgMuonDk)
+    addUpdateField(
+      'TgMuonDk',
+      'TgMuonDk',
+      sql.DateTime,
+      new Date(updateData.tgMuonDk)
+    );
+  if (updateData.tgTraDk)
+    addUpdateField(
+      'TgTraDk',
+      'TgTraDk',
+      sql.DateTime,
+      new Date(updateData.tgTraDk)
+    );
+
+  if (updateData.trangThaiCtIDMoi) {
+    // Nếu cần cập nhật trạng thái
+    setClauses.push('TrangThaiCtID = @TrangThaiCtIDMoi');
+    params.push({
+      name: 'TrangThaiCtIDMoi',
+      type: sql.Int,
+      value: updateData.trangThaiCtIDMoi,
+    });
+  }
+
+  if (setClauses.length === 0) return { YcMuonPhongCtID: ycMuonPhongCtID };
+
+  const query = `UPDATE YcMuonPhongChiTiet SET ${setClauses.join(', ')} WHERE YcMuonPhongCtID = @YcMuonPhongCtID;`;
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  await request.query(query);
+  return { YcMuonPhongCtID: ycMuonPhongCtID };
 };
 
 /**
  * Đếm số lượng chi tiết yêu cầu theo trạng thái cho một YeuCauMuonPhong (Header)
  * @param {number} ycMuonPhongID
  * @param {sql.Transaction} transaction
- * @returns {Promise<{ totalChiTiet: number, daXepPhongCount: number, choDuyetCount: number, khongPhuHopCount: number }>}
+ * @returns {Promise<{ TotalChiTiet: number, DaXepPhongCount: number, ChoDuyetCount: number, KhongPhuHopCount: number }>}
  */
 const countYcMuonPhongChiTietStatuses = async (ycMuonPhongID, transaction) => {
   const query = `
@@ -654,7 +769,12 @@ const updateYeuCauMuonPhongHeaderStatus = async (
   await request.query(query);
 };
 
-// Hàm kiểm tra phòng tồn tại (tương tự có thể ở phong.repository.js)
+/**
+ * Kiểm tra xem một Phong có tồn tại trong hệ thống không
+ * @param {number} phongID
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<boolean>} True nếu Phong tồn tại, false nếu không
+ * */
 const checkPhongExists = async (phongID, transaction) => {
   const query = `SELECT COUNT(*) as count FROM Phong WHERE PhongID = @PhongID`;
   const params = [{ name: 'PhongID', type: sql.Int, value: phongID }];
@@ -717,6 +837,256 @@ const updateAllChiTietOfYeuCauToHuy = async (
   await request.query(query);
 };
 
+/**
+ * Tìm các YeuCauMuonPhong (header) đang chờ CSVC xử lý quá X ngày
+ * @param {number} soNgayQuaHan
+ * @returns {Promise<Array<object>>} { YcMuonPhongID, SuKienID, TenSK, NguoiYeuCauID, EmailNguoiYeuCau }
+ */
+const findYeuCauPhongChoCSVCQuaHan = async (soNgayQuaHan) => {
+  const query = `
+    SELECT
+        yc.YcMuonPhongID,
+        sk.SuKienID,
+        sk.TenSK,
+        yc.NguoiYeuCauID,
+        nd.Email AS EmailNguoiYeuCau
+    FROM YeuCauMuonPhong yc
+    JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID
+    JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+    JOIN NguoiDung nd ON yc.NguoiYeuCauID = nd.NguoiDungID
+    WHERE tt_yc.MaTrangThai = @MaYcpChoXuLy
+      AND yc.NgayYeuCau < DATEADD(day, -@SoNgayQuaHan, GETDATE());
+  `;
+  const params = [
+    {
+      name: 'MaYcpChoXuLy',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY,
+    },
+    { name: 'SoNgayQuaHan', type: sql.Int, value: soNgayQuaHan },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
+/**
+ * Tìm các SuKien đã duyệt BGH, có YeuCauMuonPhong đang chờ xử lý hoặc chưa có YC phòng,
+ * và sự kiện sắp diễn ra/đã qua để tự động hủy.
+ * @returns {Promise<Array<object>>} { SuKienID, TenSK, NguoiTaoID_SK, EmailNguoiTao_SK, YcMuonPhongID (có thể null) }
+ */
+const findSuKienQuaHanXepPhongDeHuy = async () => {
+  const query = `
+        SELECT DISTINCT
+            sk.SuKienID,
+            sk.TenSK,
+            sk.NguoiTaoID AS NguoiTaoID_SK,
+            nd_sk_tao.Email AS EmailNguoiTao_SK,
+            yc.YcMuonPhongID
+        FROM SuKien sk
+        JOIN TrangThaiSK ttsk_sk ON sk.TrangThaiSkID = ttsk_sk.TrangThaiSkID
+        JOIN NguoiDung nd_sk_tao ON sk.NguoiTaoID = nd_sk_tao.NguoiDungID
+        LEFT JOIN YeuCauMuonPhong yc ON sk.SuKienID = yc.SuKienID
+        LEFT JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID
+            AND tt_yc.LoaiApDung = 'CHUNG'
+        WHERE sk.TgBatDauDK <= GETDATE() -- Thời gian bắt đầu sự kiện đã đến hoặc qua
+          AND (
+                ttsk_sk.MaTrangThai = @MaSK_DaDuyetBGH OR
+                ttsk_sk.MaTrangThai = @MaSK_ChoDuyetPhong OR
+                ttsk_sk.MaTrangThai = @MaSK_PhongBiTuChoi
+              )
+          AND (
+                yc.YcMuonPhongID IS NULL OR -- Chưa hề tạo YC phòng
+                tt_yc.MaTrangThai IN (
+                    @MaYCP_ChoXuLy,
+                    @MaYCP_DangXuLy,
+                    @MaYCP_TuChoiToanBo -- Nếu bị từ chối toàn bộ và đến ngày SK thì cũng nên hủy SK
+                )
+                -- Loại trừ các YC phòng đã được hủy bởi người tạo
+                AND (tt_yc.MaTrangThai IS NULL OR tt_yc.MaTrangThai <> @MaYCP_DaHuyBoiNguoiTao)
+              )
+    `;
+  const params = [
+    {
+      name: 'MaSK_DaDuyetBGH',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.DA_DUYET_BGH,
+    },
+    {
+      name: 'MaSK_ChoDuyetPhong',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.CHO_DUYET_PHONG,
+    },
+    {
+      name: 'MaSK_PhongBiTuChoi',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.PHONG_BI_TU_CHOI,
+    },
+    {
+      name: 'MaYCP_ChoXuLy',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY,
+    },
+    {
+      name: 'MaYCP_DangXuLy',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_DANG_XU_LY,
+    },
+    {
+      name: 'MaYCP_TuChoiToanBo',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_TU_CHOI_TOAN_BO,
+    },
+    {
+      name: 'MaYCP_DaHuyBoiNguoiTao',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_DA_HUY_BOI_NGUOI_TAO,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
+/**
+ * Cập nhật trạng thái cho YeuCauMuonPhong (dùng khi tự động hủy)
+ * @param {number} ycMuonPhongID
+ * @param {number} trangThaiChungIDMoi
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<void>}
+ */
+const updateYeuCauMuonPhongHeaderStatusForAutoCancel = async (
+  ycMuonPhongID,
+  trangThaiChungIDMoi,
+  transaction
+) => {
+  // Giả sử bạn đã có hàm updateYeuCauMuonPhongHeaderStatus, hoặc tạo mới
+  const query = `
+        UPDATE YeuCauMuonPhong
+        SET TrangThaiChungID = @TrangThaiChungIDMoi
+        -- Không cần NguoiDuyetTongCSVCID cho tự động hủy
+        WHERE YcMuonPhongID = @YcMuonPhongID;
+    `;
+  const params = [
+    { name: 'TrangThaiChungIDMoi', type: sql.Int, value: trangThaiChungIDMoi },
+    { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+  ];
+  const request = transaction.request();
+  params.forEach((param) => request.input(param.name, param.type, param.value));
+  await request.query(query);
+};
+
+/**
+ * Lấy danh sách các bản ghi ChiTietDatPhong dựa trên SuKienID.
+ * Hữu ích để kiểm tra các phòng đã được đặt cho một sự kiện.
+ * @param {number} suKienID ID của sự kiện
+ * @param {sql.Transaction} [transaction=null] Giao dịch tùy chọn
+ * @returns {Promise<Array<object>>} Mảng các bản ghi từ ChiTietDatPhong
+ */
+const getChiTietDatPhongBySuKienID = async (suKienID, transaction = null) => {
+  const query = `
+    SELECT cdp.*
+    FROM ChiTietDatPhong cdp
+    JOIN YcMuonPhongChiTiet yct ON cdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
+    JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+    WHERE yc.SuKienID = @SuKienID;
+  `;
+  const params = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
+
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+
+  params.forEach((param) => request.input(param.name, param.type, param.value));
+  const result = await request.query(query);
+  return result.recordset;
+};
+
+/**
+ * Xóa các YcMuonPhongChiTiet bằng một mảng ID
+ * @param {number[]} chiTietIDsToDelete Mảng các ID cần xóa
+ * @param {sql.Transaction} transaction
+ */
+const deleteYcMuonPhongChiTietByIds = async (
+  chiTietIDsToDelete,
+  transaction
+) => {
+  if (!chiTietIDsToDelete || chiTietIDsToDelete.length === 0) {
+    return;
+  }
+  // Dùng Table-Valued Parameter để truyền mảng ID hiệu quả
+  const idTable = new sql.Table();
+  idTable.columns.add('ID', sql.Int);
+  chiTietIDsToDelete.forEach((id) => idTable.rows.add(id));
+
+  const query = `DELETE FROM YcMuonPhongChiTiet WHERE YcMuonPhongCtID IN (SELECT ID FROM @IdTable);`;
+  const request = transaction.request();
+  request.input('IdTable', idTable);
+  await request.query(query);
+};
+
+/**
+ * Cập nhật các trường thông tin chung của YeuCauMuonPhong (header).
+ * @param {number} ycMuonPhongID
+ * @param {object} data - { ghiChuChungYc }
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<void>}
+ */
+const updateYeuCauMuonPhongHeaderInfo = async (
+  ycMuonPhongID,
+  data,
+  transaction
+) => {
+  const setClauses = [];
+  const params = [
+    { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+  ];
+
+  if (data.ghiChuChungYc !== undefined) {
+    setClauses.push('GhiChuChungYc = @GhiChuChungYc');
+    params.push({
+      name: 'GhiChuChungYc',
+      type: sql.NVarChar(sql.MAX),
+      value: data.ghiChuChungYc,
+    });
+  }
+
+  if (setClauses.length === 0) {
+    return; // Không có gì để cập nhật
+  }
+
+  const query = `
+    UPDATE YeuCauMuonPhong
+    SET ${setClauses.join(', ')}
+    WHERE YcMuonPhongID = @YcMuonPhongID;
+  `;
+
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  await request.query(query);
+};
+
+/**
+ * Lấy tất cả các bản ghi YcMuonPhongChiTiet thuộc một YeuCauMuonPhong (header).
+ * @param {number} ycMuonPhongID
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<Array<object>>} Mảng các chi tiết yêu cầu
+ */
+const getAllChiTietByHeaderID = async (ycMuonPhongID, transaction) => {
+  // Lấy thêm TrangThaiCtID để kiểm tra xem có được phép sửa/xóa không
+  const query = `
+        SELECT YcMuonPhongCtID, TrangThaiCtID, tt.MaTrangThai
+        FROM YcMuonPhongChiTiet
+        JOIN TrangThaiYeuCauPhong tt ON YcMuonPhongChiTiet.TrangThaiCtID = tt.TrangThaiYcpID
+        WHERE YcMuonPhongID = @YcMuonPhongID;
+    `;
+  const params = [
+    { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+  ];
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  const result = await request.query(query);
+  return result.recordset;
+};
+
 export const yeuCauMuonPhongRepository = {
   getYeuCauMuonPhongListWithPagination,
   getYeuCauMuonPhongDetailById,
@@ -727,11 +1097,19 @@ export const yeuCauMuonPhongRepository = {
   checkPhongAvailability,
   createChiTietDatPhong,
   updateYcMuonPhongChiTietStatus,
+  updateYcMuonPhongChiTietRecord,
   countYcMuonPhongChiTietStatuses,
   updateYeuCauMuonPhongHeaderStatus,
   checkPhongExists,
   getYeuCauMuonPhongHeaderForCancel,
   updateAllChiTietOfYeuCauToHuy,
+  findYeuCauPhongChoCSVCQuaHan,
+  findSuKienQuaHanXepPhongDeHuy,
+  updateYeuCauMuonPhongHeaderStatusForAutoCancel,
+  getChiTietDatPhongBySuKienID,
+  deleteYcMuonPhongChiTietByIds,
+  updateYeuCauMuonPhongHeaderInfo,
+  getAllChiTietByHeaderID,
 };
 
 // Lưu ý quan trọng:
@@ -745,3 +1123,57 @@ export const yeuCauMuonPhongRepository = {
 // getYeuCauMuonPhongDetailById:
 // Thực hiện 2 query: 1 cho header, 1 cho tất cả các detail và phòng được cấp.
 // Sau đó gom nhóm các phongDuocCap cho mỗi YcMuonPhongChiTiet ở tầng ứng dụng (JavaScript).
+
+// FROM YeuCauMuonPhong yc
+// JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+// JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
+// JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
+// LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
+// LEFT JOIN DonVi dv_tgv_yc ON tgv_yc.DonViCongTacID = dv_tgv_yc.DonViID
+
+// -- ✅ Đổi sang OUTER APPLY để được phép dùng alias nd_yc.NguoiDungID
+// OUTER APPLY (
+//     SELECT TOP 1
+//         ndvt_inner.NguoiDungID,
+//         ndvt_inner.DonViID,
+//         ndvt_inner.VaiTroID AS VaiTroID_ndvt,
+//         ndvt_inner.NgayBatDau,
+//         ndvt_inner.NgayKetThuc,
+//         vt_inner.VaiTroID AS VaiTroID_vt,
+//         vt_inner.MaVaiTro,
+//         vt_inner.TenVaiTro
+//     FROM NguoiDung_VaiTro ndvt_inner
+//     JOIN VaiTroHeThong vt_inner ON ndvt_inner.VaiTroID = vt_inner.VaiTroID
+//     WHERE ndvt_inner.NguoiDungID = nd_yc.NguoiDungID
+//       AND vt_inner.MaVaiTro = 'CB_TO_CHUC_SU_KIEN'
+//       AND (ndvt_inner.NgayKetThuc IS NULL OR ndvt_inner.NgayKetThuc >= GETDATE())
+//     ORDER BY ndvt_inner.NgayBatDau DESC
+// ) AS ndvt_yc
+
+// LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
+
+// OUTER APPLY (
+//     SELECT TOP 1 DonViID_src AS DonViID, TenDonVi_src AS TenDonVi, MaDonVi_src AS MaDonVi, LoaiDonVi_src AS LoaiDonVi
+//     FROM (
+//         -- Ưu tiên đơn vị từ vai trò được gán
+//         SELECT
+//             ndvt_yc.DonViID AS DonViID_src,
+//             dv_ndvt_yc.TenDonVi AS TenDonVi_src,
+//             dv_ndvt_yc.MaDonVi AS MaDonVi_src,
+//             dv_ndvt_yc.LoaiDonVi AS LoaiDonVi_src,
+//             1 AS priority
+//         WHERE ndvt_yc.DonViID IS NOT NULL
+
+//         UNION ALL
+
+//         -- Sau đó đến đơn vị công tác của giảng viên
+//         SELECT
+//             tgv_yc.DonViCongTacID AS DonViID_src,
+//             dv_tgv_yc.TenDonVi AS TenDonVi_src,
+//             dv_tgv_yc.MaDonVi AS MaDonVi_src,
+//             dv_tgv_yc.LoaiDonVi AS LoaiDonVi_src,
+//             2 AS priority
+//         WHERE tgv_yc.DonViCongTacID IS NOT NULL
+//     ) AS dv_src_ordered
+//     ORDER BY priority ASC
+// ) AS dv_nguoi_yc

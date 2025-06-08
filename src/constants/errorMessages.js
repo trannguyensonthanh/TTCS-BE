@@ -4,7 +4,6 @@ const errorMessages = {
   INVALID_CREDENTIALS: 'Invalid email or password.',
   TOKEN_EXPIRED: 'Token has expired.',
   TOKEN_INVALID: 'Token is invalid.',
-  // ... thêm các thông báo lỗi khác
 };
 
 export default errorMessages;

@@ -2,20 +2,24 @@
 import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 
+/**
+ * Lấy tất cả loại phòng với phân trang, tìm kiếm, sắp xếp.
+ * @param {object} params - Tham số lọc, phân trang, sắp xếp ({searchTerm, page, limit, sortBy, sortOrder})
+ * @returns {Promise<{items: Array<{loaiPhongID: number, tenLoaiPhong: string}>, totalItems: number}>}
+ */
 const getAllLoaiPhong = async (params) => {
   const {
-    isActive = true,
     searchTerm,
     page = 1,
     limit = 100,
     sortBy = 'TenLoaiPhong',
     sortOrder = 'ASC',
   } = params;
-  let query = `FROM LoaiPhong WHERE IsActive = @IsActive`; // Giả sử LoaiPhong có cột IsActive
-  const queryParams = [{ name: 'IsActive', type: sql.Bit, value: isActive }];
+  let query = `FROM LoaiPhong`;
+  const queryParams = [];
 
   if (searchTerm) {
-    query += ` AND (TenLoaiPhong LIKE @SearchTerm OR MoTa LIKE @SearchTerm)`;
+    query += ` WHERE (TenLoaiPhong LIKE @SearchTerm OR MoTa LIKE @SearchTerm)`;
     queryParams.push({
       name: 'SearchTerm',
       type: sql.NVarChar,
@@ -39,7 +43,6 @@ const getAllLoaiPhong = async (params) => {
         OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
     `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-  // Map để khớp LoaiPhongResponseMin
   const items = itemsResult.recordset.map((lp) => ({
     loaiPhongID: lp.LoaiPhongID,
     tenLoaiPhong: lp.TenLoaiPhong,
@@ -47,6 +50,28 @@ const getAllLoaiPhong = async (params) => {
   return { items, totalItems };
 };
 
+/**
+ * Lấy loại phòng theo ID.
+ * @param {number} loaiPhongID - ID loại phòng
+ * @returns {Promise<{loaiPhongID: number, tenLoaiPhong: string}|null>} Thông tin loại phòng hoặc null nếu không tồn tại
+ */
+const getLoaiPhongById = async (loaiPhongID) => {
+  const query = `
+    SELECT LoaiPhongID, TenLoaiPhong
+    FROM LoaiPhong
+    WHERE LoaiPhongID = @LoaiPhongID
+  `;
+  const params = [{ name: 'LoaiPhongID', type: sql.Int, value: loaiPhongID }];
+  const result = await executeQuery(query, params);
+  if (result.recordset.length === 0) return null;
+  const lp = result.recordset[0];
+  return {
+    loaiPhongID: lp.LoaiPhongID,
+    tenLoaiPhong: lp.TenLoaiPhong,
+  };
+};
+
 export const loaiPhongRepository = {
   getAllLoaiPhong,
+  getLoaiPhongById,
 };

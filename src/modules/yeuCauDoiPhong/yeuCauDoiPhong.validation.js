@@ -3,6 +3,11 @@ import Joi from 'joi';
 
 import validate from '../../utils/validation.utils.js';
 
+/**
+ * Schema kiểm tra tham số truy vấn khi lấy danh sách yêu cầu đổi phòng.
+ * Đầu vào: các trường truy vấn (searchTerm, trangThaiYcDoiPhongMa, suKienID, ...)
+ * Đầu ra: object Joi schema để validate query params
+ */
 const getYeuCauDoiPhongParamsSchema = Joi.object({
   searchTerm: Joi.string().allow('', null).optional(),
   trangThaiYcDoiPhongMa: Joi.string().allow('', null).optional(),
@@ -29,6 +34,11 @@ const getYeuCauDoiPhongParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').allow(null).optional(),
 });
 
+/**
+ * Schema kiểm tra tham số id trong params.
+ * Đầu vào: id (number, bắt buộc)
+ * Đầu ra: object Joi schema để validate params
+ */
 const idParamSchema = Joi.object({
   id: Joi.number()
     .integer()
@@ -37,6 +47,11 @@ const idParamSchema = Joi.object({
     .messages({ 'any.required': 'ID Yêu cầu đổi phòng là bắt buộc' }),
 });
 
+/**
+ * Schema kiểm tra payload khi tạo mới yêu cầu đổi phòng.
+ * Đầu vào: ycMuonPhongCtID, datPhongID_Cu, lyDoDoiPhong, ycPhongMoi_LoaiID, ycPhongMoi_SucChua, ycPhongMoi_ThietBi
+ * Đầu ra: object Joi schema để validate body
+ */
 const createYeuCauDoiPhongPayloadSchema = Joi.object({
   ycMuonPhongCtID: Joi.number().integer().positive().required(),
   datPhongID_Cu: Joi.number().integer().positive().required(),
@@ -46,6 +61,11 @@ const createYeuCauDoiPhongPayloadSchema = Joi.object({
   ycPhongMoi_ThietBi: Joi.string().allow('', null).optional(),
 });
 
+/**
+ * Schema kiểm tra payload khi xử lý yêu cầu đổi phòng (duyệt/từ chối).
+ * Đầu vào: hanhDong, phongMoiID, ghiChuCSVC, lyDoTuChoiDoiCSVC
+ * Đầu ra: object Joi schema để validate body
+ */
 const xuLyYeuCauDoiPhongPayloadSchema = Joi.object({
   hanhDong: Joi.string().valid('DUYET', 'TU_CHOI').required(),
   phongMoiID: Joi.number()
@@ -75,6 +95,11 @@ const xuLyYeuCauDoiPhongPayloadSchema = Joi.object({
     }),
 });
 
+/**
+ * Đối tượng export các middleware validate cho yêu cầu đổi phòng.
+ * Đầu vào: request (query, params, body)
+ * Đầu ra: middleware validate tương ứng
+ */
 export const yeuCauDoiPhongValidation = {
   validateGetYeuCauDoiPhongParams: validate(
     getYeuCauDoiPhongParamsSchema,

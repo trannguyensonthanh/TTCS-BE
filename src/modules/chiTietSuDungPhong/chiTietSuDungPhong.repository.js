@@ -7,22 +7,13 @@ import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enu
 
 /**
  * Lấy danh sách các phòng đã đặt đang hoạt động mà người dùng có thể yêu cầu đổi.
- * Điều kiện:
- * - Sự kiện phải ở trạng thái DA_XAC_NHAN_PHONG (hoặc các trạng thái tương đương mà việc đổi phòng còn hợp lý).
- * - YcMuonPhongChiTiet phải ở trạng thái DA_XEP_PHONG.
- * - ChiTietDatPhong đó chưa có YeuCauDoiPhong nào đang CHO_DUYET_DOI_PHONG.
- * - Thời gian sự kiện (TgBatDauDK) chưa qua (hoặc còn đủ thời gian để đổi theo quy định).
- * @param {object} params - { nguoiYeuCauID, limit }
- * @returns {Promise<Array<object>>}
+ * @param {object} params - Tham số truy vấn ({ nguoiYeuCauID: number, limit?: number })
+ * @returns {Promise<Array<object>>} Danh sách phòng đã đặt còn hiệu lực
  */
 const getActiveBookedRoomsForChange = async (params) => {
   const { nguoiYeuCauID, limit = 20 } = params;
 
-  // Các mã trạng thái sự kiện cho phép đổi phòng
-  const skAllowChangeStatusCodes = [
-    MaTrangThaiSK.DA_XAC_NHAN_PHONG,
-    // MaTrangThaiSK.CHO_DUYET_PHONG, // Có thể xem xét nếu muốn đổi cả khi phòng chưa duyệt xong hết
-  ]
+  const skAllowChangeStatusCodes = [MaTrangThaiSK.DA_XAC_NHAN_PHONG]
     .map((code) => `'${code}'`)
     .join(',');
 
@@ -44,9 +35,9 @@ const getActiveBookedRoomsForChange = async (params) => {
         JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
         JOIN TrangThaiYeuCauPhong tt_yct ON yct.TrangThaiCtID = tt_yct.TrangThaiYcpID
         WHERE yc.NguoiYeuCauID = @NguoiYeuCauID
-          AND ttsk.MaTrangThai IN (${skAllowChangeStatusCodes}) -- Sự kiện phải ở trạng thái cho phép
-          AND tt_yct.MaTrangThai = @MaYcChiTietDaXepPhong -- Chi tiết yêu cầu phải đã được xếp phòng
-          AND sk.TgBatDauDK > DATEADD(day, 7, GETDATE()) -- Ví dụ: Sự kiện phải còn ít nhất 7 ngày nữa mới diễn ra
+          AND ttsk.MaTrangThai IN (${skAllowChangeStatusCodes})
+          AND tt_yct.MaTrangThai = @MaYcChiTietDaXepPhong
+          -- AND sk.TgBatDauDK > DATEADD(day, 7, GETDATE()) -- Sự kiện phải còn ít nhất 7 ngày nữa mới diễn ra (điều chỉnh sau)
           AND NOT EXISTS ( -- Chưa có yêu cầu đổi phòng nào đang chờ duyệt cho bản ghi ChiTietDatPhong này
                 SELECT 1
                 FROM YeuCauDoiPhong ycdp_check

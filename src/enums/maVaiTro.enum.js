@@ -7,10 +7,8 @@ const MaVaiTro = Object.freeze({
   TRUONG_KHOA: 'TRUONG_KHOA',
   TRUONG_CLB: 'TRUONG_CLB',
   BI_THU_DOAN: 'BI_THU_DOAN',
-  // Thêm các mã vai trò khác nếu có trong bảng VaiTroHeThong
-  // Ví dụ, nếu bạn vẫn dùng vai trò SINH_VIEN, GIANG_VIEN trong VaiTroHeThong
-  // SINH_VIEN: 'SINH_VIEN',
-  // GIANG_VIEN: 'GIANG_VIEN',
+  SINH_VIEN: 'SINH_VIEN',
+  GIANG_VIEN: 'GIANG_VIEN',
 });
 
 export default MaVaiTro;

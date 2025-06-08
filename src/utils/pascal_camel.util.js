@@ -1,3 +1,8 @@
+/**
+ * Chuyển đổi chuỗi PascalCase sang camelCase, giữ nguyên hậu tố viết hoa nếu có.
+ * Đầu vào: str (string)
+ * Đầu ra: string đã chuyển đổi
+ */
 export function pascalToCamelKeepSuffix(str) {
   const words = str.match(/[A-Z][a-z0-9]*|[A-Z]+(?![a-z])/g);
   if (!words) return str;
@@ -14,6 +19,11 @@ export function pascalToCamelKeepSuffix(str) {
   return camelWords.join('');
 }
 
+/**
+ * Đệ quy chuyển đổi tất cả key của object/array từ PascalCase sang camelCase (giữ hậu tố viết hoa nếu có).
+ * Đầu vào: obj (object hoặc array hoặc primitive)
+ * Đầu ra: object/array/primitive với key đã chuyển đổi
+ */
 export function transformKeysPascalToCamel(obj) {
   if (Array.isArray(obj)) {
     return obj.map(transformKeysPascalToCamel);
@@ -32,6 +42,5 @@ export function transformKeysPascalToCamel(obj) {
     return newObj;
   }
 
-  // Trường hợp không phải obj hoặc array (string, number, bool, null)
   return obj;
 }

@@ -43,6 +43,42 @@ const getLoaiSKParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('asc'),
 });
 
+/**
+ * Middleware validate payload tạo mới loại sự kiện.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {Function} next
+ * @returns {void} Trả về lỗi 400 nếu không hợp lệ, gọi next() nếu hợp lệ
+ */
+// validateCreateLoaiSK
+
+/**
+ * Middleware validate payload cập nhật loại sự kiện.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {Function} next
+ * @returns {void} Trả về lỗi 400 nếu không hợp lệ, gọi next() nếu hợp lệ
+ */
+// validateUpdateLoaiSK
+
+/**
+ * Middleware validate param :loaiSKId cho các API loại sự kiện.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {Function} next
+ * @returns {void} Trả về lỗi 400 nếu không hợp lệ, gọi next() nếu hợp lệ
+ */
+// validateLoaiSKIdParam
+
+/**
+ * Middleware validate query params cho API lấy danh sách loại sự kiện.
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {Function} next
+ * @returns {void} Trả về lỗi 400 nếu không hợp lệ, gọi next() nếu hợp lệ
+ */
+// validateGetLoaiSKParams
+
 export const loaiSuKienValidation = {
   validateCreateLoaiSK: validate(createLoaiSKSchema),
   validateUpdateLoaiSK: validate(updateLoaiSKSchema),

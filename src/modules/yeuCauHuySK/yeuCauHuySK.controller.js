@@ -1,18 +1,54 @@
-// src/modules/yeuCauHuySK/yeuCauHuySK.controller.js
-import { yeuCauHuySKService } from './yeuCauHuySK.service.js';
-import { createdResponse } from '../../utils/response.util.js'; // Hoặc okResponse tùy theo bạn muốn trả về status code nào
+/**
+ * Lấy danh sách yêu cầu hủy sự kiện.
+ * Đầu vào: req.query (searchTerm, trangThaiYcHuySkMa, suKienID, nguoiYeuCauID, page, limit, sortBy, sortOrder), req.user
+ * Đầu ra: Response trả về danh sách yêu cầu hủy sự kiện
+ */
+const getYeuCauHuySKsController = async (req, res) => {
+  const params = pick(req.query, [
+    'searchTerm',
+    'trangThaiYcHuySkMa',
+    'suKienID',
+    'nguoiYeuCauID',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+  const currentUser = req.user;
+  const result = await yeuCauHuySKService.getYeuCauHuySKs(params, currentUser);
+  okResponse(res, result, 'Lấy danh sách yêu cầu hủy sự kiện thành công.');
+};
 
+/**
+ * Lấy chi tiết một yêu cầu hủy sự kiện.
+ * Đầu vào: req.params.id (ID yêu cầu), req.user, req.query.includeSuKienDetail (bool)
+ * Đầu ra: Response trả về chi tiết yêu cầu hủy sự kiện
+ */
+const getYeuCauHuySKDetailController = async (req, res) => {
+  const ycHuySkID = parseInt(req.params.id);
+  const currentUser = req.user;
+  const fetchSuKienFullDetail = req.query.includeSuKienDetail === 'true';
+  const result = await yeuCauHuySKService.getYeuCauHuySKDetail(
+    ycHuySkID,
+    currentUser,
+    fetchSuKienFullDetail
+  );
+  okResponse(res, result, 'Lấy chi tiết yêu cầu hủy sự kiện thành công.');
+};
+
+/**
+ * Tạo mới yêu cầu hủy sự kiện.
+ * Đầu vào: req.body (suKienID, lyDoHuy), req.user
+ * Đầu ra: Response trả về sự kiện đã cập nhật và message
+ */
 const createYeuCauHuySKController = async (req, res) => {
-  const { suKienID, lyDoHuy } = req.body; // Đã được validate
-  const nguoiYeuCau = req.user; // Từ authMiddleware
-
+  const { suKienID, lyDoHuy } = req.body;
+  const nguoiYeuCau = req.user;
   const suKienUpdated = await yeuCauHuySKService.createYeuCauHuySK(
     suKienID,
     lyDoHuy,
     nguoiYeuCau
   );
-
-  // FE yêu cầu trả về message và suKienUpdated
   createdResponse(
     res,
     { suKienUpdated },
@@ -20,6 +56,44 @@ const createYeuCauHuySKController = async (req, res) => {
   );
 };
 
+/**
+ * Duyệt yêu cầu hủy sự kiện.
+ * Đầu vào: req.params.id (ID yêu cầu), req.body (ghiChuBGH - optional), req.user
+ * Đầu ra: Response trả về kết quả duyệt yêu cầu
+ */
+const duyetYeuCauHuySKController = async (req, res) => {
+  const ycHuySkID = parseInt(req.params.id);
+  const payload = req.body;
+  const nguoiDuyet = req.user;
+  const result = await yeuCauHuySKService.duyetYeuCauHuySK(
+    ycHuySkID,
+    payload,
+    nguoiDuyet
+  );
+  okResponse(res, result, 'Duyệt yêu cầu hủy sự kiện thành công.');
+};
+
+/**
+ * Từ chối yêu cầu hủy sự kiện.
+ * Đầu vào: req.params.id (ID yêu cầu), req.body (lyDoTuChoiHuyBGH - required), req.user
+ * Đầu ra: Response trả về kết quả từ chối yêu cầu
+ */
+const tuChoiYeuCauHuySKController = async (req, res) => {
+  const ycHuySkID = parseInt(req.params.id);
+  const payload = req.body;
+  const nguoiDuyet = req.user;
+  const result = await yeuCauHuySKService.tuChoiYeuCauHuySK(
+    ycHuySkID,
+    payload,
+    nguoiDuyet
+  );
+  okResponse(res, result, 'Từ chối yêu cầu hủy sự kiện thành công.');
+};
+
 export const yeuCauHuySKController = {
+  getYeuCauHuySKsController,
+  getYeuCauHuySKDetailController,
   createYeuCauHuySKController,
+  duyetYeuCauHuySKController,
+  tuChoiYeuCauHuySKController,
 };

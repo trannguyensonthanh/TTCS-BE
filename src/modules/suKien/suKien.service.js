@@ -8,6 +8,9 @@ import { authRepository } from '../auth/auth.repository.js';
 import { loaiSuKienRepository } from '../loaiSuKien/loaiSuKien.repository.js';
 import LoaiThongBao from '../../enums/loaiThongBao.enum.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
+import logger from '../../utils/logger.util.js';
+import { getPool } from '../../utils/database.js';
+import sql from 'mssql';
 /**
  * Lấy danh sách sự kiện với phân trang và bộ lọc
  * @param {object} params - GetSuKienParams
@@ -37,14 +40,14 @@ const getSuKienList = async (params) => {
  */
 const getSuKienDetail = async (suKienID) => {
   const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+
   if (!suKien) {
     throw new ApiError(
       httpStatus.NOT_FOUND,
       'Sự kiện không tồn tại hoặc bạn không có quyền truy cập.'
     );
   }
-  // Có thể thêm logic kiểm tra quyền xem sự kiện ở đây nếu cần
-  // (ví dụ: nếu sự kiện không công khai, người dùng hiện tại có nằm trong danh sách mời/đơn vị tham gia không)
+
   return suKien;
 };
 
@@ -65,18 +68,20 @@ const updateSuKienTrangThai = async (suKienID, payload, nguoiThucHien) => {
   }
 
   if (maTrangThaiMoi === MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO) {
-    // Sử dụng enum
     if (suKienHienTai.NguoiTaoID !== nguoiThucHien.nguoiDungID) {
       throw new ApiError(
         httpStatus.FORBIDDEN,
         'Bạn không phải là người tạo sự kiện này để thực hiện hành động tự hủy.'
       );
     }
-    if (suKienHienTai.MaTrangThaiHienTai !== MaTrangThaiSK.CHO_DUYET_BGH) {
-      // Sử dụng enum
+    if (
+      suKienHienTai.MaTrangThaiHienTai !== MaTrangThaiSK.CHO_DUYET_BGH &&
+      suKienHienTai.MaTrangThaiHienTai !==
+        MaTrangThaiSK.BGH_YEU_CAU_CHINH_SUA_SK
+    ) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        `Không thể tự hủy sự kiện khi đang ở trạng thái "${suKienHienTai.MaTrangThaiHienTai}". Chỉ có thể tự hủy khi đang "${MaTrangThaiSK.CHO_DUYET_BGH}".`
+        `Không thể tự hủy sự kiện khi đang ở trạng thái "${suKienHienTai.MaTrangThaiHienTai}". Chỉ có thể tự hủy khi đang "${MaTrangThaiSK.CHO_DUYET_BGH} và ${MaTrangThaiSK.BGH_YEU_CAU_CHINH_SUA_SK}".`
       );
     }
     if (!lyDo) {
@@ -86,13 +91,12 @@ const updateSuKienTrangThai = async (suKienID, payload, nguoiThucHien) => {
       );
     }
   } else {
-    // Ví dụ kiểm tra quyền admin
     const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(
       nguoiThucHien.nguoiDungID
-    ); // Giả sử hàm này tồn tại trong authRepository
+    );
     const isAdmin = userRoles.some(
       (r) => r.maVaiTro === MaVaiTro.ADMIN_HE_THONG
-    ); // Sử dụng enum
+    );
     if (!isAdmin) {
       throw new ApiError(
         httpStatus.FORBIDDEN,
@@ -140,7 +144,7 @@ const getPublicSuKienList = async (params) => {
     await suKienRepository.getPublicSuKienListWithPagination(params);
 
   const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 9; // Default limit cho public có thể khác
+  const limit = parseInt(params.limit) || 9;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -160,18 +164,12 @@ const getPublicSuKienList = async (params) => {
 const getPublicSuKienDetail = async (suKienID) => {
   const suKien = await suKienRepository.getPublicSuKienDetailById(suKienID);
   if (!suKien) {
-    // Lỗi ở đây có thể do sự kiện không tồn tại HOẶC không công khai
     throw new ApiError(
       httpStatus.NOT_FOUND,
       'Sự kiện không tồn tại hoặc không được phép truy cập công khai.'
     );
   }
-  // Có thể lược bớt một số thông tin nhạy cảm khỏi 'suKien' trước khi trả về nếu cần
-  // Ví dụ: không trả về nguoiDuyetBGH, lyDoTuChoiBGH cho public API
-  // const publicDetail = { ...suKien };
-  // delete publicDetail.nguoiDuyetBGH;
-  // delete publicDetail.lyDoTuChoiBGH;
-  // return publicDetail;
+
   return suKien;
 };
 
@@ -190,13 +188,14 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
       );
     }
   } else {
-    suKienDataToCreate.loaiSuKienID = null; // Hoặc gán một loại mặc định nếu có
+    suKienDataToCreate.loaiSuKienID = null;
   }
 
   // 2. Lấy ID trạng thái ban đầu
   const trangThaiBanDauID = await suKienRepository.getTrangThaiSkIDByMa(
     MaTrangThaiSK.CHO_DUYET_BGH
   );
+  logger.debug('Trang thái ban đầu của sự kiện:', trangThaiBanDauID);
   if (!trangThaiBanDauID) {
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
@@ -235,8 +234,8 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
       suKienDataToCreate.isCongKhaiNoiBo !== undefined
         ? suKienDataToCreate.isCongKhaiNoiBo
         : false,
-    tgBatDauThucTe: null, // Mặc định khi mới tạo
-    tgKetThucThucTe: null, // Mặc định khi mới tạo
+    tgBatDauThucTe: null,
+    tgKetThucThucTe: null,
   };
   const pool = await getPool();
   if (!pool) {
@@ -251,7 +250,6 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
     await transaction.begin();
     logger.debug('Transaction started for creating SuKien');
 
-    // Truyền transaction vào các hàm repository
     const createdSuKienRaw = await suKienRepository.createSuKien(
       suKienPayloadForDB,
       transaction
@@ -275,7 +273,6 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
     await transaction.commit();
     logger.info(`Transaction committed for SuKienID: ${newSuKienID}`);
 
-    // Sau khi commit thành công, lấy lại thông tin chi tiết đầy đủ để trả về
     const chiTietSuKienVuaTao =
       await suKienRepository.getSuKienDetailById(newSuKienID);
     if (!chiTietSuKienVuaTao) {
@@ -290,14 +287,14 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
     // Gửi thông báo cho BGH
     const usersWithBGHRole = await authRepository.findUsersByRoleMa(
       MaVaiTro.BGH_DUYET_SK_TRUONG
-    ); // Cần tạo hàm này
+    );
     if (usersWithBGHRole && usersWithBGHRole.length > 0) {
       usersWithBGHRole.forEach((userBGH) => {
         thongBaoService
           .createThongBao({
-            NguoiNhanID: userBGH.NguoiDungID, // Giả sử hàm findUsersByRoleMa trả về mảng user có NguoiDungID
+            NguoiNhanID: userBGH.NguoiDungID,
             NoiDungTB: `Có sự kiện mới "[${chiTietSuKienVuaTao.tenSK}]" đang chờ Ban Giám Hiệu duyệt.`,
-            DuongDanTB: `/admin/su-kien-cho-duyet/${chiTietSuKienVuaTao.suKienID}`, // Ví dụ link admin
+            DuongDanTB: `/admin/su-kien-cho-duyet/${chiTietSuKienVuaTao.suKienID}`,
             SkLienQuanID: chiTietSuKienVuaTao.suKienID,
             LoaiThongBao: LoaiThongBao.SU_KIEN_MOI_CHO_DUYET_BGH,
           })
@@ -315,8 +312,7 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
       'Error during SuKien creation transaction, rolling back...',
       error
     );
-    if (transaction && transaction.rolledBack === false && transaction.active) {
-      // Kiểm tra trạng thái transaction trước khi rollback
+    if (transaction) {
       try {
         await transaction.rollback();
         logger.info('Transaction rolled back successfully.');
@@ -333,25 +329,43 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
   }
 };
 
-const updateSuKienService = async (suKienID, updateBody, nguoiThucHienID) => {
+const updateSuKienService = async (suKienID, updateBody, nguoiThucHien) => {
+  logger.debug(`Updating SuKien with ID: ${suKienID}`, updateBody);
   const suKienHienTai = await suKienRepository.getSuKienDetailById(suKienID);
   if (!suKienHienTai) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
   }
-  // Kiểm tra quyền sửa (ví dụ: chỉ người tạo hoặc admin)
+
   if (
-    suKienHienTai.nguoiTao.nguoiDungID !==
-    nguoiThucHienID /* && !isAdmin(nguoiThucHienID) */
+    suKienHienTai.nguoiTao.nguoiDungID !== nguoiThucHien.nguoiDungID &&
+    !(
+      await authRepository.getVaiTroChucNangByNguoiDungID(
+        nguoiThucHien.nguoiDungID
+      )
+    ).some((role) => role.maVaiTro === MaVaiTro.ADMIN_HE_THONG)
   ) {
     throw new ApiError(
       httpStatus.FORBIDDEN,
       'Bạn không có quyền sửa sự kiện này.'
     );
   }
-  // Kiểm tra trạng thái có cho phép sửa không (ví dụ: không cho sửa khi đã hoàn thành/hủy)
-  // ...
 
-  // Validate LoaiSuKienID nếu được cập nhật
+  // Kiểm tra trạng thái cho phép sửa
+  const allowedEditStatuses = [
+    MaTrangThaiSK.CHO_DUYET_BGH,
+    MaTrangThaiSK.BGH_YEU_CAU_CHINH_SUA_SK,
+    MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO,
+    MaTrangThaiSK.BI_TU_CHOI_BGH,
+    MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO,
+  ];
+  if (!allowedEditStatuses.includes(suKienHienTai.trangThaiSK.maTrangThai)) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Không thể sửa sự kiện khi đang ở trạng thái "${suKienHienTai.trangThaiSK.tenTrangThai}".`
+    );
+  }
+
+  // Validate các FKs nếu được cập nhật (LoaiSuKienID, DonViChuTriID nếu cho phép sửa)
   if (
     updateBody.loaiSuKienID &&
     updateBody.loaiSuKienID !== suKienHienTai.loaiSuKien?.loaiSuKienID
@@ -359,26 +373,131 @@ const updateSuKienService = async (suKienID, updateBody, nguoiThucHienID) => {
     const loaiSK = await loaiSuKienRepository.getLoaiSKById(
       updateBody.loaiSuKienID
     );
-    if (!loaiSK || !loaiSK.IsActive) {
+    if (!loaiSK) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        'Loại sự kiện mới không hợp lệ hoặc không hoạt động.'
+        'Loại sự kiện mới không hợp lệ.'
       );
     }
   }
 
-  const updatedSuKienRaw = await suKienRepository.updateSuKienById(
-    suKienID,
-    updateBody
-  );
-  if (!updatedSuKienRaw) {
+  const { cacDonViThamGiaIDs, ghiChuPhanHoiChoBGH, ...suKienUpdateData } =
+    updateBody;
+
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    await suKienRepository.updateSuKienById(
+      suKienID,
+      suKienUpdateData,
+      transaction
+    );
+    logger.info(`SuKienID ${suKienID} updated with data:`, suKienUpdateData);
+    if (cacDonViThamGiaIDs !== undefined) {
+      await suKienRepository.clearDonViThamGiaFromSuKien(suKienID, transaction);
+      if (cacDonViThamGiaIDs.length > 0) {
+        await suKienRepository.addDonViThamGiaToSuKien(
+          suKienID,
+          cacDonViThamGiaIDs,
+          transaction
+        );
+      }
+    }
+    logger.info(`SuKienID ${suKienID} updated successfully.`);
+
+    let shouldNotifyBGH = false;
+    if (
+      suKienHienTai.trangThaiSK.maTrangThai ===
+        MaTrangThaiSK.BGH_YEU_CAU_CHINH_SUA_SK ||
+      suKienHienTai.trangThaiSK.maTrangThai === MaTrangThaiSK.CHO_DUYET_BGH ||
+      suKienHienTai.trangThaiSK.maTrangThai ===
+        MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO ||
+      suKienHienTai.trangThaiSK.maTrangThai === MaTrangThaiSK.BI_TU_CHOI_BGH ||
+      suKienHienTai.trangThaiSK.maTrangThai ===
+        MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO
+    ) {
+      shouldNotifyBGH = true;
+      const trangThaiChoDuyetBGH_ID =
+        await suKienRepository.getTrangThaiSkIDByMa(
+          MaTrangThaiSK.CHO_DUYET_BGH,
+          transaction
+        );
+      if (!trangThaiChoDuyetBGH_ID)
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Lỗi cấu hình trạng thái.'
+        );
+
+      await suKienRepository.updateSuKienTrangThai(
+        suKienID,
+        trangThaiChoDuyetBGH_ID,
+        transaction
+      );
+      logger.info(
+        `SuKienID ${suKienID} status changed back to CHO_DUYET_BGH after edit.`
+      );
+
+      if (shouldNotifyBGH) {
+        const tenSKMoiNhat = updateBody.tenSK || suKienHienTai.tenSK;
+
+        const usersBGH = await authRepository.findUsersByRoleMa(
+          MaVaiTro.BGH_DUYET_SK_TRUONG
+        );
+        if (usersBGH && usersBGH.length > 0) {
+          usersBGH.forEach((user) => {
+            // Dùng Promise.allSettled để không đợi từng cái, và không làm crash tiến trình chính nếu 1 cái lỗi
+            thongBaoService
+              .createThongBao({
+                NguoiNhanID: user.NguoiDungID,
+                NoiDungTB: `Sự kiện "[${tenSKMoiNhat}]" đã được người tạo chỉnh sửa (Phản hồi: ${ghiChuPhanHoiChoBGH || 'Không có'}) và đang chờ duyệt lại.`,
+                DuongDanTB: `/admin/su-kien-cho-duyet/${suKienID}`,
+                SkLienQuanID: suKienID,
+                LoaiThongBao: 'SU_KIEN_DA_CHINH_SUA_CHO_BGH', // Cần thêm enum này
+                transaction,
+              })
+              .catch((err) =>
+                logger.error(
+                  'Failed to send SU_KIEN_DA_CHINH_SUA_CHO_BGH notification:',
+                  err
+                )
+              );
+          });
+        }
+      }
+      logger.debug(
+        `Transaction for updating SuKienID ${suKienID} started successfully.`
+      );
+      await transaction.commit();
+    }
+
+    const updatedSuKienDetail =
+      await suKienRepository.getSuKienDetailById(suKienID);
+    if (!updatedSuKienDetail) {
+      throw new ApiError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Không thể lấy thông tin sự kiện sau khi cập nhật.'
+      );
+    }
+    return updatedSuKienDetail;
+  } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rbErr) {
+        logger.error(
+          'Error rolling back transaction on updateSuKienService:',
+          rbErr
+        );
+      }
+    }
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Cập nhật sự kiện thất bại.'
     );
   }
-  // Lấy lại thông tin chi tiết đầy đủ
-  return suKienRepository.getSuKienDetailById(updatedSuKienRaw.SuKienID);
 };
 
 /**
@@ -394,10 +513,10 @@ const duyetSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
   }
 
-  if (suKien.MaTrangThaiHienTaiSK !== MaTrangThaiSK.CHO_DUYET_BGH) {
+  if (suKien.MaTrangThaiHienTai !== MaTrangThaiSK.CHO_DUYET_BGH) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `Sự kiện không ở trạng thái "Chờ duyệt BGH". Trạng thái hiện tại: ${suKien.MaTrangThaiHienTaiSK}`
+      `Sự kiện không ở trạng thái "Chờ duyệt BGH". Trạng thái hiện tại: ${suKien.MaTrangThaiHienTai}`
     );
   }
 
@@ -416,11 +535,10 @@ const duyetSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
     nguoiDuyet.nguoiDungID,
     new Date(),
     trangThaiDaDuyetID,
-    payload.ghiChuBGH // Sẽ không lưu nếu không có cột GhiChuBGH
-    // Không có LyDoTuChoi khi duyệt
+    payload.ghiChuBGH
   );
 
-  const updatedSuKien = await suKienRepository.getSuKienDetailById(suKienID); // Lấy chi tiết để có TenSK
+  const updatedSuKien = await suKienRepository.getSuKienDetailById(suKienID);
 
   // Gửi thông báo cho người tạo sự kiện
   if (
@@ -432,13 +550,13 @@ const duyetSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
       .createThongBao({
         NguoiNhanID: updatedSuKien.nguoiTao.nguoiDungID,
         NoiDungTB: `Sự kiện "[${updatedSuKien.tenSK}]" của bạn đã được Ban Giám Hiệu duyệt. Vui lòng tiến hành đăng ký phòng.`,
-        DuongDanTB: `/quan-ly-su-kien/${suKienID}/chi-tiet`, // Ví dụ link frontend
+        DuongDanTB: `/quan-ly-su-kien/${suKienID}/chi-tiet`,
         SkLienQuanID: suKienID,
         LoaiThongBao: LoaiThongBao.SU_KIEN_DA_DUYET_BGH,
       })
       .catch((err) =>
         logger.error('Failed to send DA_DUYET_BGH notification:', err)
-      ); // Bắt lỗi để không ảnh hưởng luồng chính
+      );
   }
   return updatedSuKien;
 };
@@ -454,11 +572,12 @@ const tuChoiSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
   if (!suKien) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
   }
+  logger.debug('suKien for tuChoiSuKienByBGH:', suKien);
 
-  if (suKien.MaTrangThaiHienTaiSK !== MaTrangThaiSK.CHO_DUYET_BGH) {
+  if (suKien.MaTrangThaiHienTai !== MaTrangThaiSK.CHO_DUYET_BGH) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `Sự kiện không ở trạng thái "Chờ duyệt BGH". Trạng thái hiện tại: ${suKien.MaTrangThaiHienTaiSK}`
+      `Sự kiện không ở trạng thái "Chờ duyệt BGH". Trạng thái hiện tại: ${suKien.MaTrangThaiHienTai}`
     );
   }
 
@@ -477,7 +596,7 @@ const tuChoiSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
     nguoiDuyet.nguoiDungID,
     new Date(),
     trangThaiBiTuChoiID,
-    null, // Không có ghi chú khi duyệt
+    null,
     payload.lyDoTuChoiBGH
   );
 
@@ -505,15 +624,13 @@ const tuChoiSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
 };
 
 /**
- * Lấy danh sách sự kiện đủ điều kiện để tạo yêu cầu phòng
+ * Lấy danh sách sự kiện đủ điều kiện để tạo yêu cầu phòng.
  * @param {object} params - { nguoiTaoID, donViChuTriID, searchTerm, page, limit }
- * @param {object} currentUser - Người dùng hiện tại (để có thể lọc theo đơn vị của họ nếu cần)
- * @returns {Promise<PaginatedResponse<SuKienForSelectResponse>>}
+ * @param {object} currentUser - Người dùng hiện tại (dùng để lọc theo quyền hoặc đơn vị nếu cần)
+ * @returns {Promise<Array<SuKienForSelectResponse>>} Danh sách sự kiện phù hợp
  */
 const getSuKiensForYeuCauPhongSelect = async (params, currentUser) => {
   let queryParams = { ...params };
-  // Logic phân quyền có thể được thêm ở đây nếu CBTC chỉ được chọn sự kiện của họ/đơn vị họ
-  // Ví dụ:
   const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(
     currentUser.nguoiDungID
   );
@@ -526,7 +643,6 @@ const getSuKiensForYeuCauPhongSelect = async (params, currentUser) => {
   ) {
     if (!queryParams.nguoiTaoID)
       queryParams.nguoiTaoID = currentUser.nguoiDungID;
-    // Thêm logic lọc theo donViChuTriID của CBTC nếu cần
   }
 
   const { items, totalItems } =
@@ -535,13 +651,182 @@ const getSuKiensForYeuCauPhongSelect = async (params, currentUser) => {
   const limit = parseInt(params.limit) || 20;
   const totalPages = Math.ceil(totalItems / limit);
 
-  return {
-    items,
-    totalPages,
-    currentPage: page,
-    totalItems,
-    pageSize: limit,
-  };
+  return items;
+};
+
+const SO_NGAY_TOI_DA_CHO_BGH_DUYET = 7;
+/**
+ * Gửi thông báo nhắc nhở BGH duyệt các sự kiện quá hạn.
+ * @returns {Promise<void>}
+ */
+const sendRemindersForOverdueBGHApproval = async () => {
+  logger.info('JOB: Checking for overdue BGH approval events...');
+  const overdueEvents = await suKienRepository.findSuKienChoBGHQuaHan(
+    SO_NGAY_TOI_DA_CHO_BGH_DUYET
+  );
+
+  if (overdueEvents.length === 0) {
+    logger.info('JOB: No overdue BGH approval events found.');
+    return;
+  }
+
+  const usersWithBGHRole = await authRepository.findUsersByRoleMa(
+    MaVaiTro.BGH_DUYET_SK_TRUONG
+  );
+  if (!usersWithBGHRole || usersWithBGHRole.length === 0) {
+    logger.warn(
+      'JOB: No users with BGH_DUYET_SK_TRUONG role found to send reminders.'
+    );
+    return;
+  }
+
+  for (const event of overdueEvents) {
+    for (const userBGH of usersWithBGHRole) {
+      thongBaoService
+        .createThongBao({
+          NguoiNhanID: userBGH.NguoiDungID,
+          NoiDungTB: `Nhắc nhở: Sự kiện "[${event.TenSK}]" (tạo bởi ${event.EmailNguoiTao || event.NguoiTaoID}) đã chờ duyệt quá ${SO_NGAY_TOI_DA_CHO_BGH_DUYET} ngày.`,
+          DuongDanTB: `/admin/su-kien-cho-duyet/${event.SuKienID}`,
+          SkLienQuanID: event.SuKienID,
+          LoaiThongBao: LoaiThongBao.SU_KIEN_NHAC_NHO_DUYET_BGH,
+        })
+        .catch((err) =>
+          logger.error(
+            `JOB: Failed to send BGH reminder notification for SuKienID ${event.SuKienID} to UserID ${userBGH.NguoiDungID}:`,
+            err
+          )
+        );
+    }
+  }
+  logger.info(
+    `JOB: Sent ${overdueEvents.length * usersWithBGHRole.length} BGH approval reminders.`
+  );
+};
+
+/**
+ * Tự động hủy các sự kiện đã đến hạn bắt đầu nhưng vẫn đang chờ BGH duyệt.
+ * @returns {Promise<void>}
+ */
+const autoCancelOverdueBGHApprovalEvents = async () => {
+  logger.info(
+    'JOB: Checking for events to auto-cancel due to overdue BGH approval and start time passed...'
+  );
+  const eventsToCancel =
+    await suKienRepository.findSuKienSapDienRaChoBGHDeHuy();
+
+  if (eventsToCancel.length === 0) {
+    logger.info('JOB: No events to auto-cancel (overdue BGH approval).');
+    return;
+  }
+
+  const trangThaiHuyID = await suKienRepository.getTrangThaiSkIDByMa(
+    MaTrangThaiSK.HUY_DO_QUA_HAN_XU_LY
+  );
+  if (!trangThaiHuyID) {
+    logger.error(
+      'JOB: Auto-cancel failed. HUY_DO_QUA_HAN_XU_LY status not found.'
+    );
+    return;
+  }
+
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const eventIDsToCancel = eventsToCancel.map((e) => e.SuKienID);
+    await suKienRepository.updateTrangThaiNhieuSuKien(
+      eventIDsToCancel,
+      trangThaiHuyID,
+      transaction
+    );
+    await transaction.commit();
+    logger.info(
+      `JOB: Auto-cancelled ${eventsToCancel.length} events due to overdue BGH approval.`
+    );
+
+    // Gửi thông báo cho người tạo
+    for (const event of eventsToCancel) {
+      thongBaoService
+        .createThongBao({
+          NguoiNhanID: event.NguoiTaoID,
+          NoiDungTB: `Sự kiện "[${event.TenSK}]" của bạn đã bị tự động hủy do quá hạn Ban Giám Hiệu duyệt và đã đến thời gian dự kiến bắt đầu.`,
+          DuongDanTB: `/quan-ly-su-kien/${event.SuKienID}/chi-tiet`,
+          SkLienQuanID: event.SuKienID,
+          LoaiThongBao: LoaiThongBao.SU_KIEN_TU_DONG_HUY_QUA_HAN,
+        })
+        .catch((err) =>
+          logger.error(
+            `JOB: Failed to send auto-cancel notification for SuKienID ${event.SuKienID}:`,
+            err
+          )
+        );
+    }
+  } catch (error) {
+    logger.error(
+      'JOB: Error during auto-cancelling overdue BGH approval events, rolling back...',
+      error
+    );
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rbError) {
+        logger.error('JOB: Error during rollback:', rbError);
+      }
+    }
+  }
+};
+
+/**
+ * Tự động cập nhật trạng thái các sự kiện đã kết thúc thành HOAN_THANH.
+ * @returns {Promise<void>}
+ */
+const autoCompleteFinishedEvents = async () => {
+  logger.info('JOB: Checking for finished events to mark as "HOAN_THANH"...');
+  const eventIDsToComplete =
+    await suKienRepository.findFinishedEventsToUpdateStatus();
+
+  if (!eventIDsToComplete || eventIDsToComplete.length === 0) {
+    logger.info('JOB: No finished events found to update.');
+    return;
+  }
+
+  const trangThaiHoanThanhID = await suKienRepository.getTrangThaiSkIDByMa(
+    MaTrangThaiSK.HOAN_THANH
+  );
+  if (!trangThaiHoanThanhID) {
+    logger.error('JOB: Auto-complete failed. HOAN_THANH status ID not found.');
+    return;
+  }
+
+  await suKienRepository.updateTrangThaiNhieuSuKien(
+    eventIDsToComplete,
+    trangThaiHoanThanhID
+  );
+
+  logger.info(
+    `JOB: Successfully marked ${eventIDsToComplete.length} events as "HOAN_THANH". IDs: [${eventIDsToComplete.join(', ')}]`
+  );
+
+  // Gửi thông báo cho người tạo sự kiện biết sự kiện của họ đã hoàn thành.
+  for (const suKienID of eventIDsToComplete) {
+    const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+    if (suKien && suKien.nguoiTao && suKien.nguoiTao.nguoiDungID) {
+      thongBaoService
+        .createThongBao({
+          NguoiNhanID: suKien.nguoiTao.nguoiDungID,
+          NoiDungTB: `Sự kiện "[${suKien.tenSK}]" của bạn đã kết thúc và được đánh dấu hoàn thành.`,
+          DuongDanTB: `/quan-ly-su-kien/${suKienID}/chi-tiet`,
+          SkLienQuanID: suKienID,
+          LoaiThongBao: LoaiThongBao.SU_KIEN_HOAN_THANH,
+        })
+        .catch((err) =>
+          logger.error(
+            `JOB: Failed to send HOAN_THANH notification for SuKienID ${suKienID}:`,
+            err
+          )
+        );
+    }
+  }
 };
 
 export const suKienService = {
@@ -555,4 +840,7 @@ export const suKienService = {
   duyetSuKienByBGH,
   tuChoiSuKienByBGH,
   getSuKiensForYeuCauPhongSelect,
+  sendRemindersForOverdueBGHApproval,
+  autoCancelOverdueBGHApprovalEvents,
+  autoCompleteFinishedEvents,
 };

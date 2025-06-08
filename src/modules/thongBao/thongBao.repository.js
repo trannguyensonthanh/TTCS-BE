@@ -3,18 +3,13 @@ import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 
 /**
- * Lấy danh sách các DonViID liên quan đến người dùng:
- * - Đơn vị công tác chính của Giảng viên
- * - Khoa quản lý của Sinh viên
- * - Các đơn vị mà người dùng có vai trò chức năng (NguoiDung_VaiTroChucNang.DonViThucThiID)
- * - Các CLB mà người dùng là thành viên (ThanhVienCLB.DonViID_CLB)
- * @param {number} nguoiDungID
- * @returns {Promise<number[]>} Mảng các DonViID unique
+ * Lấy danh sách các DonViID liên quan đến người dùng
+ * Đầu vào: nguoiDungID (number) - ID người dùng
+ * Đầu ra: Promise<number[]> - Mảng các DonViID unique
  */
 const getRelevantDonViIDsForUser = async (nguoiDungID) => {
-  const donViIDs = new Set(); // Dùng Set để đảm bảo unique
+  const donViIDs = new Set();
 
-  // Lấy đơn vị từ ThongTinGiangVien
   let query = `SELECT DonViCongTacID FROM ThongTinGiangVien WHERE NguoiDungID = @NguoiDungID AND DonViCongTacID IS NOT NULL;`;
   let params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   let result = await executeQuery(query, params);
@@ -47,15 +42,13 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
     if (row.DonViThucThiID) donViIDs.add(row.DonViThucThiID);
   });
 
-  // Lấy các DonViID_CLB từ ThanhVienCLB (nếu có bảng này)
-  // Giả sử bạn đã tạo bảng ThanhVienCLB
+  // Lấy các DonViID_CLB từ ThanhVienCLB
   query = `
     SELECT DISTINCT DonViID_CLB
     FROM ThanhVienCLB
     WHERE NguoiDungID = @NguoiDungID AND IsActiveInCLB = 1
       AND (NgayRoiCLB IS NULL OR NgayRoiCLB >= GETDATE());
   `;
-  // Kiểm tra xem bảng ThanhVienCLB có tồn tại không trước khi query
   const checkTableQuery =
     "SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ThanhVienCLB'";
   const tableExistsResult = await executeQuery(checkTableQuery);
@@ -70,11 +63,9 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
 };
 
 /**
- * Lấy thông báo cho người dùng hiện tại
- * @param {number} nguoiDungID
- * @param {number[]} relevantDonViIDs Mảng các DonViID liên quan đến người dùng
- * @param {object} params - { limit, page, chiChuaDoc }
- * @returns {Promise<{ items: Array<object>, totalItems: number, totalUnread: number }>}
+ * Lấy thông báo cho người dùng hiện tại (có phân trang, lọc, ưu tiên chưa đọc)
+ * Đầu vào: nguoiDungID (number), relevantDonViIDs (number[]), params (object: { limit, page, chiChuaDoc })
+ * Đầu ra: Promise<{ items: Array<object>, totalItems: number, totalUnread: number }>
  */
 const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
   const { limit = 10, page = 1, chiChuaDoc } = params;
@@ -93,7 +84,6 @@ const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
     });
     whereClauses.push(`(tb.DonViNhanID IN (${donViParams.join(',')}))`);
   }
-  // Có thể thêm logic cho VaiTroNhanID nếu cần
 
   let baseWhere = `(${whereClauses.join(' OR ')})`;
 
@@ -112,7 +102,6 @@ const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
     WHERE ${baseWhere}
   `;
 
-  // Đếm tổng số thông báo chưa đọc (không phân trang)
   const unreadCountQuery = `SELECT COUNT(*) AS TotalUnread FROM ThongBao tb WHERE (${whereClauses.join(' OR ')}) AND tb.DaDocTB = 0;`;
   const unreadParams = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
@@ -160,6 +149,11 @@ const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
   return { items, totalItems, totalUnread };
 };
 
+/**
+ * Đánh dấu một thông báo là đã đọc cho người dùng
+ * Đầu vào: thongBaoID (number), nguoiDungID (number)
+ * Đầu ra: Promise<number> - Số dòng được cập nhật (0 nếu không có quyền)
+ */
 const markThongBaoAsRead = async (thongBaoID, nguoiDungID) => {
   // Cần kiểm tra xem thông báo này có thuộc về người dùng không trước khi đánh dấu
   const queryCheck = `
@@ -188,7 +182,7 @@ const markThongBaoAsRead = async (thongBaoID, nguoiDungID) => {
   ];
   const checkResult = await executeQuery(queryCheck, paramsCheck);
   if (checkResult.recordset.length === 0) {
-    return 0; // Không tìm thấy thông báo hoặc không có quyền
+    return 0;
   }
 
   const queryUpdate = `
@@ -203,6 +197,11 @@ const markThongBaoAsRead = async (thongBaoID, nguoiDungID) => {
   return result.rowsAffected[0]; // Số dòng được cập nhật
 };
 
+/**
+ * Đánh dấu tất cả thông báo là đã đọc cho người dùng
+ * Đầu vào: nguoiDungID (number), relevantDonViIDs (number[])
+ * Đầu ra: Promise<number> - Số dòng được cập nhật
+ */
 const markAllThongBaoAsReadForUser = async (nguoiDungID, relevantDonViIDs) => {
   let whereClauses = [`(NguoiNhanID = @NguoiDungID)`];
   const queryParams = [
@@ -229,27 +228,20 @@ const markAllThongBaoAsReadForUser = async (nguoiDungID, relevantDonViIDs) => {
 
 /**
  * Tạo một bản ghi thông báo mới trong CSDL
- * @param {object} thongBaoData - { NguoiNhanID?, DonViNhanID?, VaiTroNhanID?, SkLienQuanID?, YcLienQuanID?, LoaiYcLienQuan?, NoiDungTB, DuongDanTB?, LoaiThongBao }
- * @returns {Promise<object>} Bản ghi thông báo vừa được tạo
+ * Đầu vào: thongBaoData (object), transaction (object|null)
+ * Đầu ra: Promise<object> - Bản ghi thông báo vừa được tạo
  */
-const createThongBaoRecord = async (thongBaoData) => {
+const createThongBaoRecord = async (thongBaoData, transaction = null) => {
   const {
     NguoiNhanID = null,
     DonViNhanID = null,
-    // VaiTroNhanID = null, // Hiện tại ít dùng, có thể thêm sau nếu cần
     SkLienQuanID = null,
     YcLienQuanID = null,
     LoaiYcLienQuan = null,
     NoiDungTB,
     DuongDanTB = null,
-    LoaiThongBao = null, // Mã loại thông báo từ enum
+    LoaiThongBao = null,
   } = thongBaoData;
-
-  // Đảm bảo ít nhất một trong NguoiNhanID hoặc DonViNhanID có giá trị (tùy nghiệp vụ)
-  // if (!NguoiNhanID && !DonViNhanID && !VaiTroNhanID) {
-  //   throw new Error('Thông báo phải có ít nhất một người nhận, đơn vị nhận hoặc vai trò nhận.');
-  // }
-  // Trong thực tế, thường sẽ là NguoiNhanID hoặc DonViNhanID
 
   const query = `
     INSERT INTO ThongBao (
@@ -277,8 +269,146 @@ const createThongBaoRecord = async (thongBaoData) => {
     { name: 'LoaiThongBao', type: sql.VarChar(50), value: LoaiThongBao },
   ];
 
-  const result = await executeQuery(query, params);
+  const result = await executeQuery(query, params, transaction);
   return result.recordset[0];
+};
+
+/**
+ * Lấy tất cả thông báo cho người dùng hiện tại với phân trang và lọc
+ * Đầu vào: nguoiDungID (number), relevantDonViIDs (number[]), params (object)
+ * Đầu ra: Promise<{ items: Array<object>, totalItems: number, totalUnreadThisQuery?: number }>
+ */
+const getAllThongBaoForUserWithPagination = async (
+  nguoiDungID,
+  relevantDonViIDs,
+  params
+) => {
+  const {
+    daDoc,
+    loaiThongBao,
+    searchTerm,
+    page = 1,
+    limit = 15,
+    sortBy = 'tb.NgayTaoTB',
+    sortOrder = 'DESC',
+  } = params;
+
+  let whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
+  const queryParams = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+  ];
+
+  if (relevantDonViIDs && relevantDonViIDs.length > 0) {
+    const donViParams = relevantDonViIDs.map((id, index) => {
+      const paramName = `DonViIDFilter${index}`; // Đặt tên param khác để tránh trùng với các API khác
+      queryParams.push({ name: paramName, type: sql.Int, value: id });
+      return `@${paramName}`;
+    });
+    whereClauses.push(`(tb.DonViNhanID IN (${donViParams.join(',')}))`);
+  }
+
+  let baseWhere = `(${whereClauses.join(' OR ')})`;
+
+  if (typeof daDoc === 'boolean') {
+    baseWhere += ` AND tb.DaDocTB = @DaDocTB_Filter`;
+    queryParams.push({ name: 'DaDocTB_Filter', type: sql.Bit, value: daDoc });
+  }
+  if (loaiThongBao) {
+    baseWhere += ` AND tb.LoaiThongBao = @LoaiThongBao_Filter`;
+    queryParams.push({
+      name: 'LoaiThongBao_Filter',
+      type: sql.VarChar(50),
+      value: loaiThongBao,
+    });
+  }
+  if (searchTerm) {
+    baseWhere += ` AND (tb.NoiDungTB LIKE @SearchTerm OR sk.TenSK LIKE @SearchTerm)`;
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+
+  const fromClause = `
+    FROM ThongBao tb
+    LEFT JOIN SuKien sk ON tb.SkLienQuanID = sk.SuKienID
+    WHERE ${baseWhere}
+  `;
+
+  const countQuery = `SELECT COUNT(*) AS TotalItems ${fromClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems = countResult.recordset[0].TotalItems;
+
+  let totalUnreadThisQuery = 0;
+
+  totalUnreadThisQuery = await getTotalUnreadThongBaoForUser(
+    nguoiDungID,
+    relevantDonViIDs
+  );
+
+  const allowedSortBy = ['tb.NgayTaoTB', 'tb.LoaiThongBao', 'sk.TenSK'];
+  const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'tb.NgayTaoTB';
+  const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+    SELECT
+        tb.ThongBaoID,
+        tb.NoiDungTB,
+        tb.DuongDanTB,
+        tb.NgayTaoTB,
+        tb.DaDocTB,
+        tb.NgayDocTB,
+        tb.LoaiThongBao,
+        sk.TenSK AS TenSuKienLienQuan
+    ${fromClause}
+    ORDER BY ${safeSortBy} ${safeSortOrder}
+    OFFSET ${offset} ROWS
+    FETCH NEXT ${limit} ROWS ONLY;
+  `;
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  const items = itemsResult.recordset.map((row) => ({
+    thongBaoID: Number(row.ThongBaoID),
+    noiDungTB: row.NoiDungTB,
+    duongDanLienQuan: row.DuongDanTB,
+    ngayTaoTB: row.NgayTaoTB.toISOString(),
+    daDocTB: row.DaDocTB,
+    ngayDocTB: row.NgayDocTB ? row.NgayDocTB.toISOString() : null,
+    loaiThongBao: row.LoaiThongBao,
+    tenSuKienLienQuan: row.TenSuKienLienQuan,
+  }));
+
+  return { items, totalItems, totalUnread: totalUnreadThisQuery };
+};
+
+/**
+ * Lấy tổng số thông báo chưa đọc cho người dùng
+ * Đầu vào: nguoiDungID (number), relevantDonViIDs (number[])
+ * Đầu ra: Promise<number> - Tổng số thông báo chưa đọc
+ */
+const getTotalUnreadThongBaoForUser = async (nguoiDungID, relevantDonViIDs) => {
+  let whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
+  const queryParams = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+  ];
+
+  if (relevantDonViIDs && relevantDonViIDs.length > 0) {
+    const donViParams = relevantDonViIDs.map((id, index) => {
+      const paramName = `DonViID${index}`;
+      queryParams.push({ name: paramName, type: sql.Int, value: id });
+      return `@${paramName}`;
+    });
+    whereClauses.push(`(tb.DonViNhanID IN (${donViParams.join(',')}))`);
+  }
+
+  const query = `
+    SELECT COUNT(*) AS TotalUnread
+    FROM ThongBao tb
+    WHERE (${whereClauses.join(' OR ')}) AND tb.DaDocTB = 0;
+  `;
+  const result = await executeQuery(query, queryParams);
+  return result.recordset[0].TotalUnread;
 };
 
 export const thongBaoRepository = {
@@ -287,4 +417,6 @@ export const thongBaoRepository = {
   markThongBaoAsRead,
   markAllThongBaoAsReadForUser,
   createThongBaoRecord,
+  getAllThongBaoForUserWithPagination,
+  getTotalUnreadThongBaoForUser,
 };
