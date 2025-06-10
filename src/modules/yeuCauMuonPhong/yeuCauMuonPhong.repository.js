@@ -958,7 +958,6 @@ const updateYeuCauMuonPhongHeaderStatusForAutoCancel = async (
   trangThaiChungIDMoi,
   transaction
 ) => {
-  // Giả sử bạn đã có hàm updateYeuCauMuonPhongHeaderStatus, hoặc tạo mới
   const query = `
         UPDATE YeuCauMuonPhong
         SET TrangThaiChungID = @TrangThaiChungIDMoi
@@ -1006,6 +1005,7 @@ const getChiTietDatPhongBySuKienID = async (suKienID, transaction = null) => {
  * @param {sql.Transaction} transaction
  */
 const deleteYcMuonPhongChiTietByIds = async (
+  // ko thik dùng TVP
   chiTietIDsToDelete,
   transaction
 ) => {
