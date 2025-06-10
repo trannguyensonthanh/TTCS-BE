@@ -1,4 +1,4 @@
-// src/modules/phong/phong.service.js (Hoặc tên file service của bạn)
+// src/modules/phong/phong.service.js
 
 import { phongRepository } from './phongForSelect.repository.js';
 

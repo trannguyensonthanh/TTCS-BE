@@ -204,7 +204,7 @@ const checkVaiTroUsageInNguoiDungVaiTro = async (
 ) => {
   const query = `
     SELECT COUNT(DISTINCT NguoiDungID) AS UsageCount
-    FROM NguoiDung_VaiTro -- Hoặc NguoiDung_VaiTroChucNang tùy theo tên bảng của bạn
+    FROM NguoiDung_VaiTro 
     WHERE VaiTroID = @VaiTroID 
       AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE()); -- Chỉ tính các gán vai trò còn hiệu lực
   `;

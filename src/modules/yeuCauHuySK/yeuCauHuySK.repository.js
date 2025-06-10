@@ -125,7 +125,7 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         sk.SuKienID, sk.TenSK AS TenSuKien, sk.TgBatDauDK,
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen,
         -- Logic lấy đơn vị của người yêu cầu hủy (tương tự như trong yeuCauMuonPhong.repository.js)
-        -- Tạm thời để đơn giản, nếu cần bạn có thể thêm JOIN phức tạp ở đây
+        
         -- dv_nguoi_yc.DonViID AS DonViYeuCau_ID, dv_nguoi_yc.TenDonVi AS DonViYeuCau_TenDonVi, dv_nguoi_yc.MaDonVi AS DonViYeuCau_MaDonVi, dv_nguoi_yc.LoaiDonVi AS DonViYeuCau_LoaiDonVi,
         (SELECT TOP 1 d.DonViID FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_ID_GV,
         (SELECT TOP 1 d.TenDonVi FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_TenDonVi_GV,
@@ -260,7 +260,7 @@ const getYeuCauHuySKDetailById = async (ycHuySkID) => {
     JOIN TrangThaiYeuCauHuySK tt_ych ON ych.TrangThaiYcHuySkID = tt_ych.TrangThaiYcHuySkID
     LEFT JOIN NguoiDung nd_duyet ON ych.NguoiDuyetHuyBGHID = nd_duyet.NguoiDungID
     -- Logic lấy dv_nguoi_yc tương tự như hàm get list (phức tạp, cần join ThongTinGiangVien/NguoiDung_VaiTro)
-    -- Tạm thời join đơn giản, bạn cần hoàn thiện logic này nếu muốn dv_nguoi_yc đầy đủ
+  
     LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
     LEFT JOIN DonVi dv_nguoi_yc ON tgv_yc.DonViCongTacID = dv_nguoi_yc.DonViID
     WHERE ych.YcHuySkID = @YcHuySkID;
@@ -380,7 +380,6 @@ const updateYeuCauHuySKAfterBGHAction = async (
   }
 
   if (ghiChuHuyBGH !== null) {
-    // Giả sử bạn có cột ghiChuHuyBGH trong bảng YeuCauHuySK để lưu ghi chú của BGH khi duyệt
     // setClauses += `, ghiChuHuyBGH = @ghiChuHuyBGH`;
     // params.push({ name: 'ghiChuHuyBGH', type: sql.NVarChar(sql.MAX), value: ghiChuHuyBGH });
     console.warn(

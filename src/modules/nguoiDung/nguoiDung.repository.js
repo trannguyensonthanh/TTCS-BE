@@ -217,7 +217,7 @@ const getNguoiDungAndTaiKhoanById = async (nguoiDungID) => {
     JOIN TaiKhoan tk ON nd.NguoiDungID = tk.NguoiDungID
     WHERE nd.NguoiDungID = @NguoiDungID;
   `;
-  // Lưu ý: Nếu bạn đã xóa TenDangNhap khỏi TaiKhoan, hãy bỏ nó khỏi SELECT
+
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   const result = await executeQuery(query, params);
   return result.recordset.length > 0 ? result.recordset[0] : null;

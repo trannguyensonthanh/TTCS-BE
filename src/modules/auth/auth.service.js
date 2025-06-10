@@ -136,7 +136,7 @@ const forgotPassword = async (email) => {
   }
 
   return {
-    message: 'Mã OTP đã được gửi đến email của bạn (nếu email tồn tại).',
+    message: 'Mã OTP đã được gửi đến email của bạn.',
   };
 };
 

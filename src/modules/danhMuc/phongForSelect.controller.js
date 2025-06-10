@@ -1,4 +1,4 @@
-// src/modules/phong/phong.controller.js (Hoặc tên file controller của bạn)
+// src/modules/phong/phong.controller.js
 
 import { okResponse } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';

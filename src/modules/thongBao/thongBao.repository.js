@@ -33,7 +33,7 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
   // Lấy các DonViThucThiID từ NguoiDung_VaiTroChucNang
   query = `
     SELECT DISTINCT DonViID AS DonViThucThiID
-    FROM NguoiDung_VaiTro -- Giả sử tên bảng này là NguoiDung_VaiTro như CSDL bạn cung cấp
+    FROM NguoiDung_VaiTro 
     WHERE NguoiDungID = @NguoiDungID AND DonViID IS NOT NULL
       AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE());
   `;
