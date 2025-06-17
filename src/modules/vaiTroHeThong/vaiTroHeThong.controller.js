@@ -7,6 +7,12 @@ import {
 } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 
+const getVaiTroHeThongForSelectController = async (req, res) => {
+  const params = pick(req.query, ['searchTerm', 'limit']);
+  const result = await vaiTroHeThongService.getVaiTroHeThongForSelect(params);
+  okResponse(res, result, 'Lấy danh sách vai trò hệ thống để chọn thành công.');
+};
+
 /**
  * Lấy danh sách vai trò hệ thống (có phân trang, tìm kiếm).
  * @param {Object} req - Request Express, query: searchTerm, page, limit, sortBy, sortOrder.
@@ -75,6 +81,7 @@ const deleteVaiTroController = async (req, res) => {
 };
 
 export const vaiTroHeThongController = {
+  getVaiTroHeThongForSelectController,
   getVaiTroListController,
   getVaiTroDetailController,
   createVaiTroController,

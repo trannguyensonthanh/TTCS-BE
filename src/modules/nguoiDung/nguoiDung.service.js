@@ -88,18 +88,25 @@ const getMyProfile = async (nguoiDungID) => {
   // Lấy danh sách vai trò chức năng
   const vaiTroChucNang =
     await authRepository.getVaiTroChucNangByNguoiDungID(nguoiDungID);
+  console.log(`Vai trò chức năng: ${JSON.stringify(vaiTroChucNang)}`);
   const formattedVaiTroChucNang = vaiTroChucNang.map((vt) => ({
-    vaiTroID: vt.maVaiTro ? null : vt.VaiTroID,
+    ganVaiTroID: vt.ganVaiTroID,
+    vaiTroID: vt.vaiTroID,
     maVaiTro: vt.maVaiTro,
     tenVaiTro: vt.tenVaiTro,
     donViThucThi: vt.donViThucThi,
   }));
+  console.log(`Vai trò chức năng: ${JSON.stringify(formattedVaiTroChucNang)}`);
+  // Lấy thông tin tài khoản
+  const taiKhoan =
+    await nguoiDungRepository.getTaiKhoanInfoByNguoiDungID(nguoiDungID);
 
   return {
     nguoiDung: nguoiDungFullResponse,
     thongTinSinhVien: thongTinSvChiTiet || null,
     thongTinGiangVien: thongTinGvChiTiet || null,
     vaiTroChucNang: formattedVaiTroChucNang,
+    taiKhoan: taiKhoan || null,
   };
 };
 
@@ -385,7 +392,11 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
     );
 
     const taiKhoanUpdateData = { trangThaiTk: updatePayload.trangThaiTk };
-
+    console.log(
+      'email.toLowerCase() !== currentUserData.Email.toLowerCase()',
+      email,
+      currentUserData.Email
+    );
     // 1. Kiểm tra unique cho Email và MaDinhDanh nếu thay đổi
     if (email && email.toLowerCase() !== currentUserData.Email.toLowerCase()) {
       const existingEmail =
@@ -639,6 +650,41 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
     );
   }
 
+  // 2.1. Ràng buộc nghiệp vụ: Giảng viên KHÔNG được gán các vai trò CLB, CSVC, CB tổ chức sự kiện
+  const khongChoGV = ['TRUONG_CLB', 'QUAN_LY_CSVC', 'CB_TO_CHUC_SU_KIEN'];
+  const khongChoSV = [
+    'ADMIN_HE_THONG',
+    'BGH_DUYET_SK_TRUONG',
+    'QUAN_LY_CSVC',
+    'BI_THU_DOAN',
+    'CB_TO_CHUC_SU_KIEN',
+    'TRUONG_KHOA',
+  ];
+  const khongChoNVKhac = ['BGH_DUYET_SK_TRUONG', 'BI_THU_DOAN'];
+  // Kiểm tra loại người dùng
+  const thongTinGV =
+    await nguoiDungRepository.getThongTinGiangVienByNguoiDungID(nguoiDungId);
+  const thongTinSV =
+    await nguoiDungRepository.getThongTinSinhVienByNguoiDungID(nguoiDungId);
+  if (thongTinGV && khongChoGV.includes(vaiTro.maVaiTro)) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Giảng viên không thể được gán vai trò Trưởng CLB, Quản lý CSVC hoặc Cán bộ tổ chức sự kiện.'
+    );
+  }
+  if (thongTinSV && khongChoSV.includes(vaiTro.maVaiTro)) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Sinh viên không thể được gán các vai trò quản trị hệ thống, BGH, quản lý CSVC, bí thư đoàn, cán bộ tổ chức sự kiện, trưởng khoa.'
+    );
+  }
+  if (!thongTinGV && !thongTinSV && khongChoNVKhac.includes(vaiTro.maVaiTro)) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Nhân viên không thể được gán vai trò BGH duyệt sự kiện trường hoặc Bí thư đoàn.'
+    );
+  }
+
   // 3. Kiểm tra DonViID (nếu có) có tồn tại không
   if (payload.donViID) {
     const donVi = await donViRepository.getDonViById(payload.donViID);
@@ -671,7 +717,17 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
     );
   }
 
-  // 5. Kiểm tra xem gán vai trò này đã tồn tại và còn hiệu lực chưa (để tránh trùng lặp theo UNIQUE constraint)
+  // 5. Kiểm tra xem người dùng đã có vai trò nào còn hiệu lực chưa (chỉ cho phép 1 role duy nhất)
+  const currentRoles =
+    await nguoiDungRepository.getCurrentActiveRolesOfUser(nguoiDungId);
+  if (currentRoles && currentRoles.length > 0) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Mỗi cá nhân chỉ được gán 1 vai trò chức năng còn hiệu lực tại một thời điểm.'
+    );
+  }
+
+  // 6. Kiểm tra xem gán vai trò này đã tồn tại và còn hiệu lực chưa (để tránh trùng lặp theo UNIQUE constraint)
   const isAlreadyAssignedAndActive =
     await nguoiDungRepository.checkExistingNguoiDungVaiTro(
       nguoiDungId,
@@ -695,30 +751,34 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
   logger.info(
     `Functional role ${payload.vaiTroID} assigned to NguoiDungID: ${nguoiDungId}`
   );
+  console.log(
+    '-------------------------------->assignedRoleData',
+    assignedRoleData
+  );
   return {
-    ganVaiTroID: assignedRoleData.GanVaiTroID,
-    vaiTroID: vaiTro.vaiTroID,
-    maVaiTro: vaiTro.maVaiTro,
-    tenVaiTro: vaiTro.tenVaiTro,
-    donViThucThi: payload.donViID
-      ? await donViRepository.getDonViById(payload.donViID).then((dv) =>
-          dv
-            ? {
-                donViID: dv.donViID,
-                tenDonVi: dv.tenDonVi,
-                maDonVi: dv.maDonVi,
-                loaiDonVi: dv.loaiDonVi,
-              }
-            : null
-        )
-      : null,
-    ngayBatDau: assignedRoleData.NgayBatDau
-      ? new Date(assignedRoleData.NgayBatDau).toISOString().split('T')[0]
-      : null,
-    ngayKetThuc: assignedRoleData.NgayKetThuc
-      ? new Date(assignedRoleData.NgayKetThuc).toISOString().split('T')[0]
-      : null,
-    ghiChuGanVT: assignedRoleData.GhiChuGanVT,
+    // ganVaiTroID: assignedRoleData.GanVaiTroID,
+    // vaiTroID: vaiTro.vaiTroID,
+    // maVaiTro: vaiTro.maVaiTro,
+    // tenVaiTro: vaiTro.tenVaiTro,
+    // donViThucThi: payload.donViID
+    //   ? await donViRepository.getDonViById(payload.donViID).then((dv) =>
+    //       dv
+    //         ? {
+    //             donViID: dv.donViID,
+    //             tenDonVi: dv.tenDonVi,
+    //             maDonVi: dv.maDonVi,
+    //             loaiDonVi: dv.loaiDonVi,
+    //           }
+    //         : null
+    //     )
+    //   : null,
+    // ngayBatDau: assignedRoleData.NgayBatDau
+    //   ? new Date(assignedRoleData.NgayBatDau).toISOString().split('T')[0]
+    //   : null,
+    // ngayKetThuc: assignedRoleData.NgayKetThuc
+    //   ? new Date(assignedRoleData.NgayKetThuc).toISOString().split('T')[0]
+    //   : null,
+    // ghi chú GanVT: assignedRoleData.GhiChuGanVT,
   };
 };
 

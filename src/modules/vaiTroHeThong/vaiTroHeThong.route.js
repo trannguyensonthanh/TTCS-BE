@@ -10,6 +10,12 @@ const router = express.Router();
 
 router.use(authMiddleware.authenticateToken);
 
+router.get(
+  '/cho-chon', // Sẽ được mount thành /v1/danhmuc/vaitrohethong/cho-chon
+  // authMiddleware.authenticateToken, // Đã được áp dụng ở route cha (danhMuc.route.js)
+  asyncHandler(vaiTroHeThongController.getVaiTroHeThongForSelectController)
+);
+
 /**
  * Lấy danh sách vai trò hệ thống (có phân trang, tìm kiếm).
  * @route GET /

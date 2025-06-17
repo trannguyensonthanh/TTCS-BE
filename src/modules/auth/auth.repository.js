@@ -299,12 +299,14 @@ const findTaiKhoanByNguoiDungID = async (nguoiDungID) => {
 const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
   const query = `
     SELECT
+    vt.VaiTroID,
         vt.MaVaiTro,
         vt.TenVaiTro,
         dv.DonViID,
         dv.TenDonVi,
         dv.MaDonVi,
-        dv.LoaiDonVi
+        dv.LoaiDonVi,
+        nd_vt.GanVaiTroID
     FROM NguoiDung_VaiTro nd_vt
     JOIN VaiTroHeThong vt ON nd_vt.VaiTroID = vt.VaiTroID
     LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID
@@ -315,6 +317,7 @@ const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
   const result = await executeQuery(query, params);
 
   return result.recordset.map((row) => ({
+    vaiTroID: row.VaiTroID,
     maVaiTro: row.MaVaiTro,
     tenVaiTro: row.TenVaiTro,
     donViThucThi: row.DonViID
@@ -325,6 +328,7 @@ const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
           loaiDonVi: row.LoaiDonVi,
         }
       : null,
+    ganVaiTroID: row.GanVaiTroID,
   }));
 };
 

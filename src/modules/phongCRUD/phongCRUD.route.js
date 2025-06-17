@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import { phongCRUDController } from './phongCRUD.controller.js'; // Đổi tên import
 import { phongCRUDValidation } from './phongCRUD.validation.js'; // Đổi tên import
+import uploadExcel from '../../middlewares/upload.middleware.js';
 
 const router = express.Router();
 
@@ -19,11 +20,6 @@ router.use(authMiddleware.authenticateToken);
  */
 router.get(
   '/',
-  authMiddleware.authorizeRoles(
-    MaVaiTro.ADMIN_HE_THONG,
-    MaVaiTro.QUAN_LY_CSVC,
-    MaVaiTro.CB_TO_CHUC_SU_KIEN
-  ),
   phongCRUDValidation.validateGetPhongParams,
   asyncHandler(phongCRUDController.getPhongListController)
 );
@@ -104,6 +100,13 @@ router.delete(
   authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG, MaVaiTro.QUAN_LY_CSVC),
   phongCRUDValidation.validateIdParam,
   asyncHandler(phongCRUDController.deletePhongController)
+);
+
+router.post(
+  '/import-excel', // POST /v1/danhmuc/phong/import-excel
+  authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG, MaVaiTro.QUAN_LY_CSVC),
+  uploadExcel.single('file'), // Middleware của Multer để xử lý field 'file'
+  asyncHandler(phongCRUDController.importPhongFromExcelController)
 );
 
 export default router;

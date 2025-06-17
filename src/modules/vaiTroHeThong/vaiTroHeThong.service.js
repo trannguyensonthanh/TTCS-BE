@@ -6,6 +6,17 @@ import logger from '../../utils/logger.util.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
 /**
+ * Lấy danh sách Vai Trò Hệ Thống cho mục đích chọn lựa
+ * @param {object} params - { searchTerm, limit }
+ * @returns {Promise<VaiTroHeThongChoSelectResponse[]>}
+ */
+const getVaiTroHeThongForSelect = async (params) => {
+  const items =
+    await vaiTroHeThongRepository.getVaiTroHeThongForSelectRecords(params);
+  return items; // Trả về mảng trực tiếp
+};
+
+/**
  * Lấy danh sách vai trò hệ thống (có phân trang, tìm kiếm).
  * @param {Object} params - Tham số truy vấn (searchTerm, page, limit, sortBy, sortOrder).
  * @returns {Promise<Object>} { items, totalPages, currentPage, totalItems, pageSize }
@@ -159,6 +170,7 @@ const deleteVaiTro = async (vaiTroId) => {
 };
 
 export const vaiTroHeThongService = {
+  getVaiTroHeThongForSelect,
   getVaiTroList,
   getVaiTroDetail,
   createVaiTro,

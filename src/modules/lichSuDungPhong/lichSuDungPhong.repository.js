@@ -133,6 +133,151 @@ const getLichDatPhongRecords = async (params) => {
   }));
 };
 
+/**
+ * Lấy lịch đặt của một phòng cụ thể với phân trang và lọc thời gian
+ * @param {number} phongId
+ * @param {object} params - { tuNgay, denNgay, page, limit, sortBy, sortOrder }
+ * @returns {Promise<{ items: Array<object>, totalItems: number }>}
+ */
+const getLichDatPhongByPhongId = async (phongId, params) => {
+  const {
+    tuNgay,
+    denNgay,
+    page = 1,
+    limit = 10,
+    sortBy = 'cdp.TgNhanPhongTT',
+    sortOrder = 'DESC',
+  } = params;
+
+  let selectClause = `
+        SELECT
+            cdp.DatPhongID,
+            cdp.YcMuonPhongCtID,
+            cdp.TgNhanPhongTT,
+            cdp.TgTraPhongTT,
+            p.PhongID,
+            p.TenPhong,
+            p.MaPhong,
+            p.SucChua AS Phong_SucChua,
+            p.ToaNhaTangID AS Phong_ToaNhaTangID,
+            lp.LoaiPhongID AS LoaiPhong_ID,
+            lp.TenLoaiPhong AS LoaiPhong_Ten,
+            sk.SuKienID,
+            sk.TenSK,
+            dv_tc.DonViID AS DonViToChuc_ID,
+            dv_tc.TenDonVi AS DonViToChuc_Ten,
+            dv_tc.MaDonVi AS DonViToChuc_Ma,
+            dv_tc.LoaiDonVi AS DonViToChuc_LoaiDonVi,
+            nd_yc.NguoiDungID AS NguoiYeuCau_ID,
+            nd_yc.HoTen AS NguoiYeuCau_HoTen,
+            nd_yc.Email AS NguoiYeuCau_Email,
+            tt_yct.MaTrangThai AS MaTrangThaiDatPhong -- Trạng thái của chi tiết yêu cầu phòng
+    `;
+  let fromClause = `
+        FROM ChiTietDatPhong cdp
+        JOIN Phong p ON cdp.PhongID = p.PhongID
+        JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
+        JOIN YcMuonPhongChiTiet yct ON cdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
+        JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+        JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID -- Người yêu cầu phòng
+        JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+        JOIN DonVi dv_tc ON sk.DonViChuTriID = dv_tc.DonViID
+        JOIN TrangThaiYeuCauPhong tt_yct ON yct.TrangThaiCtID = tt_yct.TrangThaiYcpID
+    `;
+  let whereClause = ` WHERE cdp.PhongID = @PhongID AND tt_yct.MaTrangThai = @MaTrangThaiDaXepPhong `;
+  const queryParams = [
+    { name: 'PhongID', type: sql.Int, value: phongId },
+    {
+      name: 'MaTrangThaiDaXepPhong',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCPCT_DA_XEP_PHONG,
+    },
+  ];
+
+  if (tuNgay) {
+    whereClause += ` AND cdp.TgTraPhongTT > @TuNgay `; // Kết thúc phải sau tuNgay
+    queryParams.push({
+      name: 'TuNgay',
+      type: sql.DateTime,
+      value: new Date(tuNgay),
+    });
+  }
+  if (denNgay) {
+    const denNgayThucTe = new Date(denNgay);
+    denNgayThucTe.setHours(23, 59, 59, 999);
+    whereClause += ` AND cdp.TgNhanPhongTT < @DenNgayThucTe `; // Bắt đầu phải trước denNgay
+    queryParams.push({
+      name: 'DenNgayThucTe',
+      type: sql.DateTime,
+      value: denNgayThucTe,
+    });
+  }
+
+  const countQuery = `SELECT COUNT(cdp.DatPhongID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems = countResult.recordset[0].TotalItems;
+
+  const allowedSortBy = [
+    'cdp.TgNhanPhongTT',
+    'cdp.TgTraPhongTT',
+    'sk.TenSK',
+    'p.TenPhong',
+  ];
+  const safeSortBy = allowedSortBy.includes(sortBy)
+    ? sortBy
+    : 'cdp.TgNhanPhongTT';
+  const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+        ${selectClause}
+        ${fromClause}
+        ${whereClause}
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET ${offset} ROWS
+        FETCH NEXT ${limit} ROWS ONLY;
+    `;
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  const items = itemsResult.recordset.map((row) => ({
+    datPhongID: Number(row.DatPhongID),
+    phong: {
+      phongID: row.PhongID,
+      tenPhong: row.TenPhong,
+      maPhong: row.MaPhong,
+      sucChua: row.Phong_SucChua,
+      loaiPhong: row.LoaiPhong_ID
+        ? {
+            loaiPhongID: row.LoaiPhong_ID,
+            tenLoaiPhong: row.LoaiPhong_Ten,
+          }
+        : null,
+    },
+    ycMuonPhongCtID: row.YcMuonPhongCtID,
+    maTrangThaiDatPhong: row.MaTrangThaiDatPhong, // Trạng thái của YcMuonPhongChiTiet
+    suKienID: row.SuKienID,
+    tenSK: row.TenSK,
+    donViToChuc: {
+      donViID: row.DonViToChuc_ID,
+      tenDonVi: row.DonViToChuc_Ten,
+      maDonVi: row.DonViToChuc_Ma,
+      loaiDonVi: row.DonViToChuc_LoaiDonVi,
+    },
+    nguoiYeuCau: row.NguoiYeuCau_ID
+      ? {
+          nguoiDungID: row.NguoiYeuCau_ID,
+          hoTen: row.NguoiYeuCau_HoTen,
+          email: row.NguoiYeuCau_Email,
+        }
+      : null,
+    tgNhanPhongTT: row.TgNhanPhongTT.toISOString(),
+    tgTraPhongTT: row.TgTraPhongTT.toISOString(),
+  }));
+
+  return { items, totalItems };
+};
+
 export const lichSuDungPhongRepository = {
   getLichDatPhongRecords,
+  getLichDatPhongByPhongId,
 };

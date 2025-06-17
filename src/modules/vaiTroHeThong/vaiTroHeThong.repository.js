@@ -8,6 +8,45 @@ const SELECT_VAITRO_FIELDS = `
 const FROM_VAITRO = `FROM VaiTroHeThong vt`;
 
 /**
+ * Lấy danh sách VaiTroHeThong tối giản cho mục đích chọn lựa
+ * @param {object} params - { searchTerm, limit }
+ * @returns {Promise<Array<object>>}
+ */
+const getVaiTroHeThongForSelectRecords = async (params) => {
+  const { searchTerm, limit = 100 } = params;
+
+  let query = `
+        SELECT TOP (@Limit)
+            VaiTroID,
+            MaVaiTro,
+            TenVaiTro
+        FROM VaiTroHeThong
+    `;
+  const queryParams = [{ name: 'Limit', type: sql.Int, value: limit }];
+  let whereClause = '';
+
+  if (searchTerm) {
+    whereClause +=
+      (whereClause ? ' AND ' : ' WHERE ') +
+      `(TenVaiTro LIKE @SearchTerm OR MaVaiTro LIKE @SearchTerm)`;
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+  query += whereClause;
+  query += ` ORDER BY TenVaiTro ASC;`;
+
+  const result = await executeQuery(query, queryParams);
+  return result.recordset.map((row) => ({
+    vaiTroID: row.VaiTroID,
+    maVaiTro: row.MaVaiTro,
+    tenVaiTro: row.TenVaiTro,
+  }));
+};
+
+/**
  * Lấy danh sách vai trò hệ thống (có phân trang, tìm kiếm).
  * @param {Object} params - Tham số truy vấn (searchTerm, page, limit, sortBy, sortOrder).
  * @returns {Promise<Object>} { items, totalItems }
@@ -236,6 +275,7 @@ const deleteVaiTroHeThongRecordById = async (vaiTroId, transaction = null) => {
 };
 
 export const vaiTroHeThongRepository = {
+  getVaiTroHeThongForSelectRecords,
   getVaiTroHeThongListWithPagination,
   getVaiTroHeThongById,
   getVaiTroHeThongByMa,

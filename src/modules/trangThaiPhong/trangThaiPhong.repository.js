@@ -23,6 +23,28 @@ const getAllTrangThaiPhong = async (params) => {
   }));
 };
 
+/**
+ * Lấy thông tin trạng thái phòng theo ID.
+ * Đầu vào: trangThaiPhongID (number)
+ * Đầu ra: object trạng thái phòng hoặc null nếu không tìm thấy
+ */
+const getTrangThaiPhongById = async (trangThaiPhongID) => {
+  const query = `SELECT TrangThaiPhongID, MaTrangThai, TenTrangThai, MoTa FROM TrangThaiPhong WHERE TrangThaiPhongID = @TrangThaiPhongID`;
+  const params = [
+    { name: 'TrangThaiPhongID', type: sql.Int, value: trangThaiPhongID },
+  ];
+  const result = await executeQuery(query, params);
+  if (result.recordset.length === 0) return null;
+  const row = result.recordset[0];
+  return {
+    trangThaiPhongID: row.TrangThaiPhongID,
+    maTrangThai: row.MaTrangThai,
+    tenTrangThai: row.TenTrangThai,
+    moTa: row.MoTa,
+  };
+};
+
 export const trangThaiPhongRepository = {
   getAllTrangThaiPhong,
+  getTrangThaiPhongById,
 };

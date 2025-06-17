@@ -34,6 +34,25 @@ const getLichDatPhongController = async (req, res) => {
   okResponse(res, result, 'Lấy dữ liệu lịch đặt phòng thành công.');
 };
 
+const getLichDatPhongTheoPhongController = async (req, res) => {
+  const phongId = parseInt(req.params.phongId);
+  const queryParams = pick(req.query, [
+    'tuNgay',
+    'denNgay',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+
+  const result = await lichSuDungPhongService.getLichDatPhongTheoPhong(
+    phongId,
+    queryParams
+  );
+  okResponse(res, result, 'Lấy lịch đặt của phòng thành công.');
+};
+
 export const lichSuDungPhongController = {
   getLichDatPhongController,
+  getLichDatPhongTheoPhongController,
 };

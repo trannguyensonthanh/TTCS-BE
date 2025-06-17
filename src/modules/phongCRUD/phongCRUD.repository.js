@@ -164,6 +164,7 @@ const getPhongListWithPagination = async (params) => {
         }
       : null,
     soThuTuPhong: row.SoThuTuPhong,
+    anhMinhHoa: row.AnhMinhHoa,
   }));
   return { items, totalItems };
 };

@@ -2,12 +2,15 @@
 import { phongCRUDRepository } from './phongCRUD.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
+import xlsx from 'xlsx'; // Thư viện đọc file Excel
+import fs from 'fs'; // Để xóa file tạm nếu dùng diskStorage
 import sql from 'mssql';
 import { toaNhaTangRepository } from '../toaNhaTang/toaNhaTang.repository.js'; // Để validate
 import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
 import { loaiPhongRepository } from '../danhMuc/loaiPhong.repository.js';
 import { trangThaiPhongRepository } from '../trangThaiPhong/trangThaiPhong.repository.js';
+import { trangThietBiRepository } from '../trangThietBi/trangThietBi.repository.js';
 
 /**
  * Lấy danh sách phòng với phân trang và bộ lọc.
@@ -420,6 +423,272 @@ const generateMaPhong = async (params) => {
   };
 };
 
+/**
+ * Import danh sách Phòng từ file Excel
+ * @param {string} filePath - Đường dẫn đến file Excel đã upload
+ * @returns {Promise<ImportPhongResponse>}
+ */
+const importPhongFromExcel = async (filePath) => {
+  const results = [];
+  let successCount = 0;
+  let errorCount = 0;
+  let totalRowsInFile = 0;
+
+  try {
+    const workbook = xlsx.readFile(filePath);
+    const sheetName = workbook.SheetNames[0]; // Giả sử dữ liệu ở sheet đầu tiên
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = xlsx.utils.sheet_to_json(worksheet, {
+      header: 1,
+      defval: null,
+    }); // header: 1 để lấy mảng các mảng
+
+    if (jsonData.length <= 1) {
+      // Dòng header + ít nhất 1 dòng dữ liệu
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'File Excel không có dữ liệu hoặc không đúng định dạng.'
+      );
+    }
+
+    const headers = jsonData[0].map((h) => h.toString().trim()); // Lấy header và trim
+    totalRowsInFile = jsonData.length - 1;
+
+    // Định nghĩa các cột mong đợi và tên tương ứng trong CSDL/payload
+    const expectedHeadersMap = {
+      TenPhong: 'tenPhong',
+      MaPhong: 'maPhong',
+      LoaiPhongID: 'loaiPhongID',
+      SucChua: 'sucChua',
+      TrangThaiPhongID: 'trangThaiPhongID',
+      ToaNhaTangID: 'toaNhaTangID',
+      SoThuTuPhong: 'soThuTuPhong',
+      MoTaChiTietPhong: 'moTaChiTietPhong',
+      AnhMinhHoa: 'anhMinhHoa',
+      ThietBiTrongPhong: 'thietBiTrongPhong', // Chuỗi JSON
+    };
+    const actualHeaders = Object.keys(expectedHeadersMap).filter((h) =>
+      headers.includes(h)
+    );
+
+    for (let i = 1; i < jsonData.length; i++) {
+      const rowDataArray = jsonData[i];
+      const rowNumber = i + 1; // Số dòng trong Excel (bao gồm header)
+      let phongPayload = {};
+      let rowError = null;
+
+      headers.forEach((header, index) => {
+        if (expectedHeadersMap[header]) {
+          phongPayload[expectedHeadersMap[header]] = rowDataArray[index];
+        }
+      });
+
+      // Validate dữ liệu cơ bản của dòng
+      if (
+        !phongPayload.tenPhong ||
+        !phongPayload.loaiPhongID ||
+        !phongPayload.trangThaiPhongID ||
+        !phongPayload.toaNhaTangID
+      ) {
+        rowError =
+          'Thiếu thông tin bắt buộc: Tên phòng, Loại phòng ID, Trạng thái phòng ID, Tòa nhà tầng ID.';
+      } else {
+        // Parse và validate các trường số
+        phongPayload.loaiPhongID = parseInt(phongPayload.loaiPhongID, 10);
+        phongPayload.trangThaiPhongID = parseInt(
+          phongPayload.trangThaiPhongID,
+          10
+        );
+        phongPayload.toaNhaTangID = parseInt(phongPayload.toaNhaTangID, 10);
+        if (
+          isNaN(phongPayload.loaiPhongID) ||
+          isNaN(phongPayload.trangThaiPhongID) ||
+          isNaN(phongPayload.toaNhaTangID)
+        ) {
+          rowError =
+            'ID Loại phòng, Trạng thái phòng, Tòa nhà tầng phải là số.';
+        }
+        if (phongPayload.sucChua) {
+          phongPayload.sucChua = parseInt(phongPayload.sucChua, 10);
+          if (isNaN(phongPayload.sucChua))
+            rowError =
+              (rowError ? rowError + '; ' : '') + 'Sức chứa phải là số.';
+        }
+        // Xử lý ThietBiTrongPhong (chuỗi JSON)
+        if (
+          phongPayload.thietBiTrongPhong &&
+          typeof phongPayload.thietBiTrongPhong === 'string'
+        ) {
+          try {
+            phongPayload.thietBiTrongPhong = JSON.parse(
+              phongPayload.thietBiTrongPhong
+            );
+            if (!Array.isArray(phongPayload.thietBiTrongPhong))
+              throw new Error();
+            // TODO: Validate từng item trong mảng thietBiTrongPhong (thietBiID, soLuong)
+          } catch (e) {
+            rowError =
+              (rowError ? rowError + '; ' : '') +
+              'Cột ThietBiTrongPhong không phải là JSON array hợp lệ.';
+          }
+        } else if (phongPayload.thietBiTrongPhong) {
+          // Nếu không phải string và không phải null/undefined
+          rowError =
+            (rowError ? rowError + '; ' : '') +
+            'Cột ThietBiTrongPhong phải là chuỗi JSON.';
+        } else {
+          phongPayload.thietBiTrongPhong = []; // Mặc định là mảng rỗng nếu không có hoặc null
+        }
+      }
+
+      if (rowError) {
+        results.push({
+          rowNumber,
+          tenPhong: phongPayload.tenPhong || `Dòng ${rowNumber}`,
+          maPhong: phongPayload.maPhong,
+          status: 'error',
+          message: rowError,
+        });
+        errorCount++;
+        continue; // Bỏ qua dòng này
+      }
+
+      // Nếu không có lỗi cơ bản, tiến hành tạo trong transaction
+      const pool = await getPool();
+      const transaction = new sql.Transaction(pool);
+      try {
+        await transaction.begin();
+
+        // Validate FKs và unique constraints
+        if (
+          phongPayload.maPhong &&
+          (await phongCRUDRepository.checkMaPhongExists(
+            phongPayload.maPhong,
+            null,
+            transaction
+          ))
+        ) {
+          throw new Error(`Mã phòng "${phongPayload.maPhong}" đã tồn tại.`);
+        }
+        const loaiPhong = await loaiPhongRepository.getLoaiPhongById(
+          phongPayload.loaiPhongID,
+          transaction
+        );
+        if (!loaiPhong)
+          throw new Error(
+            `Loại phòng ID ${phongPayload.loaiPhongID} không tồn tại.`
+          );
+        const trangThaiPhong =
+          await trangThaiPhongRepository.getTrangThaiPhongById(
+            phongPayload.trangThaiPhongID,
+            transaction
+          );
+        if (!trangThaiPhong)
+          throw new Error(
+            `Trạng thái phòng ID ${phongPayload.trangThaiPhongID} không tồn tại.`
+          );
+        const toaNhaTang = await toaNhaTangRepository.getToaNhaTangById(
+          phongPayload.toaNhaTangID,
+          transaction
+        );
+        if (!toaNhaTang)
+          throw new Error(
+            `Tòa nhà tầng ID ${phongPayload.toaNhaTangID} không tồn tại.`
+          );
+        logger.info(
+          `TODO: Full FK validation for Excel import row ${rowNumber}`
+        );
+
+        const newPhongID = await phongCRUDRepository.createPhongRecord(
+          phongPayload,
+          transaction
+        );
+
+        if (
+          phongPayload.thietBiTrongPhong &&
+          phongPayload.thietBiTrongPhong.length > 0
+        ) {
+          for (const tbInput of phongPayload.thietBiTrongPhong) {
+            const thietBi = await trangThietBiRepository.getTrangThietBiById(
+              tbInput.thietBiID,
+              transaction
+            );
+            if (!thietBi)
+              throw new Error(
+                `Thiết bị ID ${tbInput.thietBiID} không hợp lệ trong danh sách thiết bị.`
+              );
+            await phongCRUDRepository.addThietBiToPhong(
+              newPhongID,
+              tbInput,
+              transaction
+            );
+          }
+        }
+
+        await transaction.commit();
+        results.push({
+          rowNumber,
+          tenPhong: phongPayload.tenPhong,
+          maPhong: phongPayload.maPhong,
+          status: 'success',
+          phongID: newPhongID,
+        });
+        successCount++;
+      } catch (err) {
+        if (
+          transaction &&
+          transaction.rolledBack === false &&
+          transaction.active
+        ) {
+          await transaction.rollback();
+        }
+        results.push({
+          rowNumber,
+          tenPhong: phongPayload.tenPhong,
+          maPhong: phongPayload.maPhong,
+          status: 'error',
+          message: err.message,
+        });
+        errorCount++;
+      }
+    }
+  } catch (err) {
+    logger.error('Error processing Excel file for Phong import:', err);
+    // Nếu lỗi xảy ra ở giai đoạn đọc file hoặc xử lý header
+    return {
+      totalRows: totalRowsInFile || 0,
+      successCount: 0,
+      errorCount: totalRowsInFile || 0,
+      results: [
+        {
+          rowNumber: 0,
+          status: 'error',
+          message: `Lỗi xử lý file: ${err.message}`,
+        },
+      ],
+      overallMessage: 'Xử lý file Excel thất bại.',
+    };
+  } finally {
+    // Xóa file tạm sau khi xử lý (nếu dùng diskStorage)
+    if (filePath && fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+        logger.info(`Temporary Excel file deleted: ${filePath}`);
+      } catch (e) {
+        logger.error(`Error deleting temporary Excel file ${filePath}:`, e);
+      }
+    }
+  }
+
+  return {
+    totalRows: totalRowsInFile,
+    successCount,
+    errorCount,
+    results,
+    overallMessage: `Import hoàn tất. Thành công: ${successCount}/${totalRowsInFile}. Lỗi: ${errorCount}/${totalRowsInFile}.`,
+  };
+};
+
 export const phongCRUDService = {
   getPhongs,
   getPhongDetail,
@@ -427,4 +696,5 @@ export const phongCRUDService = {
   updatePhong,
   deletePhong,
   generateMaPhong,
+  importPhongFromExcel,
 };

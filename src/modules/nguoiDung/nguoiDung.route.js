@@ -16,7 +16,7 @@ router.use(authMiddleware.authenticateToken);
 router.get(
   '/',
   authMiddleware.authenticateToken,
-  authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG),
+  // authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG),
   nguoiDungValidation.validateGetNguoiDungsParams,
   asyncHandler(nguoiDungController.getNguoiDungListController)
 );

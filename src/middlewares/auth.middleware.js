@@ -48,6 +48,9 @@ const authorizeRoles = (...requiredRoles) => {
     const userRoles = await authRepository.getVaiTroByNguoiDungID(
       req.user.nguoiDungID
     );
+    console.log(
+      `User roles for NguoiDungID ${req.user.nguoiDungID}: ${JSON.stringify(userRoles)}`
+    );
     logger.info(
       `User roles for NguoiDungID ${req.user.nguoiDungID}: ${JSON.stringify(userRoles)}`
     );

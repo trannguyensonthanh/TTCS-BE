@@ -34,6 +34,26 @@ const getLichDatPhongParamsSchema = Joi.object({
   donViToChucID: Joi.number().integer().positive().allow(null).optional(),
 });
 
+const phongIdParamSchema = Joi.object({
+  phongId: Joi.number().integer().positive().required().messages({
+    'number.base': 'ID phòng phải là một số',
+    'any.required': 'ID phòng là bắt buộc trong đường dẫn',
+  }),
+});
+
+const getLichDatPhongTheoPhongParamsSchema = Joi.object({
+  tuNgay: Joi.date().iso().allow(null).optional(),
+  denNgay: Joi.date().iso().allow(null).optional().min(Joi.ref('tuNgay')),
+  page: Joi.number().integer().min(1).default(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).default(10).optional(),
+  sortBy: Joi.string().allow(null).optional().default('TgNhanPhongTT'), // Sắp xếp theo thời gian nhận phòng
+  sortOrder: Joi.string()
+    .valid('asc', 'desc')
+    .default('desc')
+    .allow(null)
+    .optional(), // Mới nhất lên đầu
+});
+
 /**
  * Middleware validate query params cho API lấy dữ liệu lịch sử sử dụng phòng.
  * @param {import('express').Request} req
@@ -43,4 +63,9 @@ const getLichDatPhongParamsSchema = Joi.object({
  */
 export const lichSuDungPhongValidation = {
   validateGetLichDatPhongParams: validate(getLichDatPhongParamsSchema, 'query'),
+  validatePhongIdParam: validate(phongIdParamSchema, 'params'),
+  validateGetLichDatPhongTheoPhongParams: validate(
+    getLichDatPhongTheoPhongParamsSchema,
+    'query'
+  ),
 };

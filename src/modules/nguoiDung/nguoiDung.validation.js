@@ -138,14 +138,17 @@ const createNguoiDungPayloadSchema = Joi.object({
   soDienThoai: Joi.string().max(20).allow('', null).optional(),
   anhDaiDien: Joi.string().uri().max(500).allow('', null).optional(),
   isActiveNguoiDung: Joi.boolean().default(true), // Đổi tên cho rõ ràng hơn là cho NguoiDung.IsActive
-  matKhau: Joi.string().min(6).required(), // Mật khẩu ban đầu
+  // Mật khẩu ban đầu
+  loaiNguoiDung: Joi.string()
+    .valid('SINH_VIEN', 'GIANG_VIEN', 'NHAN_VIEN_KHAC')
+    .required(),
   trangThaiTk: Joi.string()
     .valid('Active', 'Locked', 'Disabled')
     .default('Active'),
   ngaySinh: Joi.date().iso().allow(null).optional(),
   thongTinSinhVien: thongTinSinhVienPayloadSchema.optional(),
   thongTinGiangVien: thongTinGiangVienPayloadSchema.optional(),
-
+  matKhau: Joi.string().min(6).required(), // Mật khẩu đã được FE tạo
   vaiTroChucNang: Joi.array()
     .items(vaiTroChucNangGanPayloadSchema)
     .optional()

@@ -22,4 +22,12 @@ router.get(
   asyncHandler(lichSuDungPhongController.getLichDatPhongController)
 );
 
+router.get(
+  '/theo-phong/:phongId', // Endpoint: /v1/lichsudungphong/theo-phong/:phongId
+
+  lichSuDungPhongValidation.validatePhongIdParam, // Validate phongId
+  lichSuDungPhongValidation.validateGetLichDatPhongTheoPhongParams, // Validate query params
+  asyncHandler(lichSuDungPhongController.getLichDatPhongTheoPhongController)
+);
+
 export default router;

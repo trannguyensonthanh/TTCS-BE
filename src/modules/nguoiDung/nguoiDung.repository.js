@@ -1,5 +1,5 @@
 // src/modules/nguoiDung/nguoiDung.repository.js
-import { executeQuery } from '../../utils/database.js';
+import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
 import logger from '../../utils/logger.util.js';
 
@@ -35,6 +35,7 @@ const mapNguoiDungListItem = (row) => {
     soDienThoai: row.ND_SoDienThoai,
     anhDaiDien: row.ND_AnhDaiDien,
     isActive: row.ND_IsActive,
+    ngaySinh: row.ND_NgaySinh ? new Date(row.ND_NgaySinh).toISOString() : null,
     trangThaiTaiKhoan: row.TK_TrangThaiTk,
     loaiNguoiDungHienThi: loaiNguoiDungHienThi,
     donViCongTacChinh: donViCongTacChinh,
@@ -44,7 +45,7 @@ const mapNguoiDungListItem = (row) => {
 };
 
 /**
- * Lấy danh sách người dùng có phân trang, lọc, sắp xếp.
+ * Lấy danh sách người dùng có phân trang, kèm đầy đủ thông tin lồng nhau (SV, GV, vai trò).
  * @param {object} params - Tham số truy vấn (searchTerm, loaiNguoiDung, maVaiTro, donViID, isActive, page, limit, sortBy, sortOrder)
  * @returns {Promise<{items: Array<object>, totalItems: number}>} Danh sách người dùng và tổng số bản ghi
  */
@@ -64,7 +65,7 @@ const getNguoiDungListWithPagination = async (params) => {
   let selectClause = `
         SELECT DISTINCT
             nd.NguoiDungID AS ND_NguoiDungID, nd.MaDinhDanh AS ND_MaDinhDanh, nd.HoTen AS ND_HoTen,
-            nd.Email AS ND_Email, nd.SoDienThoai AS ND_SoDienThoai, nd.AnhDaiDien AS ND_AnhDaiDien,
+            nd.Email AS ND_Email, nd.SoDienThoai AS ND_SoDienThoai, nd.AnhDaiDien AS ND_AnhDaiDien, nd.NgaySinh AS ND_NgaySinh,
             nd.IsActive AS ND_IsActive, nd.NgayTao AS ND_NgayTao,
             tk.TrangThaiTk AS TK_TrangThaiTk,
             tsv.NguoiDungID AS SV_NguoiDungID_Exists, -- Chỉ cần biết có tồn tại hay không
@@ -199,7 +200,121 @@ const getNguoiDungListWithPagination = async (params) => {
     `;
 
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-  const items = itemsResult.recordset.map(mapNguoiDungListItem);
+  const itemsRaw = itemsResult.recordset;
+
+  // Lấy danh sách NguoiDungID để truy vấn thông tin lồng nhau
+  const nguoiDungIDs = itemsRaw.map((row) => row.ND_NguoiDungID);
+  let svMap = {},
+    gvMap = {},
+    vaiTroMap = {};
+  if (nguoiDungIDs.length > 0) {
+    // Lấy thông tin sinh viên
+    const svQuery = `SELECT tsv.NguoiDungID, nd.MaDinhDanh AS MaSinhVien, tsv.KhoaHoc, tsv.HeDaoTao, tsv.NgayNhapHoc, tsv.TrangThaiHocTap,
+      l.LopID, l.TenLop, l.MaLop, nh.NganhHocID, nh.TenNganhHoc, nh.MaNganhHoc, cn.ChuyenNganhID, cn.TenChuyenNganh, cn.MaChuyenNganh,
+      dv_khoa.DonViID AS KhoaQuanLy_DonViID, dv_khoa.TenDonVi AS KhoaQuanLy_TenDonVi, dv_khoa.MaDonVi AS KhoaQuanLy_MaDonVi
+      FROM ThongTinSinhVien tsv
+      JOIN LopHoc l ON tsv.LopID = l.LopID
+      JOIN NguoiDung nd ON tsv.NguoiDungID = nd.NguoiDungID
+      JOIN NganhHoc nh ON l.NganhHocID = nh.NganhHocID
+      JOIN DonVi dv_khoa ON nh.KhoaQuanLyID = dv_khoa.DonViID AND dv_khoa.LoaiDonVi = 'KHOA'
+      LEFT JOIN ChuyenNganh cn ON l.ChuyenNganhID = cn.ChuyenNganhID
+      WHERE tsv.NguoiDungID IN (${nguoiDungIDs.join(',')})`;
+    const svRes = await executeQuery(svQuery);
+    svRes.recordset.forEach((row) => {
+      svMap[row.NguoiDungID] = {
+        maSinhVien: row.MaSinhVien,
+        lop: { lopID: row.LopID, tenLop: row.TenLop, maLop: row.MaLop },
+        nganhHoc: {
+          nganhHocID: row.NganhHocID,
+          tenNganhHoc: row.TenNganhHoc,
+          maNganhHoc: row.MaNganhHoc,
+        },
+        chuyenNganh: row.ChuyenNganhID
+          ? {
+              chuyenNganhID: row.ChuyenNganhID,
+              tenChuyenNganh: row.TenChuyenNganh,
+              maChuyenNganh: row.MaChuyenNganh,
+            }
+          : null,
+        khoaQuanLy: {
+          donViID: row.KhoaQuanLy_DonViID,
+          tenDonVi: row.KhoaQuanLy_TenDonVi,
+          maDonVi: row.KhoaQuanLy_MaDonVi,
+          loaiDonVi: 'KHOA',
+        },
+        khoaHoc: row.KhoaHoc,
+        heDaoTao: row.HeDaoTao,
+        ngayNhapHoc: row.NgayNhapHoc
+          ? new Date(row.NgayNhapHoc).toISOString().split('T')[0]
+          : null,
+        trangThaiHocTap: row.TrangThaiHocTap,
+      };
+    });
+    // Lấy thông tin giảng viên
+    const gvQuery = `SELECT tgv.NguoiDungID, nd.MaDinhDanh AS MaGiangVien, tgv.HocVi, tgv.HocHam, tgv.ChucDanhGD, tgv.ChuyenMonChinh,
+      dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
+      FROM ThongTinGiangVien tgv
+      JOIN DonVi dv ON tgv.DonViCongTacID = dv.DonViID
+      JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
+      WHERE tgv.NguoiDungID IN (${nguoiDungIDs.join(',')})`;
+    const gvRes = await executeQuery(gvQuery);
+    gvRes.recordset.forEach((row) => {
+      gvMap[row.NguoiDungID] = {
+        maGiangVien: row.MaGiangVien,
+        donViCongTac: {
+          donViID: row.DonViID,
+          tenDonVi: row.TenDonVi,
+          maDonVi: row.MaDonVi,
+          loaiDonVi: row.LoaiDonVi,
+        },
+        hocVi: row.HocVi,
+        hocHam: row.HocHam,
+        chucDanhGD: row.ChucDanhGD,
+        chuyenMonChinh: row.ChuyenMonChinh,
+      };
+    });
+    // Lấy danh sách vai trò chức năng
+    const vtQuery = `SELECT ndvt.NguoiDungID, vt.VaiTroID, vt.MaVaiTro, vt.TenVaiTro, ndvt.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi, ndvt.NgayBatDau, ndvt.NgayKetThuc, ndvt.GhiChuGanVT
+      FROM NguoiDung_VaiTro ndvt
+      JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+      LEFT JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+      WHERE ndvt.NguoiDungID IN (${nguoiDungIDs.join(',')}) AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())`;
+    const vtRes = await executeQuery(vtQuery);
+    vtRes.recordset.forEach((row) => {
+      if (!vaiTroMap[row.NguoiDungID]) vaiTroMap[row.NguoiDungID] = [];
+      vaiTroMap[row.NguoiDungID].push({
+        vaiTroID: row.VaiTroID,
+        maVaiTro: row.MaVaiTro,
+        tenVaiTro: row.TenVaiTro,
+        donViThucThi: row.DonViID
+          ? {
+              donViID: row.DonViID,
+              tenDonVi: row.TenDonVi,
+              maDonVi: row.MaDonVi,
+              loaiDonVi: row.LoaiDonVi,
+            }
+          : null,
+        ngayBatDau: row.NgayBatDau
+          ? new Date(row.NgayBatDau).toISOString().split('T')[0]
+          : null,
+        ngayKetThuc: row.NgayKetThuc
+          ? new Date(row.NgayKetThuc).toISOString().split('T')[0]
+          : null,
+        ghiChuGanVT: row.GhiChuGanVT,
+      });
+    });
+  }
+
+  // Map lại danh sách trả về
+  const items = itemsRaw.map((row) => {
+    const base = mapNguoiDungListItem(row);
+    return {
+      ...base,
+      thongTinSinhVien: svMap[base.nguoiDungID] || null,
+      thongTinGiangVien: gvMap[base.nguoiDungID] || null,
+      vaiTroChucNang: vaiTroMap[base.nguoiDungID] || [],
+    };
+  });
   return { items, totalItems };
 };
 
@@ -461,13 +576,13 @@ const createThongTinGiangVienRecord = async (
  * Gán một vai trò chức năng cho người dùng.
  * @param {number} nguoiDungID
  * @param {object} vaiTroData - Thông tin vai trò chức năng
- * @param {sql.Transaction} transaction
+ * @param {sql.Transaction} [transaction=null]
  * @returns {Promise<void>}
  */
 const assignVaiTroChucNangToNguoiDung = async (
   nguoiDungID,
   vaiTroData,
-  transaction
+  transaction = null
 ) => {
   const query = `
     INSERT INTO NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau, NgayKetThuc)
@@ -489,9 +604,10 @@ const assignVaiTroChucNangToNguoiDung = async (
       type: sql.Date,
       value: vaiTroData.ngayKetThuc ? new Date(vaiTroData.ngayKetThuc) : null,
     },
-    // GhiChuGanVT có thể thêm sau nếu cần
   ];
-  const request = transaction.request();
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
   params.forEach((p) => request.input(p.name, p.type, p.value));
   await request.query(query);
 };
@@ -525,6 +641,7 @@ const checkNguoiDungExists = async (email, maDinhDanh = null) => {
  * @returns {Promise<void>}
  */
 const updateNguoiDungRecord = async (nguoiDungID, data, transaction) => {
+  console.log('data to updateNguoiDungRecord:', data);
   const setClauses = [];
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   if (data.hoTen !== undefined) {
@@ -1011,6 +1128,46 @@ const deleteNguoiDungVaiTroByGanID = async (
   return result.rowsAffected[0];
 };
 
+/**
+ * Lấy tất cả vai trò còn hiệu lực của người dùng (chưa kết thúc hoặc kết thúc >= hôm nay)
+ * @param {number} nguoiDungID
+ * @returns {Promise<Array>} Danh sách vai trò còn hiệu lực
+ */
+const getCurrentActiveRolesOfUser = async (nguoiDungID) => {
+  const query = `
+    SELECT ndvt.* FROM NguoiDung_VaiTro ndvt
+    WHERE ndvt.NguoiDungID = @NguoiDungID
+      AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+  `;
+  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
+/**
+ * Lấy thông tin tài khoản chi tiết cho profile.
+ * @param {number} nguoiDungID
+ * @returns {Promise<object|null>} Thông tin tài khoản hoặc null nếu không tìm thấy
+ */
+const getTaiKhoanInfoByNguoiDungID = async (nguoiDungID) => {
+  const query = `
+    SELECT TrangThaiTk, LanDangNhapCuoi, NgayTaoTk
+    FROM TaiKhoan
+    WHERE NguoiDungID = @NguoiDungID;
+  `;
+  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
+  const result = await executeQuery(query, params);
+  if (result.recordset.length === 0) return null;
+  const row = result.recordset[0];
+  return {
+    trangThaiTk: row.TrangThaiTk,
+    lanDangNhapCuoi: row.LanDangNhapCuoi
+      ? new Date(row.LanDangNhapCuoi).toISOString()
+      : null,
+    ngayTaoTk: row.NgayTaoTk ? new Date(row.NgayTaoTk).toISOString() : null,
+  };
+};
+
 export const nguoiDungRepository = {
   getNguoiDungListWithPagination,
   getNguoiDungAndTaiKhoanById,
@@ -1034,4 +1191,6 @@ export const nguoiDungRepository = {
   getNguoiDungVaiTroByGanID,
   updateNguoiDungVaiTroByGanID,
   deleteNguoiDungVaiTroByGanID,
+  getCurrentActiveRolesOfUser,
+  getTaiKhoanInfoByNguoiDungID,
 };

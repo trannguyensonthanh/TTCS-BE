@@ -96,6 +96,18 @@ const generateMaPhongController = async (req, res) => {
   okResponse(res, result, result.message);
 };
 
+const importPhongFromExcelController = async (req, res) => {
+  if (!req.file) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Không có file Excel nào được tải lên.'
+    );
+  }
+  // req.file.path là đường dẫn đến file đã upload (nếu dùng diskStorage của multer)
+  const result = await phongCRUDService.importPhongFromExcel(req.file.path);
+  okResponse(res, result, result.overallMessage);
+};
+
 export const phongCRUDController = {
   // Đổi tên export
   getPhongListController,
@@ -104,4 +116,5 @@ export const phongCRUDController = {
   updatePhongController,
   deletePhongController,
   generateMaPhongController,
+  importPhongFromExcelController,
 };

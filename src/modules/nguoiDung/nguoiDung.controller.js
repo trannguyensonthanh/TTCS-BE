@@ -1,6 +1,10 @@
 // src/modules/nguoiDung/nguoiDung.controller.js
 import { nguoiDungService } from './nguoiDung.service.js';
-import { okResponse, noContentResponse } from '../../utils/response.util.js';
+import {
+  okResponse,
+  noContentResponse,
+  createdResponse,
+} from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 
 /**

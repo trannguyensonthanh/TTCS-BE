@@ -1239,22 +1239,19 @@ const updateTrangThaiNhieuSuKien = async (
 ) => {
   if (!suKienIDs || suKienIDs.length === 0) return;
 
-  const idTable = new sql.Table();
-  idTable.columns.add('ID', sql.Int);
-  suKienIDs.forEach((id) => idTable.rows.add(id));
-
-  const query = `
-        UPDATE SuKien
-        SET TrangThaiSkID = @TrangThaiSkIDMoi
-        -- Có thể thêm cột LyDoHuyTuDong nếu muốn
-        WHERE SuKienID IN (SELECT ID FROM @SuKienIDTable);
+  for (const suKienID of suKienIDs) {
+    const query = `
+      UPDATE SuKien
+      SET TrangThaiSkID = @TrangThaiSkIDMoi
+      WHERE SuKienID = @SuKienID;
     `;
-  const request = transaction
-    ? transaction.request()
-    : (await getPool()).request();
-  request.input('TrangThaiSkIDMoi', sql.Int, trangThaiSkIDMoi);
-  request.input('SuKienIDTable', idTable);
-  await request.query(query);
+    const request = transaction
+      ? transaction.request()
+      : (await getPool()).request();
+    request.input('TrangThaiSkIDMoi', sql.Int, trangThaiSkIDMoi);
+    request.input('SuKienID', sql.Int, suKienID);
+    await request.query(query);
+  }
 };
 
 /**
