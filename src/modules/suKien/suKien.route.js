@@ -80,6 +80,10 @@ router.post(
     MaVaiTro.CB_TO_CHUC_SU_KIEN,
     MaVaiTro.ADMIN_HE_THONG /*, các vai trò khác được tạo SK */
   ),
+  (req, res, next) => {
+    console.log('Creating new suKien:', req.body);
+    next();
+  },
   suKienValidation.validateCreateSuKien,
   asyncHandler(suKienController.createSuKienController)
 );

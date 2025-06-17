@@ -70,18 +70,24 @@ const loginUser = async (email, matKhau) => {
   );
 
   // Xác định tư cách cơ bản
-  let tuCachCoBan = { loai: 'KHAC', chiTiet: null }; // Mặc định
+  let tuCachCoBan = { loai: 'KHAC', chiTiet: null };
+  let maDonViQuanLy = null; // Mã đơn vị quản lý trả về cho frontend
   const thongTinSV = await authRepository.getThongTinSinhVienCoBan(
     taiKhoanNguoiDung.NguoiDungID
   );
   if (thongTinSV) {
     tuCachCoBan = { loai: 'SINH_VIEN', chiTiet: thongTinSV };
+    // Ưu tiên ngành, nếu không có thì lấy theo chuyên ngành
+    maDonViQuanLy = thongTinSV.maNganhHoc
+      ? thongTinSV.maDonViKhoaQuanLy || null
+      : (thongTinSV.maChuyenNganh && thongTinSV.maDonViKhoaQuanLy) ? thongTinSV.maDonViKhoaQuanLy : null;
   } else {
     const thongTinGV = await authRepository.getThongTinGiangVienCoBan(
       taiKhoanNguoiDung.NguoiDungID
     );
     if (thongTinGV) {
       tuCachCoBan = { loai: 'GIANG_VIEN', chiTiet: thongTinGV };
+      maDonViQuanLy = thongTinGV.maDonViCongTacChinh || null;
     }
     // Có thể thêm logic kiểm tra nhân viên khác nếu có bảng ThongTinNhanVien
   }
@@ -94,6 +100,7 @@ const loginUser = async (email, matKhau) => {
     },
     vaiTroChucNang,
     tuCachCoBan,
+    maDonViQuanLy, // Thêm trường này vào response
     refreshTokenForCookie: tokens.refreshToken, // Trả về để controller set cookie
   };
 };
