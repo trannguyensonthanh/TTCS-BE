@@ -99,8 +99,9 @@ const getNguoiDungListWithPagination = async (params) => {
   const queryParams = [];
 
   if (searchTerm) {
+    console.log(`Searching for term: ${searchTerm}`);
     whereClauses.push(
-      `(nd.HoTen LIKE @SearchTerm OR nd.Email LIKE @SearchTerm OR nd.MaDinhDanh LIKE @SearchTerm OR tsv.MaDinhDanh LIKE @SearchTerm OR tgv.MaDinhDanh LIKE @SearchTerm)`
+      `(nd.HoTen LIKE @SearchTerm OR nd.Email LIKE @SearchTerm OR nd.MaDinhDanh LIKE @SearchTerm)`
     );
     queryParams.push({
       name: 'SearchTerm',
@@ -120,15 +121,35 @@ const getNguoiDungListWithPagination = async (params) => {
 
   if (maVaiTro) {
     fromClause += ` JOIN NguoiDung_VaiTro ndvt_filter ON nd.NguoiDungID = ndvt_filter.NguoiDungID
-                        JOIN VaiTroHeThong vt_filter ON ndvt_filter.VaiTroID = vt_filter.VaiTroID `;
-    whereClauses.push(
-      `vt_filter.MaVaiTro = @MaVaiTroFilter AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
-    );
-    queryParams.push({
-      name: 'MaVaiTroFilter',
-      type: sql.VarChar(50),
-      value: maVaiTro,
-    });
+                    JOIN VaiTroHeThong vt_filter ON ndvt_filter.VaiTroID = vt_filter.VaiTroID `;
+    const maVaiTroArr = maVaiTro
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (maVaiTroArr.length === 1) {
+      whereClauses.push(
+        `vt_filter.MaVaiTro = @MaVaiTroFilter AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
+      );
+      queryParams.push({
+        name: 'MaVaiTroFilter',
+        type: sql.VarChar(50),
+        value: maVaiTroArr[0],
+      });
+    } else if (maVaiTroArr.length > 1) {
+      const inParams = maVaiTroArr
+        .map((v, idx) => `@MaVaiTroFilter${idx}`)
+        .join(', ');
+      whereClauses.push(
+        `vt_filter.MaVaiTro IN (${inParams}) AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
+      );
+      maVaiTroArr.forEach((v, idx) => {
+        queryParams.push({
+          name: `MaVaiTroFilter${idx}`,
+          type: sql.VarChar(50),
+          value: v,
+        });
+      });
+    }
   }
 
   if (donViID) {

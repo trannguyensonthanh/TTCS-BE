@@ -162,7 +162,7 @@ const getLopHocDetailById = async (lopID) => {
     },
     nienKhoa: row.NienKhoa,
     soLuongSinhVien: row.SoLuongSinhVien,
-    gvcn: gvcnData,
+    // gvcn: gvcnData,
   };
 };
 
