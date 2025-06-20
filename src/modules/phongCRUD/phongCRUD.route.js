@@ -47,11 +47,6 @@ router.get(
  */
 router.get(
   '/:id',
-  authMiddleware.authorizeRoles(
-    MaVaiTro.ADMIN_HE_THONG,
-    MaVaiTro.QUAN_LY_CSVC,
-    MaVaiTro.CB_TO_CHUC_SU_KIEN
-  ),
   phongCRUDValidation.validateIdParam,
   asyncHandler(phongCRUDController.getPhongDetailController)
 );

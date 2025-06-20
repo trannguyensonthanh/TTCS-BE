@@ -28,5 +28,15 @@ module.exports = {
     // Thêm các quy tắc bạn muốn ghi đè hoặc tắt ở đây
     'no-restricted-syntax': 'off',
     'no-await-in-loop': 'off',
+    'import/extensions': [
+      'error',
+      'ignorePackages',
+      {
+        js: 'always', // hoặc 'never' tùy vào style project m
+        jsx: 'never',
+        ts: 'never',
+        tsx: 'never',
+      },
+    ],
   },
 };

@@ -1,5 +1,7 @@
 // src/modules/phong/phong.service.js
 
+import httpStatus from '../../constants/httpStatus.js';
+import ApiError from '../../utils/ApiError.util.js';
 import { phongRepository } from './phongForSelect.repository.js';
 
 /**
@@ -32,8 +34,8 @@ const getPhongsForSelect = async (params) => {
   }
 
   const { items, totalItems } = await phongRepository.getPhongForSelect(params);
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 50;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 50;
   const totalPages = Math.ceil(totalItems / limit);
   return items;
 };

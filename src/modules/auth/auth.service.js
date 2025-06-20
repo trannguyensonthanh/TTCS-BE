@@ -8,6 +8,7 @@ import { authRepository } from './auth.repository.js';
 import crypto from 'crypto';
 import emailService from '../../services/email.service.js';
 import jwtConfig from '../../config/jwt.config.js';
+import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
 /**
  * Đăng nhập người dùng bằng email và mật khẩu.
@@ -51,57 +52,56 @@ const loginUser = async (email, matKhau) => {
     );
   }
 
+  const nguoiDungID = taiKhoanNguoiDung.NguoiDungID;
+
+  // 1. Tạo đối tượng `nguoiDungResponse`
   const nguoiDungResponse = {
-    nguoiDungID: taiKhoanNguoiDung.NguoiDungID,
+    nguoiDungID: nguoiDungID,
     maDinhDanh: taiKhoanNguoiDung.MaDinhDanh,
     hoTen: taiKhoanNguoiDung.HoTen,
     email: taiKhoanNguoiDung.NguoiDungEmail,
     anhDaiDien: taiKhoanNguoiDung.AnhDaiDien,
   };
 
-  // Tạo tokens
-  const tokens = generateAuthTokens({
-    NguoiDungID: taiKhoanNguoiDung.NguoiDungID /*, roles: ... nếu cần */,
-  });
+  // 2. Lấy TẤT CẢ các vai trò từ CSDL (chức năng + thành viên)
+  const allRolesFromDB =
+    await authRepository.getVaiTroChucNangByNguoiDungID(nguoiDungID);
 
-  // Lấy vai trò chức năng
-  const vaiTroChucNang = await authRepository.getVaiTroByNguoiDungID(
-    taiKhoanNguoiDung.NguoiDungID
-  );
+  // 3. Xây dựng đối tượng `vaiTroChucNang`
 
-  // Xác định tư cách cơ bản
+  const vaiTroChucNang = allRolesFromDB
+    .filter((role) => role.maVaiTro !== MaVaiTro.THANH_VIEN_DON_VI)
+    .map((role) => ({
+      maVaiTro: role.maVaiTro,
+      tenVaiTro: role.tenVaiTro,
+      donViThucThi: role.donVi,
+    }));
+
+  // 4. Xây dựng đối tượng `tuCachCoBan`
   let tuCachCoBan = { loai: 'KHAC', chiTiet: null };
-  let maDonViQuanLy = null; // Mã đơn vị quản lý trả về cho frontend
-  const thongTinSV = await authRepository.getThongTinSinhVienCoBan(
-    taiKhoanNguoiDung.NguoiDungID
-  );
+
+  const thongTinSV = await authRepository.getThongTinSinhVienCoBan(nguoiDungID);
   if (thongTinSV) {
     tuCachCoBan = { loai: 'SINH_VIEN', chiTiet: thongTinSV };
-    // Ưu tiên ngành, nếu không có thì lấy theo chuyên ngành
-    maDonViQuanLy = thongTinSV.maNganhHoc
-      ? thongTinSV.maDonViKhoaQuanLy || null
-      : (thongTinSV.maChuyenNganh && thongTinSV.maDonViKhoaQuanLy) ? thongTinSV.maDonViKhoaQuanLy : null;
   } else {
-    const thongTinGV = await authRepository.getThongTinGiangVienCoBan(
-      taiKhoanNguoiDung.NguoiDungID
-    );
+    const thongTinGV =
+      await authRepository.getThongTinGiangVienCoBan(nguoiDungID);
     if (thongTinGV) {
       tuCachCoBan = { loai: 'GIANG_VIEN', chiTiet: thongTinGV };
-      maDonViQuanLy = thongTinGV.maDonViCongTacChinh || null;
     }
-    // Có thể thêm logic kiểm tra nhân viên khác nếu có bảng ThongTinNhanVien
   }
+
+  // 5. Tạo tokens
+  const tokens = generateAuthTokens({ NguoiDungID: nguoiDungID });
 
   return {
     nguoiDung: nguoiDungResponse,
     tokens: {
       accessToken: tokens.accessToken,
-      // refreshToken không trả về trong body
     },
     vaiTroChucNang,
     tuCachCoBan,
-    maDonViQuanLy, // Thêm trường này vào response
-    refreshTokenForCookie: tokens.refreshToken, // Trả về để controller set cookie
+    refreshTokenForCookie: tokens.refreshToken,
   };
 };
 

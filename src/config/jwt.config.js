@@ -1,5 +1,6 @@
 // src/config/jwt.config.js
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const jwtConfig = {

@@ -1,5 +1,6 @@
 // src/modules/donVi/donVi.repository.js
 import LoaiDonVi from '../../enums/loaiDonVi.enum.js';
+import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
 
@@ -13,8 +14,36 @@ const FROM_JOIN_DONVI = `
     LEFT JOIN DonVi dv_cha ON dv.DonViChaID = dv_cha.DonViID
 `;
 
-const mapRowToDonViListItem = (row) => {
+/**
+ * [SỬA LỖI] Đếm số lượng thành viên của một đơn vị.
+ * Logic được cập nhật để đếm dựa trên vai trò THANH_VIEN_DON_VI, thay vì cột DonViCongTacID.
+ * @param {number} donViId - ID của đơn vị
+ * @returns {Promise<number>} Tổng số thành viên
+ */
+const countThanhVienInDonVi = async (donViId) => {
+  const query = `
+        SELECT COUNT(DISTINCT ndvt.NguoiDungID) as thanhVienCount
+        FROM NguoiDung_VaiTro ndvt
+        JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+        WHERE ndvt.DonViID = @DonViID 
+          AND vt.MaVaiTro = @MaVaiTroThanhVien
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE());
+    `;
+  const params = [
+    { name: 'DonViID', type: sql.Int, value: donViId },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset[0].thanhVienCount;
+};
+
+const mapRowToDonViListItem = async (row) => {
   const tenLoaiDonVi = LoaiDonVi[row.LoaiDonVi] || row.LoaiDonVi;
+  const soLuongThanhVien = await countThanhVienInDonVi(row.DonViID);
   return {
     donViID: row.DonViID,
     tenDonVi: row.TenDonVi,
@@ -29,7 +58,7 @@ const mapRowToDonViListItem = (row) => {
         }
       : null,
     soLuongDonViCon: row.SoLuongDonViCon,
-    soLuongThanhVien: row.SoLuongThanhVien,
+    soLuongThanhVien: soLuongThanhVien,
     moTaDv: row.MoTaDv,
   };
 };
@@ -80,13 +109,6 @@ const getDonViListWithPagination = async (params) => {
 
   // Subquery để đếm đơn vị con
   const soLuongDonViConSubQuery = `(SELECT COUNT(*) FROM DonVi dv_sub WHERE dv_sub.DonViChaID = dv.DonViID)`;
-  // Subquery để đếm thành viên (RẤT PHỨC TẠP VÀ TỐN HIỆU NĂNG)
-  const soLuongThanhVienSubQuery = `(
-      (SELECT COUNT(DISTINCT tsv.NguoiDungID) FROM ThongTinSinhVien tsv JOIN LopHoc lh ON tsv.LopID = lh.LopID JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID WHERE nh.KhoaQuanLyID = dv.DonViID AND dv.LoaiDonVi = 'KHOA') +
-      (SELECT COUNT(DISTINCT tgv.NguoiDungID) FROM ThongTinGiangVien tgv WHERE tgv.DonViCongTacID = dv.DonViID AND dv.LoaiDonVi IN ('KHOA', 'BO_MON')) +
-      (SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.DonViID = dv.DonViID AND dv.LoaiDonVi NOT IN ('KHOA', 'BO_MON', 'CLB')) +
-      (SELECT COUNT(DISTINCT tvc.NguoiDungID) FROM ThanhVienCLB tvc WHERE tvc.DonViID_CLB = dv.DonViID AND dv.LoaiDonVi = 'CLB')
-  )`;
 
   const countQuery = `SELECT COUNT(DISTINCT dv.DonViID) AS TotalItems ${FROM_JOIN_DONVI} ${whereClause}`;
   const countResult = await executeQuery(countQuery, queryParams);
@@ -100,18 +122,17 @@ const getDonViListWithPagination = async (params) => {
   const itemsQuery = `
         SELECT ${SELECT_DONVI_FIELDS},
                ${soLuongDonViConSubQuery} AS SoLuongDonViCon
-              , ${soLuongThanhVienSubQuery} AS SoLuongThanhVien
+               -- Bỏ subquery đếm thành viên ở đây
         ${FROM_JOIN_DONVI}
         ${whereClause}
         ORDER BY ${safeSortBy} ${safeSortOrder}, dv.DonViID ${safeSortOrder}
         OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
     `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-  const items = itemsResult.recordset.map((row) =>
-    mapRowToDonViListItem({
-      ...row,
-      SoLuongThanhVien: null,
-    })
+
+  // [SỬA LỖI] Dùng Promise.all để gọi hàm map bất đồng bộ
+  const items = await Promise.all(
+    itemsResult.recordset.map((row) => mapRowToDonViListItem(row))
   );
   return { items, totalItems };
 };
@@ -124,20 +145,13 @@ const getDonViListWithPagination = async (params) => {
  */
 const getDonViById = async (donViId, transaction = null) => {
   const soLuongDonViConSubQuery = `(SELECT COUNT(*) FROM DonVi dv_sub WHERE dv_sub.DonViChaID = dv.DonViID)`;
-  const soLuongThanhVienSubQuery = `(
-      (SELECT COUNT(DISTINCT tsv.NguoiDungID) FROM ThongTinSinhVien tsv JOIN LopHoc lh ON tsv.LopID = lh.LopID JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID WHERE nh.KhoaQuanLyID = dv.DonViID AND dv.LoaiDonVi = 'KHOA') +
-      (SELECT COUNT(DISTINCT tgv.NguoiDungID) FROM ThongTinGiangVien tgv WHERE tgv.DonViCongTacID = dv.DonViID AND dv.LoaiDonVi IN ('KHOA', 'BO_MON')) +
-      (SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.DonViID = dv.DonViID AND dv.LoaiDonVi NOT IN ('KHOA', 'BO_MON', 'CLB')) +
-      (SELECT COUNT(DISTINCT tvc.NguoiDungID) FROM ThanhVienCLB tvc WHERE tvc.DonViID_CLB = dv.DonViID AND dv.LoaiDonVi = 'CLB')
-  )`;
 
   const query = `
-    SELECT ${SELECT_DONVI_FIELDS},
-           ${soLuongDonViConSubQuery} AS SoLuongDonViCon
-           , ${soLuongThanhVienSubQuery} AS SoLuongThanhVien 
-    ${FROM_JOIN_DONVI}
-    WHERE dv.DonViID = @DonViId;
-  `;
+        SELECT ${SELECT_DONVI_FIELDS},
+               (SELECT COUNT(*) FROM DonVi dv_sub WHERE dv_sub.DonViChaID = dv.DonViID) AS SoLuongDonViCon
+        ${FROM_JOIN_DONVI}
+        WHERE dv.DonViID = @DonViId;
+    `;
   const params = [{ name: 'DonViId', type: sql.Int, value: donViId }];
   let result;
   if (transaction) {
@@ -151,10 +165,8 @@ const getDonViById = async (donViId, transaction = null) => {
   }
   if (result.recordset.length === 0) return null;
 
-  return mapRowToDonViListItem({
-    ...result.recordset[0],
-    SoLuongThanhVien: null,
-  });
+  const donViData = await mapRowToDonViListItem(result.recordset[0]);
+  return donViData;
 };
 
 /**
@@ -312,9 +324,6 @@ const checkDonViUsage = async (donViId, transaction = null) => {
       'SELECT COUNT(*) as count FROM NguoiDung_VaiTro WHERE DonViID = @DonViID AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE())'
     ), // Người dùng có vai trò tại ĐV
     request.query(
-      'SELECT COUNT(*) as count FROM ThongTinGiangVien WHERE DonViCongTacID = @DonViID'
-    ), // Giảng viên công tác
-    request.query(
       'SELECT COUNT(*) as count FROM SuKien WHERE DonViChuTriID = @DonViID'
     ), // Sự kiện chủ trì
     request.query(
@@ -331,7 +340,7 @@ const checkDonViUsage = async (donViId, transaction = null) => {
     hasNganhHoc: results[1].recordset[0].count > 0,
     hasLopHoc: results[2].recordset[0].count > 0,
     hasNguoiDungVaiTro: results[3].recordset[0].count > 0,
-    hasThongTinGiangVien: results[4].recordset[0].count > 0,
+
     hasSuKienChuTri: results[5].recordset[0].count > 0,
     hasSuKienThamGia: results[6].recordset[0].count > 0,
     hasPhongQuanLy: results[7].recordset[0].count > 0,

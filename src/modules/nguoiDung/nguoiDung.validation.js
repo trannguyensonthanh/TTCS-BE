@@ -108,7 +108,6 @@ const thongTinSinhVienPayloadSchema = Joi.object({
  * @type {Joi.ObjectSchema}
  */
 const thongTinGiangVienPayloadSchema = Joi.object({
-  donViCongTacID: Joi.number().integer().positive().required(),
   hocVi: Joi.string().max(100).allow('', null).optional(),
   hocHam: Joi.string().max(100).allow('', null).optional(),
   chucDanhGD: Joi.string().max(100).allow('', null).optional(),
@@ -134,26 +133,47 @@ const vaiTroChucNangGanPayloadSchema = Joi.object({
 const createNguoiDungPayloadSchema = Joi.object({
   hoTen: Joi.string().max(150).required(),
   email: Joi.string().email().required(),
-  maDinhDanh: Joi.string().max(50).allow('', null).optional(),
-  soDienThoai: Joi.string().max(20).allow('', null).optional(),
-  anhDaiDien: Joi.string().uri().max(500).allow('', null).optional(),
-  isActiveNguoiDung: Joi.boolean().default(true), // Đổi tên cho rõ ràng hơn là cho NguoiDung.IsActive
-  // Mật khẩu ban đầu
+  maDinhDanh: Joi.string().max(50).required(),
+  matKhau: Joi.string().min(6).required(),
   loaiNguoiDung: Joi.string()
     .valid('SINH_VIEN', 'GIANG_VIEN', 'NHAN_VIEN_KHAC')
     .required(),
+  soDienThoai: Joi.string().max(20).allow('', null).optional(),
+  anhDaiDien: Joi.string().uri().max(500).allow('', null).optional(),
+  isActiveNguoiDung: Joi.boolean().default(true),
   trangThaiTk: Joi.string()
     .valid('Active', 'Locked', 'Disabled')
     .default('Active'),
   ngaySinh: Joi.date().iso().allow(null).optional(),
-  thongTinSinhVien: thongTinSinhVienPayloadSchema.optional(),
-  thongTinGiangVien: thongTinGiangVienPayloadSchema.optional(),
-  matKhau: Joi.string().min(6).required(), // Mật khẩu đã được FE tạo
+
+  // Thông tin chi tiết dựa trên loaiNguoiDung
+  thongTinSinhVien: thongTinSinhVienPayloadSchema.when('loaiNguoiDung', {
+    is: 'SINH_VIEN',
+    then: Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
+  thongTinGiangVien: thongTinGiangVienPayloadSchema.when('loaiNguoiDung', {
+    // Object này không chứa donViCongTacID
+    is: 'GIANG_VIEN',
+    then: Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
+  donViCongTacID: Joi.number()
+    .integer()
+    .positive()
+    .when('loaiNguoiDung', {
+      // donViCongTacID là trường riêng
+      is: Joi.valid('GIANG_VIEN', 'NHAN_VIEN_KHAC'),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
+
+  // Vai trò chức năng là tùy chọn
   vaiTroChucNang: Joi.array()
     .items(vaiTroChucNangGanPayloadSchema)
     .optional()
     .default([]),
-}).xor('thongTinSinhVien', 'thongTinGiangVien'); // Một người dùng hoặc là SV hoặc là GV (hoặc không phải cả hai nếu là NV khác)
+});
 
 /**
  * Schema validate payload cập nhật người dùng (admin).
@@ -336,6 +356,26 @@ const importUsersBatchPayloadSchema = Joi.object({
 });
 
 /**
+ * [MỚI] Schema validate query params khi tìm kiếm người dùng để mời.
+ */
+const findUsersForInvitationParamsSchema = Joi.object({
+  suKienID: Joi.number().integer().positive().required().messages({
+    'any.required': 'suKienID là bắt buộc.',
+  }),
+  searchTerm: Joi.string().min(1).required().messages({
+    'string.min': 'searchTerm phải có ít nhất 1 ký tự.',
+    'any.required': 'searchTerm là bắt buộc.',
+  }),
+  loaiNguoiDung: Joi.string()
+    .valid('SINH_VIEN', 'GIANG_VIEN', 'ALL')
+    .default('ALL'),
+  donViID: Joi.number().integer().positive().optional(),
+  nganhHocID: Joi.number().integer().positive().optional(),
+  lopID: Joi.number().integer().positive().optional(),
+  limit: Joi.number().integer().min(1).max(50).default(15),
+});
+
+/**
  * Middleware validate các schema cho module người dùng.
  * @property {Function} validateGetNguoiDungsParams
  * @property {Function} validateChangePasswordPayload
@@ -367,4 +407,8 @@ export const nguoiDungValidation = {
     updateAssignedFunctionalRolePayloadSchema
   ),
   validateImportUsersBatchPayload: validate(importUsersBatchPayloadSchema),
+  validateFindUsersForInvitationParams: validate(
+    findUsersForInvitationParamsSchema,
+    'query'
+  ),
 };

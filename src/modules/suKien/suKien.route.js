@@ -25,6 +25,37 @@ router.get(
 // Tất cả các route trong module này đều yêu cầu xác thực
 router.use(authMiddleware.authenticateToken);
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đủ điều kiện để gửi lời mời.
+ * @route GET /api/v1/su-kien/co-the-moi
+ * @access CONG_TAC_SINH_VIEN
+ */
+router.get(
+  '/co-the-moi',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ), // Cho phép cả Admin
+  suKienValidation.validateGetSuKienCoTheMoiParams,
+  asyncHandler(suKienController.getSuKienCoTheMoiController)
+);
+
+/**
+ * [MỚI] Gửi lời mời hàng loạt theo tiêu chí hoặc danh sách.
+ * @route POST /api/v1/su-kien/{suKienID}/gui-loi-moi-hang-loat
+ * @access CONG_TAC_SINH_VIEN, ADMIN_HE_THONG
+ */
+router.post(
+  '/:suKienID/gui-loi-moi-hang-loat',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  suKienValidation.validateSuKienIDParam,
+  suKienValidation.validateGuiLoiMoiHangLoatPayload,
+  asyncHandler(suKienController.guiLoiMoiHangLoatController)
+);
+
 router.get(
   '/',
   // suKienValidation.validateGetSuKienParams, // Middleware validation cho query params
@@ -145,6 +176,50 @@ router.post(
   suKienValidation.validateIDParam,
   suKienValidation.validateTuChoiSuKienBGHPayload,
   asyncHandler(suKienController.tuChoiSuKienByBGHController)
+);
+
+/**
+ * [MỚI] Gửi lời mời tham gia sự kiện.
+ * @route POST /api/v1/su-kien/{suKienID}/moi-tham-gia
+ * @access CONG_TAC_SINH_VIEN
+ */
+router.post(
+  '/:suKienID/moi-tham-gia/ca-nhan',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  suKienValidation.validateSuKienIDParam,
+  suKienValidation.validateGuiLoiMoiPayload,
+  asyncHandler(suKienController.guiLoiMoiThamGiaController)
+);
+
+/**
+ * [MỚI] Lấy danh sách người đã được mời cho một sự kiện.
+ * @route GET /api/v1/su-kien/{suKienID}/danh-sach-moi
+ * @access CONG_TAC_SINH_VIEN, ADMIN_HE_THONG
+ */
+router.get(
+  '/:suKienID/danh-sach-moi',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  suKienValidation.validateSuKienIDParam, // Dùng lại validation ID sự kiện
+  suKienValidation.validateGetDanhSachMoiParams, // Sẽ tạo validation này
+  asyncHandler(suKienController.getDanhSachMoiController)
+);
+
+/**
+ * [MỚI] Lấy danh sách sự kiện người dùng đã tham gia.
+ * @route GET /api/v1/su-kien/da-tham-gia/cua-toi
+ * @access Đăng nhập
+ */
+router.get(
+  '/da-tham-gia/cua-toi',
+  // Middleware xác thực đã được áp dụng cho cả router
+  suKienValidation.validateGetMyAttendedEventsParams, // Sẽ tạo schema này
+  asyncHandler(suKienController.getMyAttendedEventsController)
 );
 
 export default router;

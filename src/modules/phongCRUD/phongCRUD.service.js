@@ -64,8 +64,14 @@ const createPhong = async (phongBody) => {
   );
   if (!loaiPhong)
     throw new ApiError(httpStatus.BAD_REQUEST, 'Loại phòng không hợp lệ.');
-  // const trangThaiPhong = await trangThaiPhongRepository.getTrangThaiPhongById(phongData.trangThaiPhongID);
-  // if (!trangThaiPhong) throw new ApiError(httpStatus.BAD_REQUEST, 'Trạng thái phòng không hợp lệ.');
+  const trangThaiPhong = await trangThaiPhongRepository.getTrangThaiPhongById(
+    phongData.trangThaiPhongID
+  );
+  if (!trangThaiPhong)
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Trạng thái phòng không hợp lệ.'
+    );
   const toaNhaTang = await toaNhaTangRepository.getToaNhaTangById(
     phongData.toaNhaTangID
   );

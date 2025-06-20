@@ -2,52 +2,55 @@
 import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
 import logger from '../../utils/logger.util.js';
+import MaVaiTro from '../../enums/maVaiTro.enum.js';
+
+// /**
+//  * Chuyển đổi một dòng dữ liệu thành object người dùng chuẩn cho danh sách.
+//  * @param {object} row - Dòng dữ liệu từ SQL
+//  * @returns {object} Object người dùng chuẩn
+//  */
+// const mapNguoiDungListItem = (row) => {
+//   let loaiNguoiDungHienThi = 'Nhân viên Khác'; // Mặc định
+//   let donViCongTacChinh = null;
+
+//   if (row.SV_NguoiDungID_Exists) {
+//     loaiNguoiDungHienThi = 'Sinh viên';
+//     donViCongTacChinh = row.Lop_TenLop;
+//   } else if (row.GV_NguoiDungID_Exists) {
+//     loaiNguoiDungHienThi = 'Giảng viên';
+
+//     donViCongTacChinh = row.DVCT_TenDonVi;
+//   }
+
+//   const vaiTroArray = row.CacVaiTroChucNang
+//     ? row.CacVaiTroChucNang.split(',')
+//         .map((s) => s.trim())
+//         .filter((s) => s)
+//     : [];
+
+//   return {
+//     nguoiDungID: row.ND_NguoiDungID,
+//     maDinhDanh: row.ND_MaDinhDanh, // Mã chung (giờ là MaSV/GV/NV)
+//     hoTen: row.ND_HoTen,
+//     email: row.ND_Email,
+//     soDienThoai: row.ND_SoDienThoai,
+//     anhDaiDien: row.ND_AnhDaiDien,
+//     isActive: row.ND_IsActive,
+//     ngaySinh: row.ND_NgaySinh ? new Date(row.ND_NgaySinh).toISOString() : null,
+//     trangThaiTaiKhoan: row.TK_TrangThaiTk,
+//     loaiNguoiDungHienThi: loaiNguoiDungHienThi,
+//     donViCongTacChinh: donViCongTacChinh,
+//     cacVaiTroChucNang: vaiTroArray,
+//     ngayTao: new Date(row.ND_NgayTao).toISOString(),
+//   };
+// };
 
 /**
- * Chuyển đổi một dòng dữ liệu thành object người dùng chuẩn cho danh sách.
- * @param {object} row - Dòng dữ liệu từ SQL
- * @returns {object} Object người dùng chuẩn
- */
-const mapNguoiDungListItem = (row) => {
-  let loaiNguoiDungHienThi = 'Nhân viên Khác'; // Mặc định
-  let donViCongTacChinh = null;
-
-  if (row.SV_NguoiDungID_Exists) {
-    loaiNguoiDungHienThi = 'Sinh viên';
-    donViCongTacChinh = row.Lop_TenLop;
-  } else if (row.GV_NguoiDungID_Exists) {
-    loaiNguoiDungHienThi = 'Giảng viên';
-
-    donViCongTacChinh = row.DVCT_TenDonVi;
-  }
-
-  const vaiTroArray = row.CacVaiTroChucNang
-    ? row.CacVaiTroChucNang.split(',')
-        .map((s) => s.trim())
-        .filter((s) => s)
-    : [];
-
-  return {
-    nguoiDungID: row.ND_NguoiDungID,
-    maDinhDanh: row.ND_MaDinhDanh, // Mã chung (giờ là MaSV/GV/NV)
-    hoTen: row.ND_HoTen,
-    email: row.ND_Email,
-    soDienThoai: row.ND_SoDienThoai,
-    anhDaiDien: row.ND_AnhDaiDien,
-    isActive: row.ND_IsActive,
-    ngaySinh: row.ND_NgaySinh ? new Date(row.ND_NgaySinh).toISOString() : null,
-    trangThaiTaiKhoan: row.TK_TrangThaiTk,
-    loaiNguoiDungHienThi: loaiNguoiDungHienThi,
-    donViCongTacChinh: donViCongTacChinh,
-    cacVaiTroChucNang: vaiTroArray,
-    ngayTao: new Date(row.ND_NgayTao).toISOString(),
-  };
-};
-
-/**
- * Lấy danh sách người dùng có phân trang, kèm đầy đủ thông tin lồng nhau (SV, GV, vai trò).
- * @param {object} params - Tham số truy vấn (searchTerm, loaiNguoiDung, maVaiTro, donViID, isActive, page, limit, sortBy, sortOrder)
- * @returns {Promise<{items: Array<object>, totalItems: number}>} Danh sách người dùng và tổng số bản ghi
+ * [SỬA ĐỔI] Lấy danh sách người dùng CƠ BẢN có phân trang.
+ * Query này được đơn giản hóa, chỉ lấy thông tin từ NguoiDung và TaiKhoan.
+ * Việc lấy thông tin chi tiết (SV, GV, Vai trò) sẽ được thực hiện sau ở tầng service.
+ * @param {object} params - Tham số truy vấn
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
  */
 const getNguoiDungListWithPagination = async (params) => {
   const {
@@ -62,44 +65,49 @@ const getNguoiDungListWithPagination = async (params) => {
     sortOrder = 'ASC',
   } = params;
 
-  let selectClause = `
-        SELECT DISTINCT
-            nd.NguoiDungID AS ND_NguoiDungID, nd.MaDinhDanh AS ND_MaDinhDanh, nd.HoTen AS ND_HoTen,
-            nd.Email AS ND_Email, nd.SoDienThoai AS ND_SoDienThoai, nd.AnhDaiDien AS ND_AnhDaiDien, nd.NgaySinh AS ND_NgaySinh,
-            nd.IsActive AS ND_IsActive, nd.NgayTao AS ND_NgayTao,
-            tk.TrangThaiTk AS TK_TrangThaiTk,
-            tsv.NguoiDungID AS SV_NguoiDungID_Exists, -- Chỉ cần biết có tồn tại hay không
-            lop.TenLop AS Lop_TenLop,
-            -- khoa_sv.TenDonVi AS KhoaQL_TenDonVi, -- JOIN thêm nếu cần hiển thị Khoa của SV
-            tgv.NguoiDungID AS GV_NguoiDungID_Exists, -- Chỉ cần biết có tồn tại hay không
-            dv_ct.TenDonVi AS DVCT_TenDonVi,
-            (
-                STUFF((
-                    SELECT ', ' + vt_role.TenVaiTro
-                    FROM NguoiDung_VaiTro ndvt_role
-                    JOIN VaiTroHeThong vt_role ON ndvt_role.VaiTroID = vt_role.VaiTroID
-                    WHERE ndvt_role.NguoiDungID = nd.NguoiDungID AND (ndvt_role.NgayKetThuc IS NULL OR ndvt_role.NgayKetThuc >= GETDATE())
-                    FOR XML PATH('')
-                ), 1, 2, '')
-            ) AS CacVaiTroChucNang
-    `;
-
   let fromClause = `
         FROM NguoiDung nd
         LEFT JOIN TaiKhoan tk ON nd.NguoiDungID = tk.NguoiDungID
-        LEFT JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID
-        LEFT JOIN LopHoc lop ON tsv.LopID = lop.LopID
-        -- LEFT JOIN NganhHoc nh_sv ON lop.NganhHocID = nh_sv.NganhHocID
-        -- LEFT JOIN DonVi khoa_sv ON nh_sv.KhoaQuanLyID = khoa_sv.DonViID AND khoa_sv.LoaiDonVi = 'KHOA'
-        LEFT JOIN ThongTinGiangVien tgv ON nd.NguoiDungID = tgv.NguoiDungID
-        LEFT JOIN DonVi dv_ct ON tgv.DonViCongTacID = dv_ct.DonViID
     `;
-
-  let whereClauses = [];
+  let whereClauses = ['1=1'];
   const queryParams = [];
 
+  // Thêm các JOINs và WHERE clauses dựa trên bộ lọc
+  if (loaiNguoiDung) {
+    if (loaiNguoiDung === 'SINH_VIEN') {
+      fromClause += ` JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID `;
+    } else if (loaiNguoiDung === 'GIANG_VIEN') {
+      fromClause += ` JOIN ThongTinGiangVien tgv ON nd.NguoiDungID = tgv.NguoiDungID `;
+    } else if (loaiNguoiDung === 'NHAN_VIEN') {
+      whereClauses.push(`
+                NOT EXISTS (SELECT 1 FROM ThongTinSinhVien WHERE NguoiDungID = nd.NguoiDungID)
+                AND NOT EXISTS (SELECT 1 FROM ThongTinGiangVien WHERE NguoiDungID = nd.NguoiDungID)
+            `);
+    }
+  }
+  if (maVaiTro) {
+    fromClause += ` JOIN NguoiDung_VaiTro ndvt ON nd.NguoiDungID = ndvt.NguoiDungID JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID `;
+    whereClauses.push(`vt.MaVaiTro = @MaVaiTro`);
+    queryParams.push({
+      name: 'MaVaiTro',
+      type: sql.VarChar(50),
+      value: maVaiTro,
+    });
+  }
+  if (donViID) {
+    // Logic lọc theo đơn vị đã được đơn giản hóa để hoạt động với mô hình mới
+    whereClauses.push(`
+            EXISTS (
+                SELECT 1 FROM NguoiDung_VaiTro ndvt_dv
+                JOIN VaiTroHeThong vt_dv ON ndvt_dv.VaiTroID = vt_dv.VaiTroID
+                WHERE ndvt_dv.NguoiDungID = nd.NguoiDungID AND ndvt_dv.DonViID = @DonViID AND vt_dv.MaVaiTro = 'THANH_VIEN_DON_VI'
+            )
+        `);
+    queryParams.push({ name: 'DonViID', type: sql.Int, value: donViID });
+  }
+
+  // Các điều kiện lọc khác
   if (searchTerm) {
-    console.log(`Searching for term: ${searchTerm}`);
     whereClauses.push(
       `(nd.HoTen LIKE @SearchTerm OR nd.Email LIKE @SearchTerm OR nd.MaDinhDanh LIKE @SearchTerm)`
     );
@@ -109,234 +117,45 @@ const getNguoiDungListWithPagination = async (params) => {
       value: `%${searchTerm}%`,
     });
   }
-
-  if (loaiNguoiDung) {
-    if (loaiNguoiDung === 'SINH_VIEN')
-      whereClauses.push(`tsv.NguoiDungID IS NOT NULL`);
-    else if (loaiNguoiDung === 'GIANG_VIEN')
-      whereClauses.push(`tgv.NguoiDungID IS NOT NULL`);
-    else if (loaiNguoiDung === 'NHAN_VIEN_KHAC')
-      whereClauses.push(`tsv.NguoiDungID IS NULL AND tgv.NguoiDungID IS NULL`);
-  }
-
-  if (maVaiTro) {
-    fromClause += ` JOIN NguoiDung_VaiTro ndvt_filter ON nd.NguoiDungID = ndvt_filter.NguoiDungID
-                    JOIN VaiTroHeThong vt_filter ON ndvt_filter.VaiTroID = vt_filter.VaiTroID `;
-    const maVaiTroArr = maVaiTro
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (maVaiTroArr.length === 1) {
-      whereClauses.push(
-        `vt_filter.MaVaiTro = @MaVaiTroFilter AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
-      );
-      queryParams.push({
-        name: 'MaVaiTroFilter',
-        type: sql.VarChar(50),
-        value: maVaiTroArr[0],
-      });
-    } else if (maVaiTroArr.length > 1) {
-      const inParams = maVaiTroArr
-        .map((v, idx) => `@MaVaiTroFilter${idx}`)
-        .join(', ');
-      whereClauses.push(
-        `vt_filter.MaVaiTro IN (${inParams}) AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
-      );
-      maVaiTroArr.forEach((v, idx) => {
-        queryParams.push({
-          name: `MaVaiTroFilter${idx}`,
-          type: sql.VarChar(50),
-          value: v,
-        });
-      });
-    }
-  }
-
-  if (donViID) {
-    // Logic lọc theo donViID có thể phức tạp:
-    // 1. Đơn vị công tác của GV
-    // 2. Khoa quản lý của SV (qua Lớp -> Ngành -> Khoa)
-    // 3. Đơn vị thực thi của một vai trò chức năng
-    // Để đơn giản, có thể chỉ lọc theo đơn vị công tác của GV hoặc đơn vị thực thi của vai trò chức năng
-    whereClauses.push(`(tgv.DonViCongTacID = @DonViIDFilter OR EXISTS (
-            SELECT 1 FROM NguoiDung_VaiTro ndvt_dv 
-            WHERE ndvt_dv.NguoiDungID = nd.NguoiDungID 
-              AND ndvt_dv.DonViID = @DonViIDFilter 
-              AND (ndvt_dv.NgayKetThuc IS NULL OR ndvt_dv.NgayKetThuc >= GETDATE())
-        )
-        OR EXISTS (
-             SELECT 1 FROM ThongTinSinhVien tsv_dv 
-             JOIN LopHoc lh_dv ON tsv_dv.LopID = lh_dv.LopID
-             JOIN NganhHoc nh_dv ON lh_dv.NganhHocID = nh_dv.NganhHocID
-             WHERE tsv_dv.NguoiDungID = nd.NguoiDungID AND nh_dv.KhoaQuanLyID = @DonViIDFilter
-        )
-        )`);
-    queryParams.push({ name: 'DonViIDFilter', type: sql.Int, value: donViID });
-  }
-
-  if (maVaiTro && Array.isArray(maVaiTro) && maVaiTro.length > 0) {
-    fromClause += ` JOIN NguoiDung_VaiTro ndvt_filter ON nd.NguoiDungID = ndvt_filter.NguoiDungID
-                       JOIN VaiTroHeThong vt_filter ON ndvt_filter.VaiTroID = vt_filter.VaiTroID `;
-
-    // Tạo chuỗi tham số động cho IN clause
-    const maVaiTroParams = maVaiTro.map((ma, index) => {
-      const paramName = `MaVaiTroFilter${index}`;
-      queryParams.push({ name: paramName, type: sql.VarChar, value: ma });
-      return `@${paramName}`;
-    });
-
-    whereClauses.push(
-      `vt_filter.MaVaiTro IN (${maVaiTroParams.join(',')}) AND (ndvt_filter.NgayKetThuc IS NULL OR ndvt_filter.NgayKetThuc >= GETDATE())`
-    );
-  }
-
   if (typeof isActive === 'boolean') {
     whereClauses.push(`nd.IsActive = @IsActive`);
     queryParams.push({ name: 'IsActive', type: sql.Bit, value: isActive });
   }
 
-  const whereClauseString =
-    whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+  const whereClauseString = `WHERE ${whereClauses.join(' AND ')}`;
 
+  // Query đếm tổng số
   const countQuery = `SELECT COUNT(DISTINCT nd.NguoiDungID) AS TotalItems ${fromClause} ${whereClauseString}`;
   const countResult = await executeQuery(countQuery, queryParams);
   const totalItems = countResult.recordset[0].TotalItems;
 
+  // Query lấy danh sách
   const allowedSortBy = [
     'nd.HoTen',
     'nd.Email',
     'nd.NgayTao',
     'tk.TrangThaiTk',
-  ]; // Cần alias cho tk
+  ];
   const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'nd.HoTen';
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 
   const itemsQuery = `
-        ${selectClause}
+        SELECT DISTINCT
+            nd.NguoiDungID, nd.MaDinhDanh, nd.HoTen, nd.Email, nd.SoDienThoai, 
+            nd.AnhDaiDien, nd.NgaySinh, nd.IsActive, nd.NgayTao, tk.TrangThaiTk
         ${fromClause}
         ${whereClauseString}
-        ORDER BY ${safeSortBy} ${safeSortOrder}, nd.NguoiDungID ${safeSortOrder}
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
     `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
 
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-  const itemsRaw = itemsResult.recordset;
 
-  // Lấy danh sách NguoiDungID để truy vấn thông tin lồng nhau
-  const nguoiDungIDs = itemsRaw.map((row) => row.ND_NguoiDungID);
-  let svMap = {},
-    gvMap = {},
-    vaiTroMap = {};
-  if (nguoiDungIDs.length > 0) {
-    // Lấy thông tin sinh viên
-    const svQuery = `SELECT tsv.NguoiDungID, nd.MaDinhDanh AS MaSinhVien, tsv.KhoaHoc, tsv.HeDaoTao, tsv.NgayNhapHoc, tsv.TrangThaiHocTap,
-      l.LopID, l.TenLop, l.MaLop, nh.NganhHocID, nh.TenNganhHoc, nh.MaNganhHoc, cn.ChuyenNganhID, cn.TenChuyenNganh, cn.MaChuyenNganh,
-      dv_khoa.DonViID AS KhoaQuanLy_DonViID, dv_khoa.TenDonVi AS KhoaQuanLy_TenDonVi, dv_khoa.MaDonVi AS KhoaQuanLy_MaDonVi
-      FROM ThongTinSinhVien tsv
-      JOIN LopHoc l ON tsv.LopID = l.LopID
-      JOIN NguoiDung nd ON tsv.NguoiDungID = nd.NguoiDungID
-      JOIN NganhHoc nh ON l.NganhHocID = nh.NganhHocID
-      JOIN DonVi dv_khoa ON nh.KhoaQuanLyID = dv_khoa.DonViID AND dv_khoa.LoaiDonVi = 'KHOA'
-      LEFT JOIN ChuyenNganh cn ON l.ChuyenNganhID = cn.ChuyenNganhID
-      WHERE tsv.NguoiDungID IN (${nguoiDungIDs.join(',')})`;
-    const svRes = await executeQuery(svQuery);
-    svRes.recordset.forEach((row) => {
-      svMap[row.NguoiDungID] = {
-        maSinhVien: row.MaSinhVien,
-        lop: { lopID: row.LopID, tenLop: row.TenLop, maLop: row.MaLop },
-        nganhHoc: {
-          nganhHocID: row.NganhHocID,
-          tenNganhHoc: row.TenNganhHoc,
-          maNganhHoc: row.MaNganhHoc,
-        },
-        chuyenNganh: row.ChuyenNganhID
-          ? {
-              chuyenNganhID: row.ChuyenNganhID,
-              tenChuyenNganh: row.TenChuyenNganh,
-              maChuyenNganh: row.MaChuyenNganh,
-            }
-          : null,
-        khoaQuanLy: {
-          donViID: row.KhoaQuanLy_DonViID,
-          tenDonVi: row.KhoaQuanLy_TenDonVi,
-          maDonVi: row.KhoaQuanLy_MaDonVi,
-          loaiDonVi: 'KHOA',
-        },
-        khoaHoc: row.KhoaHoc,
-        heDaoTao: row.HeDaoTao,
-        ngayNhapHoc: row.NgayNhapHoc
-          ? new Date(row.NgayNhapHoc).toISOString().split('T')[0]
-          : null,
-        trangThaiHocTap: row.TrangThaiHocTap,
-      };
-    });
-    // Lấy thông tin giảng viên
-    const gvQuery = `SELECT tgv.NguoiDungID, nd.MaDinhDanh AS MaGiangVien, tgv.HocVi, tgv.HocHam, tgv.ChucDanhGD, tgv.ChuyenMonChinh,
-      dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
-      FROM ThongTinGiangVien tgv
-      JOIN DonVi dv ON tgv.DonViCongTacID = dv.DonViID
-      JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
-      WHERE tgv.NguoiDungID IN (${nguoiDungIDs.join(',')})`;
-    const gvRes = await executeQuery(gvQuery);
-    gvRes.recordset.forEach((row) => {
-      gvMap[row.NguoiDungID] = {
-        maGiangVien: row.MaGiangVien,
-        donViCongTac: {
-          donViID: row.DonViID,
-          tenDonVi: row.TenDonVi,
-          maDonVi: row.MaDonVi,
-          loaiDonVi: row.LoaiDonVi,
-        },
-        hocVi: row.HocVi,
-        hocHam: row.HocHam,
-        chucDanhGD: row.ChucDanhGD,
-        chuyenMonChinh: row.ChuyenMonChinh,
-      };
-    });
-    // Lấy danh sách vai trò chức năng
-    const vtQuery = `SELECT ndvt.NguoiDungID, vt.VaiTroID, vt.MaVaiTro, vt.TenVaiTro, ndvt.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi, ndvt.NgayBatDau, ndvt.NgayKetThuc, ndvt.GhiChuGanVT
-      FROM NguoiDung_VaiTro ndvt
-      JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
-      LEFT JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
-      WHERE ndvt.NguoiDungID IN (${nguoiDungIDs.join(',')}) AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())`;
-    const vtRes = await executeQuery(vtQuery);
-    vtRes.recordset.forEach((row) => {
-      if (!vaiTroMap[row.NguoiDungID]) vaiTroMap[row.NguoiDungID] = [];
-      vaiTroMap[row.NguoiDungID].push({
-        vaiTroID: row.VaiTroID,
-        maVaiTro: row.MaVaiTro,
-        tenVaiTro: row.TenVaiTro,
-        donViThucThi: row.DonViID
-          ? {
-              donViID: row.DonViID,
-              tenDonVi: row.TenDonVi,
-              maDonVi: row.MaDonVi,
-              loaiDonVi: row.LoaiDonVi,
-            }
-          : null,
-        ngayBatDau: row.NgayBatDau
-          ? new Date(row.NgayBatDau).toISOString().split('T')[0]
-          : null,
-        ngayKetThuc: row.NgayKetThuc
-          ? new Date(row.NgayKetThuc).toISOString().split('T')[0]
-          : null,
-        ghiChuGanVT: row.GhiChuGanVT,
-      });
-    });
-  }
-
-  // Map lại danh sách trả về
-  const items = itemsRaw.map((row) => {
-    const base = mapNguoiDungListItem(row);
-    return {
-      ...base,
-      thongTinSinhVien: svMap[base.nguoiDungID] || null,
-      thongTinGiangVien: gvMap[base.nguoiDungID] || null,
-      vaiTroChucNang: vaiTroMap[base.nguoiDungID] || [],
-    };
-  });
-  return { items, totalItems };
+  // Chỉ trả về dữ liệu thô, service sẽ làm giàu dữ liệu
+  return { items: itemsResult.recordset, totalItems };
 };
 
 /**
@@ -390,14 +209,14 @@ const getThongTinSinhVienByNguoiDungID = async (nguoiDungID) => {
     lop: { lopID: row.LopID, tenLop: row.TenLop, maLop: row.MaLop },
     nganhHoc: {
       nganhHocID: row.NganhHocID,
-      tenNganhHoc: row.NganhHoc_Ten,
-      maNganhHoc: row.NganhHoc_Ma,
+      tenNganhHoc: row.TenNganhHoc,
+      maNganhHoc: row.MaNganhHoc,
     },
     chuyenNganh: row.ChuyenNganhID
       ? {
           chuyenNganhID: row.ChuyenNganhID,
-          tenChuyenNganh: row.ChuyenNganh_Ten,
-          maChuyenNganh: row.ChuyenNganh_Ma,
+          tenChuyenNganh: row.TenChuyenNganh,
+          maChuyenNganh: row.MaChuyenNganh,
         }
       : null,
     khoaQuanLy: {
@@ -416,20 +235,17 @@ const getThongTinSinhVienByNguoiDungID = async (nguoiDungID) => {
 };
 
 /**
- * Lấy thông tin chi tiết GiangVien bằng NguoiDungID.
- * @param {number} nguoiDungID
- * @returns {Promise<object|null>} Thông tin chi tiết giảng viên hoặc null nếu không tìm thấy
+ * [SỬA ĐỔI] Lấy thông tin chi tiết GiangVien bằng NguoiDungID.
+ * Sẽ không lấy thông tin đơn vị công tác ở đây nữa, vì nó sẽ được lấy qua vai trò.
  */
 const getThongTinGiangVienByNguoiDungID = async (nguoiDungID) => {
   const query = `
-    SELECT
-        nd.MaDinhDanh AS MaGiangVien, tgv.HocVi, tgv.HocHam, tgv.ChucDanhGD, tgv.ChuyenMonChinh,
-        dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
-    FROM ThongTinGiangVien tgv
-    JOIN DonVi dv ON tgv.DonViCongTacID = dv.DonViID
-    JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
-    WHERE tgv.NguoiDungID = @NguoiDungID;
-  `;
+        SELECT
+            nd.MaDinhDanh AS MaGiangVien, tgv.HocVi, tgv.HocHam, tgv.ChucDanhGD, tgv.ChuyenMonChinh
+        FROM ThongTinGiangVien tgv
+        JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
+        WHERE tgv.NguoiDungID = @NguoiDungID;
+    `;
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   const result = await executeQuery(query, params);
   if (result.recordset.length === 0) return null;
@@ -437,17 +253,48 @@ const getThongTinGiangVienByNguoiDungID = async (nguoiDungID) => {
   const row = result.recordset[0];
   return {
     maGiangVien: row.MaGiangVien,
-    donViCongTac: {
-      donViID: row.DonViID,
-      tenDonVi: row.TenDonVi,
-      maDonVi: row.MaDonVi,
-      loaiDonVi: row.LoaiDonVi,
-    },
     hocVi: row.HocVi,
     hocHam: row.HocHam,
     chucDanhGD: row.ChucDanhGD,
     chuyenMonChinh: row.ChuyenMonChinh,
   };
+};
+/**
+ * [THÊM MỚI] Lấy đơn vị công tác của người dùng.
+ * @param {number} nguoiDungID
+ * @returns {Promise<object|null>} Thông tin đơn vị hoặc null
+ */
+const getDonViCongTacByNguoiDungID = async (nguoiDungID) => {
+  const query = `
+        SELECT TOP 1 
+            dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
+        FROM NguoiDung_VaiTro ndvt
+        JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+        JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+        WHERE ndvt.NguoiDungID = @NguoiDungID 
+          AND vt.MaVaiTro = @MaVaiTroThanhVien
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+        ORDER BY ndvt.NgayBatDau DESC;
+    `;
+  const params = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  if (result.recordset.length > 0) {
+    const dv = result.recordset[0];
+    return {
+      donViID: dv.DonViID,
+      tenDonVi: dv.TenDonVi,
+      maDonVi: dv.MaDonVi,
+      loaiDonVi: dv.LoaiDonVi,
+    };
+  }
+  return null;
 };
 
 /**
@@ -573,12 +420,11 @@ const createThongTinGiangVienRecord = async (
   transaction
 ) => {
   const query = `
-    INSERT INTO ThongTinGiangVien (NguoiDungID, DonViCongTacID, HocVi, HocHam, ChucDanhGD, ChuyenMonChinh)
-    VALUES (@NguoiDungID, @DonViCongTacID, @HocVi, @HocHam, @ChucDanhGD, @ChuyenMonChinh);
+    INSERT INTO ThongTinGiangVien (NguoiDungID, HocVi, HocHam, ChucDanhGD, ChuyenMonChinh)
+    VALUES (@NguoiDungID, @HocVi, @HocHam, @ChucDanhGD, @ChuyenMonChinh);
   `;
   const params = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
-    { name: 'DonViCongTacID', type: sql.Int, value: dataGV.donViCongTacID },
     { name: 'HocVi', type: sql.NVarChar(100), value: dataGV.hocVi },
     { name: 'HocHam', type: sql.NVarChar(100), value: dataGV.hocHam },
     { name: 'ChucDanhGD', type: sql.NVarChar(100), value: dataGV.chucDanhGD },
@@ -838,15 +684,16 @@ const upsertOrDeleteThongTinSinhVien = async (
 };
 
 /**
- * Thêm mới hoặc cập nhật/xóa ThongTinGiangVien.
+ * [SỬA LỖI - TRIỆT ĐỂ] Thêm mới hoặc cập nhật/xóa ThongTinGiangVien.
+ * ĐÃ LOẠI BỎ logic liên quan đến DonViCongTacID.
  * @param {number} nguoiDungID
- * @param {object|null} dataGV - Thông tin giảng viên hoặc null để xóa
+ * @param {object|null} dataGV - Thông tin giảng viên hoặc null để xóa.
  * @param {sql.Transaction} transaction
  * @returns {Promise<void>}
  */
 const upsertOrDeleteThongTinGiangVien = async (
   nguoiDungID,
-  dataGV,
+  dataGV, // dataGV giờ sẽ không còn chứa donViCongTacID nữa
   transaction
 ) => {
   if (dataGV === null) {
@@ -868,14 +715,7 @@ const upsertOrDeleteThongTinGiangVien = async (
       const params = [
         { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
       ];
-      if (dataGV.donViCongTacID !== undefined) {
-        setClauses.push('DonViCongTacID = @DonViCongTacID');
-        params.push({
-          name: 'DonViCongTacID',
-          type: sql.Int,
-          value: dataGV.donViCongTacID,
-        });
-      }
+      // <<<< KHÔNG CÒN DonViCongTacID ở đây >>>>
       if (dataGV.hocVi !== undefined) {
         setClauses.push('HocVi = @HocVi');
         params.push({
@@ -908,6 +748,7 @@ const upsertOrDeleteThongTinGiangVien = async (
           value: dataGV.chuyenMonChinh,
         });
       }
+
       if (setClauses.length > 0) {
         const updateQuery = `UPDATE ThongTinGiangVien SET ${setClauses.join(', ')} WHERE NguoiDungID = @NguoiDungID;`;
         let requestUpdate = transaction.request();
@@ -915,11 +756,32 @@ const upsertOrDeleteThongTinGiangVien = async (
         await requestUpdate.query(updateQuery);
       }
     } else {
-      await createThongTinGiangVienRecord(nguoiDungID, dataGV, transaction);
+      // Create - Đã loại bỏ DonViCongTacID
+      const query = `
+        INSERT INTO ThongTinGiangVien (NguoiDungID, HocVi, HocHam, ChucDanhGD, ChuyenMonChinh)
+        VALUES (@NguoiDungID, @HocVi, @HocHam, @ChucDanhGD, @ChuyenMonChinh);
+      `;
+      const params = [
+        { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+        { name: 'HocVi', type: sql.NVarChar(100), value: dataGV.hocVi },
+        { name: 'HocHam', type: sql.NVarChar(100), value: dataGV.hocHam },
+        {
+          name: 'ChucDanhGD',
+          type: sql.NVarChar(100),
+          value: dataGV.chucDanhGD,
+        },
+        {
+          name: 'ChuyenMonChinh',
+          type: sql.NVarChar(255),
+          value: dataGV.chuyenMonChinh,
+        },
+      ];
+      const request = transaction.request();
+      params.forEach((p) => request.input(p.name, p.type, p.value));
+      await request.query(query);
     }
   }
 };
-
 /**
  * Gán hoặc cập nhật vai trò chức năng cho người dùng (UNIQUE constraint).
  * @param {number} nguoiDungID
@@ -1189,6 +1051,310 @@ const getTaiKhoanInfoByNguoiDungID = async (nguoiDungID) => {
   };
 };
 
+/**
+ * Xóa cứng người dùng theo NguoiDungID. Nếu bị ràng buộc khóa ngoại sẽ báo lỗi chi tiết.
+ * @param {number} nguoiDungID
+ * @returns {Promise<number>} Số dòng bị xóa (1 nếu thành công)
+ * @throws {Error} Nếu bị ràng buộc khóa ngoại sẽ ném lỗi với message chi tiết
+ */
+const deleteNguoiDungByID = async (nguoiDungID) => {
+  const query = `DELETE FROM NguoiDung WHERE NguoiDungID = @NguoiDungID;`;
+  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
+  try {
+    const request = (await getPool()).request();
+    params.forEach((p) => request.input(p.name, p.type, p.value));
+    const result = await request.query(query);
+    return result.rowsAffected[0];
+  } catch (err) {
+    // Kiểm tra lỗi khóa ngoại
+    if (
+      err &&
+      err.originalError &&
+      err.originalError.info &&
+      err.originalError.info.message
+    ) {
+      const msg = err.originalError.info.message;
+      if (msg.includes('conflicted with the REFERENCE constraint')) {
+        // Lấy tên bảng liên quan nếu có
+        const match = msg.match(/table \'dbo\\.(\w+)\'/i);
+        const table = match ? match[1] : 'liên kết dữ liệu khác';
+        throw new Error(
+          `Không thể xóa người dùng vì còn dữ liệu liên quan đến bảng: ${table}`
+        );
+      }
+    }
+    throw err;
+  }
+};
+
+/**
+ * [THÊM MỚI] Xóa tất cả các bản ghi NguoiDung_VaiTro của một người dùng theo một mã vai trò cụ thể.
+ * Hữu ích để dọn dẹp vai trò cũ khi thay đổi loại người dùng.
+ * @param {number} nguoiDungID
+ * @param {number} vaiTroID
+ * @param {sql.Transaction} [transaction=null]
+ * @returns {Promise<void>}
+ */
+const deleteNguoiDungVaiTroByVaiTroID = async (
+  nguoiDungID,
+  vaiTroID,
+  transaction = null
+) => {
+  const query = `DELETE FROM NguoiDung_VaiTro WHERE NguoiDungID = @NguoiDungID AND VaiTroID = @VaiTroID;`;
+  const params = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+    { name: 'VaiTroID', type: sql.Int, value: vaiTroID },
+  ];
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  await request.query(query);
+};
+
+/**
+ * [MỚI] Tìm kiếm người dùng (SV/GV) để mời tham gia sự kiện.
+ * @param {object} params - Tham số tìm kiếm và lọc.
+ * @returns {Promise<Array<object>>} Danh sách người dùng phù hợp.
+ */
+const findUsersForInvitation = async (params) => {
+  const {
+    suKienID,
+    searchTerm,
+    loaiNguoiDung,
+    donViID,
+    nganhHocID,
+    lopID,
+    limit = 15,
+  } = params;
+
+  let selectFields = `
+        SELECT TOP (@Limit)
+            nd.NguoiDungID,
+            nd.MaDinhDanh,
+            nd.HoTen,
+            nd.Email,
+            nd.AnhDaiDien,
+            -- Xác định loại người dùng và thông tin thêm
+            CASE
+                WHEN tsv.NguoiDungID IS NOT NULL THEN N'Sinh viên'
+                WHEN tgv.NguoiDungID IS NOT NULL THEN N'Giảng viên'
+                ELSE N'Nhân viên khác'
+            END AS loaiNguoiDungHienThi,
+            CASE
+                WHEN tsv.NguoiDungID IS NOT NULL THEN lh.TenLop + N' - ' + nh.TenNganhHoc
+                WHEN tgv.NguoiDungID IS NOT NULL THEN dv_ct.TenDonVi + ISNULL(N' - ' + tgv.ChuyenMonChinh, '')
+                ELSE ''
+            END AS thongTinThem
+    `;
+
+  let fromClauses = `
+        FROM NguoiDung nd
+        LEFT JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID
+        LEFT JOIN LopHoc lh ON tsv.LopID = lh.LopID
+        LEFT JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID
+        LEFT JOIN ThongTinGiangVien tgv ON nd.NguoiDungID = tgv.NguoiDungID
+        LEFT JOIN NguoiDung_VaiTro ndvt_ct ON tgv.NguoiDungID = ndvt_ct.NguoiDungID
+        LEFT JOIN VaiTroHeThong vt_ct ON ndvt_ct.VaiTroID = vt_ct.VaiTroID AND vt_ct.MaVaiTro = @MaVaiTroThanhVien
+        LEFT JOIN DonVi dv_ct ON ndvt_ct.DonViID = dv_ct.DonViID
+    `;
+
+  let whereClauses = [
+    'nd.IsActive = 1',
+    // Loại trừ những người đã được mời cho sự kiện này
+    'nd.NguoiDungID NOT IN (SELECT NguoiDuocMoiID FROM SK_MoiThamGia WHERE SuKienID = @SuKienID)',
+  ];
+
+  const queryParams = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    { name: 'SuKienID', type: sql.Int, value: suKienID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
+
+  if (searchTerm) {
+    whereClauses.push(
+      `(nd.HoTen LIKE @SearchTerm OR nd.MaDinhDanh LIKE @SearchTerm OR nd.Email LIKE @SearchTerm)`
+    );
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+
+  if (loaiNguoiDung) {
+    if (loaiNguoiDung === 'SINH_VIEN')
+      whereClauses.push('tsv.NguoiDungID IS NOT NULL');
+    if (loaiNguoiDung === 'GIANG_VIEN')
+      whereClauses.push('tgv.NguoiDungID IS NOT NULL');
+  }
+
+  if (donViID) {
+    // Lọc theo Khoa/Bộ môn
+    whereClauses.push(
+      `(nh.KhoaQuanLyID = @DonViID OR dv_ct.DonViID = @DonViID)`
+    );
+    queryParams.push({ name: 'DonViID', type: sql.Int, value: donViID });
+  }
+
+  if (nganhHocID) {
+    whereClauses.push(`(lh.NganhHocID = @NganhHocID)`);
+    queryParams.push({ name: 'NganhHocID', type: sql.Int, value: nganhHocID });
+  }
+
+  if (lopID) {
+    whereClauses.push(`(tsv.LopID = @LopID)`);
+    queryParams.push({ name: 'LopID', type: sql.Int, value: lopID });
+  }
+
+  const finalQuery = `
+        ${selectFields}
+        ${fromClauses}
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY nd.HoTen ASC;
+    `;
+
+  const result = await executeQuery(finalQuery, queryParams);
+  return result.recordset;
+};
+
+/**
+ * [MỚI] Lấy thông tin cơ bản của nhiều người dùng bằng mảng ID.
+ * @param {number[]} userIds - Mảng các NguoiDungID.
+ * @param {sql.Transaction} transaction - Transaction đang hoạt động.
+ * @returns {Promise<Array<{NguoiDungID: number, HoTen: string, Email: string}>>}
+ */
+const getUsersByIds = async (userIds, transaction) => {
+  if (!userIds || userIds.length === 0) {
+    return [];
+  }
+
+  // Tạo chuỗi tham số cho IN clause
+  const idParams = userIds
+    .map((id, index) => {
+      const paramName = `UserID${index}`;
+      return `@${paramName}`;
+    })
+    .join(',');
+
+  const query = `
+        SELECT NguoiDungID, HoTen, Email 
+        FROM NguoiDung 
+        WHERE NguoiDungID IN (${idParams}) AND IsActive = 1;
+    `;
+
+  const request = transaction.request();
+  userIds.forEach((id, index) => {
+    request.input(`UserID${index}`, sql.Int, id);
+  });
+
+  const result = await request.query(query);
+  return result.recordset;
+};
+
+/**
+ * [MỚI] Tìm kiếm người dùng theo nhiều tiêu chí phức tạp để mời hàng loạt.
+ * @param {object} tieuChi - Object chứa các tiêu chí lọc từ payload.
+ * @param {number[]} [excludeIds=[]] - Mảng các ID người dùng cần loại trừ.
+ * @returns {Promise<Array<{NguoiDungID: number}>>} Mảng các object chỉ chứa NguoiDungID.
+ */
+const findUsersByCriteria = async (tieuChi, excludeIds = []) => {
+  const {
+    loaiNguoiDung,
+    donViIDs,
+    nganhHocIDs,
+    lopIDs,
+    nienKhoaSV,
+    trangThaiHocTapSV,
+    hocViGV,
+  } = tieuChi;
+
+  let fromClause = 'FROM NguoiDung nd';
+  const whereClauses = ['nd.IsActive = 1'];
+  const queryParams = [];
+
+  // Base joins and filters based on user type
+  if (loaiNguoiDung.startsWith('SINH_VIEN') || loaiNguoiDung === 'TAT_CA_SV') {
+    fromClause += ` 
+            JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID
+            JOIN LopHoc lh ON tsv.LopID = lh.LopID
+            JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID
+        `;
+    if (trangThaiHocTapSV) {
+      whereClauses.push(`tsv.TrangThaiHocTap = @TrangThaiHocTapSV`);
+      queryParams.push({
+        name: 'TrangThaiHocTapSV',
+        type: sql.NVarChar,
+        value: trangThaiHocTapSV,
+      });
+    }
+    if (nienKhoaSV) {
+      whereClauses.push(`tsv.KhoaHoc = @NienKhoaSV`);
+      queryParams.push({
+        name: 'NienKhoaSV',
+        type: sql.VarChar,
+        value: nienKhoaSV,
+      });
+    }
+  }
+  if (loaiNguoiDung.startsWith('GIANG_VIEN') || loaiNguoiDung === 'TAT_CA_GV') {
+    fromClause += ` 
+            JOIN ThongTinGiangVien tgv ON nd.NguoiDungID = tgv.NguoiDungID
+            JOIN NguoiDung_VaiTro ndvt ON nd.NguoiDungID = ndvt.NguoiDungID
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID AND vt.MaVaiTro = @MaVaiTroThanhVien
+        `;
+    queryParams.push({
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    });
+    if (hocViGV) {
+      whereClauses.push(`tgv.HocVi = @HocViGV`);
+      queryParams.push({ name: 'HocViGV', type: sql.NVarChar, value: hocViGV });
+    }
+  }
+
+  // Dynamic filtering
+  if (loaiNguoiDung === 'SINH_VIEN_THEO_LOP' && lopIDs?.length > 0) {
+    whereClauses.push(`tsv.LopID IN (${lopIDs.join(',')})`);
+  }
+  if (loaiNguoiDung === 'SINH_VIEN_THEO_NGANH' && nganhHocIDs?.length > 0) {
+    whereClauses.push(`lh.NganhHocID IN (${nganhHocIDs.join(',')})`);
+  }
+  if (
+    (loaiNguoiDung === 'SINH_VIEN_THEO_KHOA' ||
+      loaiNguoiDung === 'TAT_CA_SV') &&
+    donViIDs?.length > 0
+  ) {
+    whereClauses.push(`nh.KhoaQuanLyID IN (${donViIDs.join(',')})`);
+  }
+  if (
+    (loaiNguoiDung === 'GIANG_VIEN_THEO_KHOA' ||
+      loaiNguoiDung === 'TAT_CA_GV') &&
+    donViIDs?.length > 0
+  ) {
+    whereClauses.push(`ndvt.DonViID IN (${donViIDs.join(',')})`);
+  }
+
+  // Loại trừ các ID được chỉ định
+  if (excludeIds.length > 0) {
+    whereClauses.push(`nd.NguoiDungID NOT IN (${excludeIds.join(',')})`);
+  }
+
+  const query = `
+        SELECT DISTINCT nd.NguoiDungID
+        ${fromClause}
+        WHERE ${whereClauses.join(' AND ')};
+    `;
+
+  const result = await executeQuery(query, queryParams);
+  return result.recordset;
+};
+
 export const nguoiDungRepository = {
   getNguoiDungListWithPagination,
   getNguoiDungAndTaiKhoanById,
@@ -1201,7 +1367,7 @@ export const nguoiDungRepository = {
   createThongTinGiangVienRecord,
   assignVaiTroChucNangToNguoiDung,
   checkNguoiDungExists,
-  mapNguoiDungListItem,
+  // mapNguoiDungListItem,
   updateNguoiDungRecord,
   updateTaiKhoanRecord,
   upsertOrDeleteThongTinSinhVien,
@@ -1214,4 +1380,10 @@ export const nguoiDungRepository = {
   deleteNguoiDungVaiTroByGanID,
   getCurrentActiveRolesOfUser,
   getTaiKhoanInfoByNguoiDungID,
+  deleteNguoiDungByID,
+  getDonViCongTacByNguoiDungID,
+  deleteNguoiDungVaiTroByVaiTroID,
+  findUsersForInvitation,
+  getUsersByIds,
+  findUsersByCriteria,
 };

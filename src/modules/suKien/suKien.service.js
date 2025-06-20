@@ -11,6 +11,8 @@ import { thongBaoService } from '../thongBao/thongBao.service.js';
 import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { nguoiDungRepository } from '../nguoiDung/nguoiDung.repository.js';
+import emailService from '../../services/email.service.js';
 /**
  * Lấy danh sách sự kiện với phân trang và bộ lọc
  * @param {object} params - GetSuKienParams
@@ -829,6 +831,632 @@ const autoCompleteFinishedEvents = async () => {
   }
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đủ điều kiện để gửi lời mời.
+ * @param {object} params - Tham số truy vấn từ controller
+ * @returns {Promise<PaginatedSuKienCoTheMoiResponse>}
+ */
+const getSuKienCoTheMoi = async (params) => {
+  const { items, totalItems } =
+    await suKienRepository.getSuKienCoTheMoiList(params);
+
+  const formattedItems = items.map((item) => ({
+    suKienID: item.SuKienID,
+    tenSK: item.TenSK,
+    tgBatDauDK: item.TgBatDauDK.toISOString(),
+    tgKetThucDK: item.TgKetThucDK.toISOString(),
+    loaiSuKien: item.TenLoaiSK ? { tenLoaiSK: item.TenLoaiSK } : null,
+    donViChuTri: { tenDonVi: item.TenDonViChuTri },
+    soLuongDaMoi: item.SoLuongDaMoi,
+    slThamDuDK: item.SlThamDuDK,
+  }));
+
+  const page = parseInt(params.page) || 1;
+  const limit = parseInt(params.limit) || 10;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    items: formattedItems,
+    totalPages,
+    currentPage: page,
+    totalItems,
+    pageSize: limit,
+  };
+};
+
+/**
+ * [MỚI] Gửi lời mời tham gia sự kiện cho một danh sách người dùng.
+ * @param {number} suKienID - ID sự kiện
+ * @param {MoiThamGiaPayloadItem[]} payload - Mảng các lời mời
+ * @param {object} nguoiGui - Người dùng thực hiện hành động
+ * @returns {Promise<GuiLoiMoiResponse>}
+ */
+const guiLoiMoiThamGia = async (suKienID, payload, nguoiGui) => {
+  const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+  if (!suKien) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
+  }
+
+  // Kiểm tra trạng thái sự kiện có cho phép mời không
+  if (
+    ![MaTrangThaiSK.DA_XAC_NHAN_PHONG].includes(suKien.trangThaiSK.maTrangThai)
+  ) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Sự kiện đang ở trạng thái "${suKien.trangThaiSK.tenTrangThai}", không thể gửi lời mời.`
+    );
+  }
+
+  const results = [];
+  const invitationsToCreate = [];
+  const userIdsToValidate = payload.map((p) => p.nguoiDuocMoiID);
+
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    // Lấy danh sách những người đã được mời trước đó để tránh mời trùng
+    const alreadyInvitedIds = await suKienRepository.getInvitedUserIdsForSuKien(
+      suKienID,
+      transaction
+    );
+
+    // Lấy thông tin những người dùng được mời để kiểm tra tồn tại
+    const existingUsers = await nguoiDungRepository.getUsersByIds(
+      userIdsToValidate,
+      transaction
+    ); // Cần thêm hàm này
+    const existingUserIds = new Set(existingUsers.map((u) => u.NguoiDungID));
+
+    for (const invite of payload) {
+      if (!existingUserIds.has(invite.nguoiDuocMoiID)) {
+        results.push({
+          nguoiDuocMoiID: invite.nguoiDuocMoiID,
+          status: 'error',
+          message: 'Người dùng không tồn tại.',
+        });
+      } else if (alreadyInvitedIds.has(invite.nguoiDuocMoiID)) {
+        results.push({
+          nguoiDuocMoiID: invite.nguoiDuocMoiID,
+          status: 'error',
+          message: 'Người dùng đã được mời trước đó.',
+        });
+      } else {
+        invitationsToCreate.push(invite);
+      }
+    }
+
+    // Chỉ thực hiện INSERT nếu có lời mời hợp lệ
+    if (invitationsToCreate.length > 0) {
+      const createdRecords = await suKienRepository.addInvitationsToSuKien(
+        suKienID,
+        invitationsToCreate,
+        transaction
+      );
+
+      // Map kết quả thành công
+      const createdMap = new Map(
+        createdRecords.map((rec) => [rec.NguoiDuocMoiID, rec.MoiThamGiaID])
+      );
+      invitationsToCreate.forEach((invite) => {
+        results.push({
+          nguoiDuocMoiID: invite.nguoiDuocMoiID,
+          status: 'success',
+          moiThamGiaID: createdMap.get(invite.nguoiDuocMoiID),
+          message: null,
+        });
+      });
+
+      // Gửi thông báo cho những người được mời thành công
+      const successfulInvitesWithDetails = existingUsers.filter((u) =>
+        createdMap.has(u.NguoiDungID)
+      );
+      for (const user of successfulInvitesWithDetails) {
+        thongBaoService
+          .createThongBao(
+            {
+              NguoiNhanID: user.NguoiDungID,
+              NoiDungTB: `Bạn đã được mời tham gia sự kiện "[${suKien.tenSK}]".`,
+              DuongDanTB: `/su-kien/${suKienID}/phan-hoi-moi`, // Ví dụ link
+              SkLienQuanID: suKienID,
+              LoaiThongBao: 'MOI_THAM_GIA_SU_KIEN', // Cần thêm vào enum
+            },
+            transaction
+          )
+          .catch((err) =>
+            logger.error('Failed to send invitation notification', err)
+          );
+      }
+    }
+
+    await transaction.commit();
+
+    const successCount = results.filter((r) => r.status === 'success').length;
+    return {
+      message: `Đã gửi lời mời thành công cho ${successCount}/${payload.length} người.`,
+      results: results,
+    };
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Gửi lời mời thất bại do lỗi hệ thống.'
+    );
+  }
+};
+
+/**
+ * [MỚI] Lấy danh sách người đã được mời cho một sự kiện.
+ * @param {number} suKienID
+ * @param {object} params - Tham số truy vấn từ controller
+ * @returns {Promise<PaginatedNguoiDuocMoiResponse>}
+ */
+const getDanhSachMoi = async (suKienID, params) => {
+  // Kiểm tra sự kiện tồn tại
+  const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+  if (!suKien) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
+  }
+
+  const { items, totalItems } = await suKienRepository.getInvitedListForSuKien(
+    suKienID,
+    params
+  );
+
+  const formattedItems = items.map((item) => ({
+    moiThamGiaID: Number(item.MoiThamGiaID),
+    nguoiDuocMoi: {
+      nguoiDungID: item.NguoiDungID,
+      maDinhDanh: item.MaDinhDanh,
+      hoTen: item.HoTen,
+      email: item.Email,
+      anhDaiDien: item.AnhDaiDien,
+    },
+    vaiTroDuKienSK: item.VaiTroDuKienSK,
+    isChapNhanMoi: item.IsChapNhanMoi,
+    tgPhanHoiMoi: item.TgPhanHoiMoi ? item.TgPhanHoiMoi.toISOString() : null,
+    ghiChuMoi: item.GhiChuMoi,
+  }));
+
+  const page = parseInt(params.page) || 1;
+  const limit = parseInt(params.limit) || 10;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    items: formattedItems,
+    totalPages,
+    currentPage: page,
+    totalItems,
+    pageSize: limit,
+  };
+};
+
+/**
+ * [MỚI] Thu hồi/Xóa một lời mời đã gửi.
+ * @param {number} moiThamGiaID - ID của lời mời
+ * @param {object} currentUser - Người dùng thực hiện hành động
+ * @returns {Promise<{message: string}>}
+ */
+const thuHoiLoiMoi = async (moiThamGiaID, currentUser) => {
+  const invitation =
+    await suKienRepository.getInvitationForDeletionCheck(moiThamGiaID);
+
+  if (!invitation) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Lời mời không tồn tại.');
+  }
+
+  // Logic kiểm tra quyền hạn (ví dụ)
+  // Cho phép Admin hoặc người tạo sự kiện gốc thu hồi.
+  // Có thể mở rộng cho người trong đơn vị chủ trì, ...
+  const userRoles = await authRepository.getVaiTroByNguoiDungID(
+    currentUser.nguoiDungID
+  );
+  const isAdmin = userRoles.some(
+    (role) => role.maVaiTro === MaVaiTro.ADMIN_HE_THONG
+  );
+  const isEventCreator =
+    invitation.SuKien_NguoiTaoID === currentUser.nguoiDungID;
+
+  if (!isAdmin && !isEventCreator) {
+    // Cần thêm logic kiểm tra nếu người dùng thuộc phòng CTSV
+    const isCTSV = userRoles.some(
+      (role) => role.maVaiTro === MaVaiTro.CONG_TAC_SINH_VIEN
+    );
+    if (!isCTSV) {
+      throw new ApiError(
+        httpStatus.FORBIDDEN,
+        'Bạn không có quyền thu hồi lời mời này.'
+      );
+    }
+  }
+
+  // Logic nghiệp vụ: Chỉ cho phép thu hồi nếu người được mời chưa phản hồi.
+  if (invitation.IsChapNhanMoi !== null) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Không thể thu hồi lời mời đã được phản hồi.'
+    );
+  }
+
+  const rowsAffected =
+    await suKienRepository.deleteInvitationById(moiThamGiaID);
+  if (rowsAffected === 0) {
+    // Trường hợp hiếm, có thể do race condition
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Thu hồi lời mời thất bại.'
+    );
+  }
+
+  logger.info(
+    `User ${currentUser.nguoiDungID} revoked invitation ID: ${moiThamGiaID}`
+  );
+  return { message: 'Đã thu hồi lời mời thành công.' };
+};
+
+/**
+ * [MỚI] Gửi lời mời hàng loạt dựa trên danh sách hoặc tiêu chí.
+ * @param {number} suKienID
+ * @param {GuiLoiMoiHangLoatPayload} payload
+ * @param {object} nguoiGui
+ * @returns {Promise<GuiLoiMoiResponse>}
+ */
+const guiLoiMoiHangLoat = async (suKienID, payload, nguoiGui) => {
+  const {
+    loaiDoiTuongMoi,
+    tieuChiMoi,
+    danhSachNguoiDungIDs,
+    vaiTroDuKienSK,
+    ghiChuMoiChung,
+    loaiTruNguoiDungIDs,
+  } = payload;
+  console.log('guiLoiMoiHangLoat payload:', payload);
+
+  const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+  if (!suKien) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
+  }
+  if (
+    ![MaTrangThaiSK.DA_XAC_NHAN_PHONG].includes(suKien.trangThaiSK.maTrangThai)
+  ) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Sự kiện không ở trạng thái cho phép mời.`
+    );
+  }
+
+  let targetUserIds = [];
+  if (loaiDoiTuongMoi === 'DANH_SACH_CU_THE') {
+    if (!danhSachNguoiDungIDs || danhSachNguoiDungIDs.length === 0) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'Danh sách người dùng cụ thể không được để trống.'
+      );
+    }
+    targetUserIds = danhSachNguoiDungIDs;
+  } else if (loaiDoiTuongMoi === 'THEO_TIEU_CHI') {
+    if (!tieuChiMoi) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'Tiêu chí mời không được để trống.'
+      );
+    }
+    const usersFound = await nguoiDungRepository.findUsersByCriteria(
+      tieuChiMoi,
+      loaiTruNguoiDungIDs
+    );
+    targetUserIds = usersFound.map((u) => u.NguoiDungID);
+    console.log('Users found by criteria:', usersFound);
+  } else {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Loại đối tượng mời không hợp lệ.'
+    );
+  }
+
+  if (targetUserIds.length === 0) {
+    return {
+      message:
+        'Không tìm thấy người dùng nào phù hợp với tiêu chí để gửi lời mời.',
+      results: [],
+    };
+  }
+
+  // Xử lý logic mời như cũ, nhưng với danh sách targetUserIds đã được xác định
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+    const alreadyInvitedIds = await suKienRepository.getInvitedUserIdsForSuKien(
+      suKienID,
+      transaction
+    );
+
+    const invitationsToCreate = targetUserIds
+      .filter((id) => !alreadyInvitedIds.has(id)) // Lọc những người chưa được mời
+      .map((id) => ({
+        nguoiDuocMoiID: id,
+        vaiTroDuKienSK: vaiTroDuKienSK,
+        ghiChuMoi: ghiChuMoiChung,
+      }));
+
+    if (invitationsToCreate.length === 0) {
+      await transaction.commit(); // Vẫn commit vì không có lỗi
+      return {
+        message: 'Tất cả người dùng trong danh sách đã được mời trước đó.',
+        results: [],
+      };
+    }
+
+    if (invitationsToCreate.length > 0) {
+      const createdRecords = await suKienRepository.addInvitationsToSuKien(
+        suKienID,
+        invitationsToCreate,
+        transaction
+      );
+
+      const createdMap = new Map(
+        createdRecords.map((rec) => [rec.NguoiDuocMoiID, rec.MoiThamGiaID])
+      );
+      const successfulInvitesWithDetails =
+        await nguoiDungRepository.getUsersByIds(
+          Array.from(createdMap.keys()),
+          transaction
+        );
+
+      await transaction.commit();
+
+      for (const user of successfulInvitesWithDetails) {
+        thongBaoService
+          .createThongBao({
+            NguoiNhanID: user.NguoiDungID,
+            NoiDungTB: `Bạn đã được mời tham gia sự kiện "[${suKien.tenSK}]".`,
+            DuongDanTB: `/my-invitations`,
+            SkLienQuanID: suKienID,
+            LoaiThongBao: 'MOI_THAM_GIA_SU_KIEN',
+          })
+          .catch((err) =>
+            logger.error(
+              `Failed to send in-app notification to ${user.Email}`,
+              err
+            )
+          );
+
+        // 2. Gửi email mời
+        const loiMoiInfo = invitationsToCreate.find(
+          (inv) => inv.nguoiDuocMoiID === user.NguoiDungID
+        );
+        emailService
+          .sendEventInvitationEmail(
+            user.Email,
+            { hoTen: user.HoTen },
+            {
+              tenSK: suKien.tenSK,
+              donViChuTri: suKien.donViChuTri,
+
+              thoiGianBatDau: format(
+                new Date(suKien.tgBatDauDK),
+                'HH:mm dd/MM/yyyy'
+              ),
+              thoiGianKetThuc: format(
+                new Date(suKien.tgKetThucDK),
+                'HH:mm dd/MM/yyyy'
+              ),
+              diaDiem: suKien.diaDiemToChucDaXep || 'Chưa xác định',
+            },
+            loiMoiInfo || {}
+          )
+          .catch((err) =>
+            logger.error(
+              `Failed to send invitation email to ${user.Email}`,
+              err
+            )
+          );
+      }
+    } else {
+      await transaction.commit(); // Commit nếu không có gì để tạo
+    }
+
+    return {
+      message: `Đã gửi lời mời thành công cho ${createdRecords.length} người.`,
+      soLuongMoiThanhCong: createdRecords.length,
+      soLuongMoiLoi: targetUserIds.length - createdRecords.length,
+      chiTietLoi: targetUserIds
+        .filter(
+          (id) => !invitationsToCreate.some((i) => i.nguoiDuocMoiID === id)
+        )
+        .map((id) => ({ nguoiDungID: id, lyDo: 'Đã được mời trước đó.' })),
+    };
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      `Gửi lời mời hàng loạt thất bại: ${error.message}`
+    );
+  }
+};
+
+/**
+ * [MỚI] Lấy danh sách lời mời của người dùng hiện tại.
+ * @param {number} nguoiDungID
+ * @param {object} params - Tham số truy vấn
+ * @returns {Promise<PaginatedLoiMoiSuKienResponse>}
+ */
+const getMyInvitations = async (nguoiDungID, params) => {
+  const { items, totalItems } = await suKienRepository.getMyInvitations(
+    nguoiDungID,
+    params
+  );
+
+  const formattedItems = items.map((item) => ({
+    moiThamGiaID: Number(item.MoiThamGiaID),
+    suKien: {
+      suKienID: item.SuKienID,
+      tenSK: item.TenSK,
+      tgBatDauDK: item.TgBatDauDK.toISOString(),
+      tgKetThucDK: item.TgKetThucDK.toISOString(),
+      diaDiemDaXep: item.DiaDiemDaXep,
+      loaiSuKien: item.TenLoaiSK ? { tenLoaiSK: item.TenLoaiSK } : null,
+      donViChuTri: { tenDonVi: item.TenDonViChuTri },
+    },
+    vaiTroDuKienSK: item.VaiTroDuKienSK,
+    ghiChuMoi: item.GhiChuMoi,
+    isChapNhanMoi: item.IsChapNhanMoi,
+    tgMoi: null, // CSDL không có trường này, sẽ cần thêm nếu FE yêu cầu
+    tgPhanHoiMoi: item.TgPhanHoiMoi ? item.TgPhanHoiMoi.toISOString() : null,
+    nguoiGuiMoi: item.HoTenNguoiGuiMoi
+      ? {
+          hoTen: item.HoTenNguoiGuiMoi,
+          donViCongTac: 'Phòng Công tác Sinh viên', // Tạm hardcode, có thể lấy động sau
+        }
+      : null,
+  }));
+
+  const page = parseInt(params.page) || 1;
+  const limit = parseInt(params.limit) || 10;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    items: formattedItems,
+    totalPages,
+    currentPage: page,
+    totalItems,
+    pageSize: limit,
+  };
+};
+
+/**
+ * [MỚI] Người dùng phản hồi một lời mời tham gia sự kiện.
+ * @param {number} moiThamGiaID
+ * @param {PhanHoiLoiMoiPayload} payload - { chapNhan, lyDoTuChoi }
+ * @param {object} currentUser - Người dùng đang thực hiện phản hồi
+ * @returns {Promise<PhanHoiLoiMoiResponse>}
+ */
+const phanHoiLoiMoi = async (moiThamGiaID, payload, currentUser) => {
+  const { chapNhan, lyDoTuChoi } = payload;
+
+  // 1. Lấy thông tin lời mời để kiểm tra
+  const invitation =
+    await suKienRepository.getInvitationForDeletionCheck(moiThamGiaID); // Dùng lại hàm check xóa vì nó có đủ thông tin cần
+  if (!invitation) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Lời mời không tồn tại.');
+  }
+
+  // 2. Kiểm tra quyền: Người dùng phải là người được mời
+  const moiMoi = await suKienRepository.getMoiMoi(moiThamGiaID);
+  if (moiMoi.NguoiDuocMoiID !== currentUser.nguoiDungID) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      'Bạn không có quyền phản hồi lời mời này.'
+    );
+  }
+
+  // 3. Kiểm tra trạng thái: Lời mời phải chưa được phản hồi
+  if (invitation.IsChapNhanMoi !== null) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Bạn đã phản hồi lời mời này trước đó.'
+    );
+  }
+
+  // 4. Kiểm tra logic nghiệp vụ: Sự kiện có còn cho phép phản hồi không (chưa kết thúc)
+  const suKien = await suKienRepository.getSuKienDetailById(
+    invitation.SuKienID
+  );
+  if (!suKien || new Date(suKien.tgKetThucDK) < new Date()) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      'Không thể phản hồi vì sự kiện đã kết thúc.'
+    );
+  }
+
+  // 5. Cập nhật CSDL
+  const updatedInvitation = await suKienRepository.updateInvitationResponse(
+    moiThamGiaID,
+    chapNhan,
+    chapNhan ? null : lyDoTuChoi
+  );
+  if (!updatedInvitation) {
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Ghi nhận phản hồi thất bại.'
+    );
+  }
+
+  // (Tùy chọn) Gửi thông báo cho người mời (CTSV)
+  // ...
+
+  logger.info(
+    `User ${currentUser.nguoiDungID} responded to invitation ID ${moiThamGiaID} with: ${chapNhan}`
+  );
+
+  return {
+    message: 'Phản hồi của bạn đã được ghi nhận.',
+    loiMoiCapNhat: {
+      moiThamGiaID: Number(updatedInvitation.MoiThamGiaID),
+      isChapNhanMoi: updatedInvitation.IsChapNhanMoi,
+      tgPhanHoiMoi: updatedInvitation.TgPhanHoiMoi.toISOString(),
+    },
+  };
+};
+
+/**
+ * [MỚI] Lấy danh sách sự kiện đã tham gia của người dùng.
+ */
+const getMyAttendedEvents = async (nguoiDungID, params) => {
+  const { items, totalItems } = await suKienRepository.getMyAttendedEvents(
+    nguoiDungID,
+    params
+  );
+
+  const formattedItems = items.map((item) => {
+    const isEventFinished =
+      item.MaTrangThaiSK === MaTrangThaiSK.HOAN_THANH ||
+      new Date(item.tgKetThuc) < new Date();
+    const hasRated = !!item.DanhGiaSkID;
+
+    return {
+      suKienID: item.SuKienID,
+      tenSK: item.TenSK,
+      tgBatDau: item.tgBatDau.toISOString(),
+      tgKetThuc: item.tgKetThuc.toISOString(),
+      diaDiemDaXep: item.DiaDiemDaXep,
+      loaiSuKien: item.TenLoaiSK ? { tenLoaiSK: item.TenLoaiSK } : null,
+      donViChuTri: { tenDonVi: item.TenDonViChuTri },
+      trangThaiSuKien: {
+        maTrangThai: item.MaTrangThaiSK,
+        tenTrangThai: item.TenTrangThaiSK,
+      },
+      isDaChapNhanMoi: item.IsChapNhanMoi,
+      danhGiaCuaToi: hasRated
+        ? {
+            danhGiaSkID: Number(item.DanhGiaSkID),
+            diemNoiDung: item.DiemNoiDung,
+            diemToChuc: item.DiemToChuc,
+            diemDiaDiem: item.DiemDiaDiem,
+            yKienDongGop: item.YKienDongGop,
+            tgDanhGia: item.TgDanhGia.toISOString(),
+          }
+        : null,
+      coTheDanhGia: isEventFinished && !hasRated,
+    };
+  });
+
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    items: formattedItems,
+    totalPages,
+    currentPage: page,
+    totalItems,
+    pageSize: limit,
+  };
+};
+
 export const suKienService = {
   getSuKienList,
   getSuKienDetail,
@@ -843,4 +1471,12 @@ export const suKienService = {
   sendRemindersForOverdueBGHApproval,
   autoCancelOverdueBGHApprovalEvents,
   autoCompleteFinishedEvents,
+  getSuKienCoTheMoi,
+  guiLoiMoiThamGia,
+  guiLoiMoiHangLoat,
+  getDanhSachMoi,
+  thuHoiLoiMoi,
+  getMyInvitations,
+  phanHoiLoiMoi,
+  getMyAttendedEvents,
 };

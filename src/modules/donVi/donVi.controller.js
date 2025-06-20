@@ -1,6 +1,10 @@
 // src/modules/donVi/donVi.controller.js
 import { donViService } from './donVi.service.js';
-import { okResponse, createdResponse } from '../../utils/response.util.js';
+import {
+  okResponse,
+  createdResponse,
+  noContentResponse,
+} from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 
 /**
@@ -35,7 +39,9 @@ const getDonViListController = async (req, res) => {
  * @returns {Promise<void>} Trả về response với chi tiết đơn vị
  */
 const getDonViDetailController = async (req, res) => {
-  const donVi = await donViService.getDonViDetail(parseInt(req.params.donViId));
+  const donVi = await donViService.getDonViDetail(
+    parseInt(req.params.donViId, 10)
+  );
   okResponse(res, donVi, 'Lấy chi tiết đơn vị thành công.');
 };
 
@@ -58,7 +64,7 @@ const createDonViController = async (req, res) => {
  */
 const updateDonViController = async (req, res) => {
   const updatedDonVi = await donViService.updateDonVi(
-    parseInt(req.params.donViId),
+    parseInt(req.params.donViId, 10),
     req.body
   );
   okResponse(res, updatedDonVi, 'Cập nhật đơn vị thành công.');
@@ -71,7 +77,7 @@ const updateDonViController = async (req, res) => {
  * @returns {Promise<void>} Trả về response no content khi xóa thành công
  */
 const deleteDonViController = async (req, res) => {
-  await donViService.deleteDonVi(parseInt(req.params.donViId));
+  await donViService.deleteDonVi(parseInt(req.params.donViId, 10));
   noContentResponse(res, 'Xóa đơn vị thành công.');
 };
 

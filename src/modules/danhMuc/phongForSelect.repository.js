@@ -1,6 +1,6 @@
 // src/modules/phong/phong.repository.js
-import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery } from '../../utils/database.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 
 /**
@@ -21,8 +21,8 @@ const getPhongForSelect = async (params) => {
     sortBy = 'p.TenPhong',
     sortOrder = 'ASC',
   } = params;
-  let selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.SoThuTuPhong, p.ToaNhaTangID `;
-  let fromClause = `
+  const selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.SoThuTuPhong, p.ToaNhaTangID `;
+  const fromClause = `
         FROM Phong p
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
         JOIN TrangThaiPhong ttp ON p.TrangThaiPhongID = ttp.TrangThaiPhongID

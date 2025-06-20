@@ -23,6 +23,7 @@ import lopHocRoutes from '../lopHoc/lopHoc.route.js';
 import nganhHocRoutes from '../nganhHoc/nganhHoc.route.js';
 import { directChuyenNganhRouter } from '../chuyenNganh/chuyenNganh.route.js';
 import { donViController } from '../donVi/donVi.controller.js';
+
 const router = express.Router();
 
 // Áp dụng middleware xác thực cho tất cả các route danh mục

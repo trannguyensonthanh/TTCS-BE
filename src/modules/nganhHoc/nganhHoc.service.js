@@ -1,5 +1,9 @@
 // src/modules/nganhHoc/nganhHoc.service.js
+import httpStatus from '../../constants/httpStatus.js';
+import LoaiDonVi from '../../enums/loaiDonVi.enum.js';
+import ApiError from '../../utils/ApiError.util.js';
 import logger from '../../utils/logger.util.js';
+import { donViRepository } from '../donVi/donVi.repository.js';
 import { nganhHocRepository } from './nganhHoc.repository.js';
 
 /**

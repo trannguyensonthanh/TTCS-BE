@@ -63,12 +63,30 @@ const getSuKienListWithPagination = async (params) => {
     });
   }
   if (trangThaiSkMa) {
-    query += ` AND ttsk.MaTrangThai = @TrangThaiSkMa`;
-    queryParams.push({
-      name: 'TrangThaiSkMa',
-      type: sql.VarChar,
-      value: trangThaiSkMa,
-    });
+    const arrTrangThai = trangThaiSkMa
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (arrTrangThai.length === 1) {
+      query += ` AND ttsk.MaTrangThai = @TrangThaiSkMa`;
+      queryParams.push({
+        name: 'TrangThaiSkMa',
+        type: sql.VarChar,
+        value: arrTrangThai[0],
+      });
+    } else if (arrTrangThai.length > 1) {
+      const inParams = arrTrangThai
+        .map((v, idx) => `@TrangThaiSkMa${idx}`)
+        .join(', ');
+      query += ` AND ttsk.MaTrangThai IN (${inParams})`;
+      arrTrangThai.forEach((v, idx) => {
+        queryParams.push({
+          name: `TrangThaiSkMa${idx}`,
+          type: sql.VarChar,
+          value: v,
+        });
+      });
+    }
   }
   if (loaiSuKienMa) {
     query += ` AND lsk.MaLoaiSK = @LoaiSuKienMa`;
@@ -1280,6 +1298,515 @@ const findFinishedEventsToUpdateStatus = async () => {
   return result.recordset.map((row) => row.SuKienID);
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đủ điều kiện để mời, có phân trang và bộ lọc.
+ * @param {object} params - Tham số lọc và phân trang
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
+ */
+const getSuKienCoTheMoiList = async (params) => {
+  const {
+    searchTerm,
+    donViToChucID,
+    loaiSuKienID,
+    page = 1,
+    limit = 10,
+    sortBy = 'sk.TgBatDauDK',
+    sortOrder = 'DESC',
+  } = params;
+
+  const allowedStatusCodes = [MaTrangThaiSK.DA_XAC_NHAN_PHONG]
+    .map((code) => `'${code}'`)
+    .join(',');
+
+  let fromClause = `
+    FROM SuKien sk
+    JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+    JOIN DonVi dv ON sk.DonViChuTriID = dv.DonViID
+    LEFT JOIN LoaiSuKien lsk ON sk.LoaiSuKienID = lsk.LoaiSuKienID
+    -- Subquery để đếm số người đã mời
+    LEFT JOIN (
+        SELECT SuKienID, COUNT(MoiThamGiaID) AS SoLuongDaMoi
+        FROM SK_MoiThamGia
+        GROUP BY SuKienID
+    ) moi ON sk.SuKienID = moi.SuKienID
+  `;
+  let whereClause = ` WHERE ttsk.MaTrangThai IN (${allowedStatusCodes}) AND sk.TgKetThucDK > GETDATE() `;
+  const queryParams = [];
+
+  if (searchTerm) {
+    whereClause += ` AND (sk.TenSK LIKE @SearchTerm OR dv.TenDonVi LIKE @SearchTerm) `;
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+  if (donViToChucID) {
+    whereClause += ` AND sk.DonViChuTriID = @DonViToChucID `;
+    queryParams.push({
+      name: 'DonViToChucID',
+      type: sql.Int,
+      value: donViToChucID,
+    });
+  }
+  if (loaiSuKienID) {
+    whereClause += ` AND sk.LoaiSuKienID = @LoaiSuKienID `;
+    queryParams.push({
+      name: 'LoaiSuKienID',
+      type: sql.Int,
+      value: loaiSuKienID,
+    });
+  }
+
+  const countQuery = `SELECT COUNT(DISTINCT sk.SuKienID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems =
+    countResult.recordset.length > 0 ? countResult.recordset[0].TotalItems : 0;
+
+  const allowedSortBy = ['sk.TgBatDauDK', 'sk.TenSK', 'dv.TenDonVi'];
+  const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'sk.TgBatDauDK';
+  const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+    SELECT
+        sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK, sk.SlThamDuDK,
+        lsk.TenLoaiSK,
+        dv.TenDonVi AS TenDonViChuTri,
+        ISNULL(moi.SoLuongDaMoi, 0) AS SoLuongDaMoi
+    ${fromClause}
+    ${whereClause}
+    ORDER BY ${safeSortBy} ${safeSortOrder}
+    OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+  `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  return { items: itemsResult.recordset, totalItems };
+};
+
+/**
+ * [MỚI] Thêm một hoặc nhiều lời mời vào bảng SK_MoiThamGia.
+ * @param {number} suKienID - ID của sự kiện.
+ * @param {Array<object>} invitations - Mảng các đối tượng lời mời, mỗi object chứa { nguoiDuocMoiID, vaiTroDuKienSK, ghiChuMoi }.
+ * @param {sql.Transaction} transaction - Transaction đang hoạt động.
+ * @returns {Promise<Array<object>>} Mảng các bản ghi đã được tạo thành công, chứa MoiThamGiaID.
+ */
+const addInvitationsToSuKien = async (suKienID, invitations, transaction) => {
+  console.log(`Adding invitations for SuKienID ${suKienID}:`, invitations);
+  if (!invitations || invitations.length === 0) {
+    return [];
+  }
+
+  // Tạo câu lệnh INSERT với nhiều VALUES để tối ưu hơn việc gọi nhiều lần
+  const valuesClauses = [];
+  const params = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
+
+  invitations.forEach((invite, index) => {
+    const paramSuffix = index;
+    valuesClauses.push(
+      `(@SuKienID, @NguoiDuocMoiID${paramSuffix}, @VaiTroDuKienSK${paramSuffix}, @GhiChuMoi${paramSuffix})`
+    );
+
+    params.push({
+      name: `NguoiDuocMoiID${paramSuffix}`,
+      type: sql.Int,
+      value: invite.nguoiDuocMoiID,
+    });
+    params.push({
+      name: `VaiTroDuKienSK${paramSuffix}`,
+      type: sql.NVarChar(200),
+      value: invite.vaiTroDuKienSK,
+    });
+    params.push({
+      name: `GhiChuMoi${paramSuffix}`,
+      type: sql.NVarChar(500),
+      value: invite.ghiChuMoi,
+    });
+  });
+
+  const query = `
+        INSERT INTO SK_MoiThamGia (SuKienID, NguoiDuocMoiID, VaiTroDuKienSK, GhiChuMoi)
+        OUTPUT inserted.MoiThamGiaID, inserted.NguoiDuocMoiID
+        VALUES ${valuesClauses.join(',\n')};
+    `;
+
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+
+  const result = await request.query(query);
+  return result.recordset; // Trả về mảng [{ MoiThamGiaID, NguoiDuocMoiID }]
+};
+
+/**
+ * [MỚI] Lấy danh sách ID của những người đã được mời cho một sự kiện.
+ * @param {number} suKienID - ID của sự kiện.
+ * @param {sql.Transaction} transaction - Transaction đang hoạt động.
+ * @returns {Promise<Set<number>>} Một Set chứa các NguoiDungID đã được mời.
+ */
+const getInvitedUserIdsForSuKien = async (suKienID, transaction) => {
+  const query = `SELECT NguoiDuocMoiID FROM SK_MoiThamGia WHERE SuKienID = @SuKienID;`;
+  const params = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+
+  const result = await request.query(query);
+  const idSet = new Set(result.recordset.map((row) => row.NguoiDuocMoiID));
+  return idSet;
+};
+
+/**
+ * [MỚI] Lấy danh sách người đã được mời cho một sự kiện, có phân trang và bộ lọc.
+ * @param {number} suKienID - ID của sự kiện.
+ * @param {object} params - Tham số lọc và phân trang.
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
+ */
+const getInvitedListForSuKien = async (suKienID, params) => {
+  const {
+    searchTerm,
+    trangThaiPhanHoi,
+    page = 1,
+    limit = 10,
+    sortBy = 'nd.HoTen',
+    sortOrder = 'ASC',
+  } = params;
+
+  let fromClause = `
+        FROM SK_MoiThamGia skm
+        JOIN NguoiDung nd ON skm.NguoiDuocMoiID = nd.NguoiDungID
+    `;
+  let whereClause = ` WHERE skm.SuKienID = @SuKienID `;
+  const queryParams = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
+
+  if (searchTerm) {
+    whereClause += ` AND (nd.HoTen LIKE @SearchTerm OR nd.Email LIKE @SearchTerm OR nd.MaDinhDanh LIKE @SearchTerm) `;
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+
+  if (trangThaiPhanHoi) {
+    if (trangThaiPhanHoi === 'CHUA_PHAN_HOI') {
+      whereClause += ` AND skm.IsChapNhanMoi IS NULL `;
+    } else if (trangThaiPhanHoi === 'CHAP_NHAN') {
+      whereClause += ` AND skm.IsChapNhanMoi = 1 `;
+    } else if (trangThaiPhanHoi === 'TU_CHOI') {
+      whereClause += ` AND skm.IsChapNhanMoi = 0 `;
+    }
+  }
+
+  const countQuery = `SELECT COUNT(skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems =
+    countResult.recordset.length > 0 ? countResult.recordset[0].TotalItems : 0;
+
+  const allowedSortBy = ['nd.HoTen', 'nd.MaDinhDanh', 'skm.TgPhanHoiMoi'];
+  const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'nd.HoTen';
+  const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+        SELECT
+            skm.MoiThamGiaID,
+            skm.VaiTroDuKienSK,
+            skm.IsChapNhanMoi,
+            skm.TgPhanHoiMoi,
+            skm.GhiChuMoi,
+            nd.NguoiDungID,
+            nd.MaDinhDanh,
+            nd.HoTen,
+            nd.Email,
+            nd.AnhDaiDien
+        ${fromClause}
+        ${whereClause}
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+    `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  return { items: itemsResult.recordset, totalItems };
+};
+
+/**
+ * [MỚI] Lấy thông tin chi tiết một lời mời để kiểm tra trước khi xóa.
+ * @param {number} moiThamGiaID - ID của lời mời trong SK_MoiThamGia.
+ * @returns {Promise<object|null>} Thông tin lời mời hoặc null nếu không tồn tại.
+ */
+const getInvitationForDeletionCheck = async (moiThamGiaID) => {
+  const query = `
+        SELECT 
+            skm.MoiThamGiaID, 
+            skm.SuKienID, 
+            skm.IsChapNhanMoi,
+            sk.NguoiTaoID AS SuKien_NguoiTaoID, -- Người tạo sự kiện
+            sk.DonViChuTriID AS SuKien_DonViChuTriID
+        FROM SK_MoiThamGia skm
+        JOIN SuKien sk ON skm.SuKienID = sk.SuKienID
+        WHERE skm.MoiThamGiaID = @MoiThamGiaID;
+    `;
+  const params = [
+    { name: 'MoiThamGiaID', type: sql.BigInt, value: moiThamGiaID },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset.length > 0 ? result.recordset[0] : null;
+};
+
+/**
+ * [MỚI] Xóa một bản ghi lời mời khỏi SK_MoiThamGia.
+ * @param {number} moiThamGiaID - ID của lời mời cần xóa.
+ * @returns {Promise<number>} Số dòng bị ảnh hưởng (0 hoặc 1).
+ */
+const deleteInvitationById = async (moiThamGiaID) => {
+  const query = `DELETE FROM SK_MoiThamGia WHERE MoiThamGiaID = @MoiThamGiaID;`;
+  const params = [
+    { name: 'MoiThamGiaID', type: sql.BigInt, value: moiThamGiaID },
+  ];
+  const result = await executeQuery(query, params);
+  return result.rowsAffected[0];
+};
+
+/**
+ * [MỚI] Lấy danh sách lời mời của một người dùng, có phân trang và bộ lọc.
+ * @param {number} nguoiDungID - ID của người dùng đang xem lời mời.
+ * @param {object} params - Các tham số lọc và phân trang.
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
+ */
+const getMyInvitations = async (nguoiDungID, params) => {
+  const {
+    trangThaiPhanHoi = 'CHUA_PHAN_HOI',
+    sapDienRa = true,
+    page = 1,
+    limit = 10,
+    sortBy = 'sk.TgBatDauDK',
+    sortOrder = 'ASC',
+  } = params;
+
+  let fromClause = `
+        FROM SK_MoiThamGia skm
+        JOIN SuKien sk ON skm.SuKienID = sk.SuKienID
+        JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+        JOIN DonVi dv_chutri ON sk.DonViChuTriID = dv_chutri.DonViID
+        LEFT JOIN LoaiSuKien lsk ON sk.LoaiSuKienID = lsk.LoaiSuKienID
+        LEFT JOIN NguoiDung nd_tao_sk ON sk.NguoiTaoID = nd_tao_sk.NguoiDungID -- Người tạo sự kiện, có thể là người gửi mời
+        -- ... (Logic lấy đơn vị người tạo sự kiện sẽ phức tạp, tạm thời lấy họ tên) ...
+        -- Lấy địa điểm đã xếp
+        OUTER APPLY (
+            SELECT TOP 1 p.TenPhong AS DiaDiem
+            FROM YeuCauMuonPhong yc_p
+            JOIN YcMuonPhongChiTiet yct_p ON yc_p.YcMuonPhongID = yct_p.YcMuonPhongID
+            JOIN ChiTietDatPhong cdp ON yct_p.YcMuonPhongCtID = cdp.YcMuonPhongCtID
+            JOIN Phong p ON cdp.PhongID = p.PhongID
+            WHERE yc_p.SuKienID = sk.SuKienID
+            ORDER BY cdp.DatPhongID ASC
+        ) AS DiaDiem
+    `;
+  let whereClause = ` WHERE skm.NguoiDuocMoiID = @NguoiDungID `;
+  const queryParams = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+  ];
+
+  if (trangThaiPhanHoi) {
+    if (trangThaiPhanHoi === 'CHUA_PHAN_HOI')
+      whereClause += ' AND skm.IsChapNhanMoi IS NULL ';
+    else if (trangThaiPhanHoi === 'DA_CHAP_NHAN')
+      whereClause += ' AND skm.IsChapNhanMoi = 1 ';
+    else if (trangThaiPhanHoi === 'DA_TU_CHOI')
+      whereClause += ' AND skm.IsChapNhanMoi = 0 ';
+  }
+
+  if (sapDienRa === true) {
+    whereClause += ' AND sk.TgKetThucDK >= GETDATE() ';
+  }
+
+  const countQuery = `SELECT COUNT(DISTINCT skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems = countResult.recordset[0]?.TotalItems || 0;
+
+  const allowedSortBy = ['sk.TgBatDauDK', 'sk.TenSK'];
+  const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'sk.TgBatDauDK';
+  const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+        SELECT DISTINCT
+            skm.MoiThamGiaID, skm.VaiTroDuKienSK, skm.GhiChuMoi, skm.IsChapNhanMoi, skm.TgPhanHoiMoi,
+            sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK,
+            lsk.TenLoaiSK,
+            dv_chutri.TenDonVi AS TenDonViChuTri,
+            DiaDiem.DiaDiem AS DiaDiemDaXep,
+            nd_tao_sk.HoTen AS HoTenNguoiGuiMoi -- Tạm lấy người tạo sự kiện là người mời
+        ${fromClause}
+        ${whereClause}
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+    `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  return { items: itemsResult.recordset, totalItems };
+};
+
+/**
+ * [MỚI] Cập nhật phản hồi cho một lời mời.
+ * @param {number} moiThamGiaID - ID của lời mời.
+ * @param {boolean} chapNhan - Trạng thái chấp nhận (true/false).
+ * @param {string | null} lyDoTuChoi - Lý do từ chối (nếu có).
+ * @returns {Promise<object|null>} Bản ghi lời mời đã được cập nhật hoặc null nếu không tìm thấy.
+ */
+const updateInvitationResponse = async (moiThamGiaID, chapNhan, lyDoTuChoi) => {
+  const query = `
+        UPDATE SK_MoiThamGia
+        SET 
+            IsChapNhanMoi = @IsChapNhanMoi,
+            TgPhanHoiMoi = GETDATE(),
+            LyDoTuChoiMoi = @LyDoTuChoiMoi
+        OUTPUT 
+            inserted.MoiThamGiaID,
+            inserted.IsChapNhanMoi,
+            inserted.TgPhanHoiMoi,
+            inserted.LyDoTuChoiMoi
+        WHERE 
+            MoiThamGiaID = @MoiThamGiaID;
+    `;
+  const params = [
+    { name: 'MoiThamGiaID', type: sql.BigInt, value: moiThamGiaID },
+    { name: 'IsChapNhanMoi', type: sql.Bit, value: chapNhan },
+    { name: 'LyDoTuChoiMoi', type: sql.NVarChar(sql.MAX), value: lyDoTuChoi },
+  ];
+
+  const result = await executeQuery(query, params);
+  return result.recordset.length > 0 ? result.recordset[0] : null;
+};
+
+const getMoiMoi = async (moiThamGiaID) => {
+  const query = `SELECT * FROM SK_MoiThamGia WHERE MoiThamGiaID = @MoiThamGiaID`;
+  const params = [
+    { name: 'MoiThamGiaID', type: sql.BigInt, value: moiThamGiaID },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset[0];
+};
+
+/**
+ * [MỚI] Lấy danh sách sự kiện người dùng đã tham gia, kèm thông tin đánh giá.
+ * @param {number} nguoiDungID - ID của người dùng.
+ * @param {object} params - Các tham số lọc và phân trang.
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
+ */
+const getMyAttendedEvents = async (nguoiDungID, params) => {
+  const {
+    trangThaiSuKien,
+    daDanhGia,
+    tuNgay,
+    denNgay,
+    page = 1,
+    limit = 10,
+    sortBy = 'tgKetThuc',
+    sortOrder = 'DESC',
+  } = params;
+
+  let fromClause = `
+        FROM SK_MoiThamGia skm
+        JOIN SuKien sk ON skm.SuKienID = sk.SuKienID
+        JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+        JOIN DonVi dv_chutri ON sk.DonViChuTriID = dv_chutri.DonViID
+        LEFT JOIN LoaiSuKien lsk ON sk.LoaiSuKienID = lsk.LoaiSuKienID
+        -- Lấy thông tin đánh giá của người dùng này cho sự kiện này
+        LEFT JOIN DanhGiaSK dg ON sk.SuKienID = dg.SuKienID AND dg.NguoiDanhGiaID = skm.NguoiDuocMoiID
+        -- Lấy địa điểm đã xếp
+        OUTER APPLY (
+            SELECT TOP 1 p.TenPhong AS DiaDiem
+            FROM YeuCauMuonPhong yc_p
+            JOIN YcMuonPhongChiTiet yct_p ON yc_p.YcMuonPhongID = yct_p.YcMuonPhongID
+            JOIN ChiTietDatPhong cdp ON yct_p.YcMuonPhongCtID = cdp.YcMuonPhongCtID
+            JOIN Phong p ON cdp.PhongID = p.PhongID
+            WHERE yc_p.SuKienID = sk.SuKienID
+            ORDER BY cdp.DatPhongID ASC
+        ) AS DiaDiem
+    `;
+  let whereClause = ` WHERE skm.NguoiDuocMoiID = @NguoiDungID AND skm.IsChapNhanMoi = 1 `;
+  const queryParams = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+  ];
+
+  // Logic lọc theo trạng thái sự kiện
+  if (trangThaiSuKien) {
+    const now = 'GETDATE()';
+    if (trangThaiSuKien === 'SAP_DIEN_RA') {
+      whereClause += ` AND sk.TgBatDauDK > ${now} AND ttsk.MaTrangThai NOT IN ('${MaTrangThaiSK.DA_HUY}', '${MaTrangThaiSK.HOAN_THANH}') `;
+    } else if (trangThaiSuKien === 'DANG_DIEN_RA') {
+      whereClause += ` AND ${now} BETWEEN sk.TgBatDauDK AND sk.TgKetThucDK AND ttsk.MaTrangThai NOT IN ('${MaTrangThaiSK.DA_HUY}', '${MaTrangThaiSK.HOAN_THANH}') `;
+    } else if (trangThaiSuKien === 'DA_HOAN_THANH') {
+      whereClause += ` AND ttsk.MaTrangThai = '${MaTrangThaiSK.HOAN_THANH}' `;
+    } else if (trangThaiSuKien === 'DA_HUY') {
+      whereClause += ` AND ttsk.MaTrangThai = '${MaTrangThaiSK.DA_HUY}' `;
+    }
+  }
+
+  // Logic lọc theo đã đánh giá hay chưa
+  if (typeof daDanhGia === 'boolean') {
+    if (daDanhGia) {
+      whereClause += ` AND dg.DanhGiaSkID IS NOT NULL `;
+    } else {
+      // Chưa đánh giá
+      whereClause += ` AND dg.DanhGiaSkID IS NULL `;
+    }
+  }
+
+  if (tuNgay) {
+    whereClause += ` AND COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) >= @TuNgay `;
+    queryParams.push({ name: 'TuNgay', type: sql.Date, value: tuNgay });
+  }
+  if (denNgay) {
+    whereClause += ` AND COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) <= @DenNgay `;
+    queryParams.push({ name: 'DenNgay', type: sql.Date, value: denNgay });
+  }
+
+  const countQuery = `SELECT COUNT(DISTINCT skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems = countResult.recordset[0]?.TotalItems || 0;
+
+  const selectFields = `
+        SELECT DISTINCT
+            skm.MoiThamGiaID, skm.IsChapNhanMoi,
+            sk.SuKienID, sk.TenSK,
+            COALESCE(sk.TgBatDauThucTe, sk.TgBatDauDK) AS tgBatDau,
+            COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) AS tgKetThuc,
+            lsk.TenLoaiSK,
+            dv_chutri.TenDonVi AS TenDonViChuTri,
+            ttsk.MaTrangThai AS MaTrangThaiSK, ttsk.TenTrangThai AS TenTrangThaiSK,
+            DiaDiem.DiaDiem AS DiaDiemDaXep,
+            dg.DanhGiaSkID, dg.DiemNoiDung, dg.DiemToChuc, dg.DiemDiaDiem, dg.YKienDongGop, dg.TgDanhGia
+    `;
+
+  const allowedSortBy = {
+    'SuKien.TgKetThucDK': 'tgKetThuc',
+    TenSK: 'sk.TenSK',
+  };
+  const safeSortBy = allowedSortBy[sortBy] || 'tgKetThuc';
+  const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+        ${selectFields}
+        ${fromClause}
+        ${whereClause}
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+    `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  return { items: itemsResult.recordset, totalItems };
+};
+
 export const suKienRepository = {
   addDonViThamGiaToSuKien,
   getSuKienListWithPagination,
@@ -1300,4 +1827,14 @@ export const suKienRepository = {
   updateTrangThaiNhieuSuKien,
   clearDonViThamGiaFromSuKien,
   findFinishedEventsToUpdateStatus,
+  getSuKienCoTheMoiList,
+  addInvitationsToSuKien,
+  getInvitedUserIdsForSuKien,
+  getInvitedListForSuKien,
+  getInvitationForDeletionCheck,
+  deleteInvitationById,
+  getMyInvitations,
+  updateInvitationResponse,
+  getMoiMoi,
+  getMyAttendedEvents,
 };

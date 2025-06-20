@@ -20,7 +20,7 @@ const getLichDatPhongParamsSchema = Joi.object({
     .custom((value, helpers) => {
       if (!value || value.trim() === '') return null;
       const ids = value.split(',').map((id) => parseInt(id.trim(), 10));
-      if (ids.some(isNaN)) {
+      if (ids.some(Number.isNaN)) {
         return helpers.error('string.custom');
       }
       return ids;

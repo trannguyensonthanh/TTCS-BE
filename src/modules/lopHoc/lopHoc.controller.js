@@ -1,6 +1,10 @@
 // src/modules/lopHoc/lopHoc.controller.js
 import { lopHocService } from './lopHoc.service.js';
-import { okResponse, createdResponse } from '../../utils/response.util.js';
+import {
+  okResponse,
+  createdResponse,
+  noContentResponse,
+} from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
 
 /**

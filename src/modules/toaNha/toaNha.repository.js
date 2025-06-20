@@ -1,6 +1,8 @@
 // src/modules/danhMuc/toaNha.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import httpStatus from '../../constants/httpStatus.js';
+import ApiError from '../../utils/ApiError.util.js';
+import { executeQuery, getPool } from '../../utils/database.js';
 
 /**
  * Tạo mới một tòa nhà.
@@ -83,13 +85,13 @@ const getToaNhaListWithPagination = async (params) => {
     sortBy = 'tn.TenToaNha',
     sortOrder = 'ASC',
   } = params;
-  let querySelect = `
+  const querySelect = `
         SELECT
             tn.ToaNhaID, tn.MaToaNha, tn.TenToaNha, tn.MoTaToaNha,
             cs.DonViID AS CoSo_DonViID, cs.TenDonVi AS CoSo_TenDonVi, cs.MaDonVi AS CoSo_MaDonVi, cs.LoaiDonVi AS CoSo_LoaiDonVi
 
     `;
-  let queryFrom = `
+  const queryFrom = `
         FROM ToaNha tn
         JOIN DonVi cs ON tn.CoSoID = cs.DonViID AND cs.LoaiDonVi = 'CO_SO'
     `;

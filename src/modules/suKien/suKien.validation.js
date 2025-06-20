@@ -122,6 +122,95 @@ const getSuKienForSelectParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('ASC'),
 });
 
+const getSuKienCoTheMoiParamsSchema = Joi.object({
+  searchTerm: Joi.string().allow('', null).optional(),
+  donViToChucID: Joi.number().integer().positive().optional(),
+  loaiSuKienID: Joi.number().integer().positive().optional(),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(10),
+  sortBy: Joi.string().optional().default('TgBatDauDK'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+});
+
+const moiThamGiaPayloadItemSchema = Joi.object({
+  nguoiDuocMoiID: Joi.number().integer().positive().required(),
+  vaiTroDuKienSK: Joi.string().max(200).allow('', null).optional(),
+  ghiChuMoi: Joi.string().max(500).allow('', null).optional(),
+});
+
+const guiLoiMoiPayloadSchema = Joi.array()
+  .items(moiThamGiaPayloadItemSchema)
+  .min(1)
+  .required()
+  .messages({
+    'array.min': 'Phải có ít nhất một người được mời.',
+    'any.required': 'Danh sách người mời là bắt buộc.',
+  });
+
+const getDanhSachMoiParamsSchema = Joi.object({
+  searchTerm: Joi.string().allow('', null).optional(),
+  trangThaiPhanHoi: Joi.string()
+    .valid('CHUA_PHAN_HOI', 'CHAP_NHAN', 'TU_CHOI', 'ALL')
+    .default('ALL'),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(10),
+  sortBy: Joi.string().optional().default('NguoiDung.HoTen'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('asc'),
+});
+
+const tieuChiMoiHangLoatSchema = Joi.object({
+  loaiNguoiDung: Joi.string()
+    .valid(
+      'SINH_VIEN_THEO_KHOA',
+      'GIANG_VIEN_THEO_KHOA',
+      'TAT_CA_SV',
+      'TAT_CA_GV',
+      'SINH_VIEN_THEO_LOP',
+      'SINH_VIEN_THEO_NGANH'
+    )
+    .required(),
+  donViIDs: Joi.array().items(Joi.number().integer().positive()).optional(),
+  nganhHocIDs: Joi.array().items(Joi.number().integer().positive()).optional(),
+  lopIDs: Joi.array().items(Joi.number().integer().positive()).optional(),
+  nienKhoaSV: Joi.string().optional(),
+  trangThaiHocTapSV: Joi.string().optional(),
+  hocViGV: Joi.string().optional(),
+});
+
+const guiLoiMoiHangLoatPayloadSchema = Joi.object({
+  loaiDoiTuongMoi: Joi.string()
+    .valid('THEO_TIEU_CHI', 'DANH_SACH_CU_THE')
+    .required(),
+  tieuChiMoi: tieuChiMoiHangLoatSchema.when('loaiDoiTuongMoi', {
+    is: 'THEO_TIEU_CHI',
+    then: Joi.required(),
+  }),
+  danhSachNguoiDungIDs: Joi.array()
+    .items(Joi.number().integer().positive())
+    .when('loaiDoiTuongMoi', {
+      is: 'DANH_SACH_CU_THE',
+      then: Joi.required(),
+    }),
+  vaiTroDuKienSK: Joi.string().max(200).allow('', null).optional(),
+  ghiChuMoiChung: Joi.string().max(500).allow('', null).optional(),
+  loaiTruNguoiDungIDs: Joi.array()
+    .items(Joi.number().integer().positive())
+    .optional(),
+});
+
+const getMyAttendedEventsParamsSchema = Joi.object({
+  trangThaiSuKien: Joi.string()
+    .valid('SAP_DIEN_RA', 'DANG_DIEN_RA', 'DA_HOAN_THANH', 'DA_HUY', 'ALL')
+    .default('ALL'),
+  daDanhGia: Joi.boolean().optional(),
+  tuNgay: Joi.string().isoDate().optional(),
+  denNgay: Joi.string().isoDate().optional().min(Joi.ref('tuNgay')),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(50).default(10),
+  sortBy: Joi.string().optional().default('SuKien.TgKetThucDK'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+});
+
 export const suKienValidation = {
   /**
    * Middleware validate query params cho lấy danh sách sự kiện (lọc, phân trang, sắp xếp).
@@ -189,6 +278,23 @@ export const suKienValidation = {
    */
   validateGetSuKienForSelectParams: validate(
     getSuKienForSelectParamsSchema,
+    'query'
+  ),
+
+  validateGetSuKienCoTheMoiParams: validate(
+    getSuKienCoTheMoiParamsSchema,
+    'query'
+  ),
+
+  validateGuiLoiMoiPayload: validate(guiLoiMoiPayloadSchema, 'body'),
+  validateGetDanhSachMoiParams: validate(getDanhSachMoiParamsSchema, 'query'),
+  validateGuiLoiMoiHangLoatPayload: validate(
+    guiLoiMoiHangLoatPayloadSchema,
+    'body'
+  ),
+
+  validateGetMyAttendedEventsParams: validate(
+    getMyAttendedEventsParamsSchema,
     'query'
   ),
 };

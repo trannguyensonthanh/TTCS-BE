@@ -15,6 +15,10 @@ import yeuCauDoiPhongRoutes from './yeuCauDoiPhong/yeuCauDoiPhong.route.js';
 import chiTietSuDungPhongRoutes from './chiTietSuDungPhong/chiTietSuDungPhong.route.js';
 import lichSuDungPhongRoutes from './lichSuDungPhong/lichSuDungPhong.route.js';
 import vaiTroHeThongRoutes from './vaiTroHeThong/vaiTroHeThong.route.js';
+import moiThamGiaRoutes from './moiThamGia/moiThamGia.route.js';
+import loiMoiSuKienRoutes from './loiMoiSuKien/loiMoiSuKien.route.js';
+import danhGiaSuKienRoutes from './danhGiaSuKien/danhGiaSuKien.route.js';
+
 const router = express.Router();
 
 const defaultRoutes = [
@@ -37,6 +41,15 @@ const defaultRoutes = [
   { path: '/chitietsudungphong', route: chiTietSuDungPhongRoutes },
   { path: '/lichsudungphong', route: lichSuDungPhongRoutes },
   { path: '/vaitrohethong', route: vaiTroHeThongRoutes },
+  {
+    path: '/moi-tham-gia',
+    route: moiThamGiaRoutes,
+  },
+  {
+    path: '/loi-moi-su-kien',
+    route: loiMoiSuKienRoutes,
+  },
+  { path: '/danh-gia-su-kien', route: danhGiaSuKienRoutes },
 ];
 
 defaultRoutes.forEach((route) => {

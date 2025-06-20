@@ -1,6 +1,6 @@
 // src/modules/lichSuDungPhong/lichSuDungPhong.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 import logger from '../../utils/logger.util.js';
 
@@ -149,7 +149,7 @@ const getLichDatPhongByPhongId = async (phongId, params) => {
     sortOrder = 'DESC',
   } = params;
 
-  let selectClause = `
+  const selectClause = `
         SELECT
             cdp.DatPhongID,
             cdp.YcMuonPhongCtID,
@@ -173,7 +173,7 @@ const getLichDatPhongByPhongId = async (phongId, params) => {
             nd_yc.Email AS NguoiYeuCau_Email,
             tt_yct.MaTrangThai AS MaTrangThaiDatPhong -- Trạng thái của chi tiết yêu cầu phòng
     `;
-  let fromClause = `
+  const fromClause = `
         FROM ChiTietDatPhong cdp
         JOIN Phong p ON cdp.PhongID = p.PhongID
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID

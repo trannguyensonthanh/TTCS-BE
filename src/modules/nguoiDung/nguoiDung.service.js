@@ -11,36 +11,126 @@ import { donViRepository } from '../donVi/donVi.repository.js';
 import { lopHocRepository } from '../lopHoc/lopHoc.repository.js';
 import { getPool } from '../../utils/database.js';
 import sql from 'mssql'; // Sử dụng mssql để quản lý transaction
+import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
+/**
+ * [SỬA ĐỔI - KHẮC PHỤC] Lấy danh sách người dùng với phân trang và "làm giàu" dữ liệu.
+ * Đảm bảo cấu trúc trả về cho mỗi item giống hệt với getMyProfile.
+ */
 const getNguoiDungList = async (params) => {
-  const { items, totalItems } =
+  const { items: baseUsers, totalItems } =
     await nguoiDungRepository.getNguoiDungListWithPagination(params);
+
+  if (baseUsers.length === 0) {
+    return {
+      items: [],
+      totalPages: 0,
+      currentPage: 1,
+      totalItems: 0,
+      pageSize: params.limit || 10,
+    };
+  }
+
+  // "Làm giàu" dữ liệu cho mỗi người dùng
+  const enrichedUsers = await Promise.all(
+    baseUsers.map(async (user) => {
+      // Lấy tất cả thông tin chi tiết cho mỗi người dùng, tương tự như getMyProfile
+      const [thongTinSV, thongTinGV, vaiTroChucNang, donViCongTac] =
+        await Promise.all([
+          nguoiDungRepository.getThongTinSinhVienByNguoiDungID(
+            user.NguoiDungID
+          ),
+          nguoiDungRepository.getThongTinGiangVienByNguoiDungID(
+            user.NguoiDungID
+          ),
+          authRepository.getVaiTroChucNangByNguoiDungID(user.NguoiDungID), // Đã lọc ở repo
+          nguoiDungRepository.getDonViCongTacByNguoiDungID(user.NguoiDungID),
+        ]);
+
+      // Gắn đơn vị công tác vào thông tin giảng viên
+      if (thongTinGV && donViCongTac) {
+        thongTinGV.donViCongTac = donViCongTac;
+      }
+      console.log('donViCongTac', donViCongTac);
+      // Xác định các trường hiển thị chung
+      let loaiNguoiDungHienThi = 'Nhân viên';
+      let donViCongTacChinh = null;
+      if (thongTinSV) {
+        loaiNguoiDungHienThi = 'Sinh viên';
+        donViCongTacChinh = thongTinSV.lop?.tenLop || null;
+      } else if (thongTinGV) {
+        loaiNguoiDungHienThi = 'Giảng viên';
+        donViCongTacChinh = donViCongTac?.tenDonVi || null;
+      } else {
+        donViCongTacChinh = donViCongTac?.tenDonVi || null;
+      }
+
+      // Trả về object với cấu trúc đầy đủ
+      return {
+        // Thông tin cơ bản
+        nguoiDungID: user.NguoiDungID,
+        maDinhDanh: user.MaDinhDanh,
+        hoTen: user.HoTen,
+        email: user.Email,
+        soDienThoai: user.SoDienThoai,
+        anhDaiDien: user.AnhDaiDien,
+        isActive: user.IsActive,
+        ngaySinh: user.NgaySinh ? new Date(user.NgaySinh).toISOString() : null,
+        ngayTao: new Date(user.NgayTao).toISOString(),
+
+        // Thông tin tóm tắt để hiển thị trên danh sách
+        loaiNguoiDungHienThi,
+        donViCongTacChinh,
+        trangThaiTaiKhoan: user.TrangThaiTk,
+
+        // <<<< KHÔI PHỤC CÁC TRƯỜNG CHI TIẾT >>>>
+        thongTinSinhVien: thongTinSV || null,
+        thongTinGiangVien: thongTinGV || null,
+        vaiTroChucNang: vaiTroChucNang || [],
+      };
+    })
+  );
+
   const page = parseInt(params.page) || 1;
   const limit = parseInt(params.limit) || 10;
   const totalPages = Math.ceil(totalItems / limit);
+
   return {
-    items, // items đã được map trong repository
+    items: enrichedUsers,
     totalPages,
     currentPage: page,
     totalItems,
     pageSize: limit,
   };
 };
-
 /**
- * Lấy thông tin chi tiết hồ sơ của người dùng hiện tại.
- * @param {number} nguoiDungID
- * @returns {Promise<object>} UserProfileResponse
- * @throws {ApiError} Nếu không tìm thấy người dùng
+ * [SỬA ĐỔI] Lấy thông tin chi tiết hồ sơ của người dùng.
  */
 const getMyProfile = async (nguoiDungID) => {
-  const nguoiDungVaTaiKhoan =
-    await nguoiDungRepository.getNguoiDungAndTaiKhoanById(nguoiDungID);
+  const [
+    nguoiDungVaTaiKhoan,
+    thongTinSV,
+    thongTinGV,
+    vaiTroChucNang,
+    donViCongTac,
+  ] = await Promise.all([
+    nguoiDungRepository.getNguoiDungAndTaiKhoanById(nguoiDungID),
+    nguoiDungRepository.getThongTinSinhVienByNguoiDungID(nguoiDungID),
+    nguoiDungRepository.getThongTinGiangVienByNguoiDungID(nguoiDungID),
+    authRepository.getVaiTroChucNangByNguoiDungID(nguoiDungID), // Chỉ lấy vai trò chức năng
+    nguoiDungRepository.getDonViCongTacByNguoiDungID(nguoiDungID),
+  ]);
+
   if (!nguoiDungVaTaiKhoan) {
     throw new ApiError(
       httpStatus.NOT_FOUND,
       'Không tìm thấy thông tin người dùng.'
     );
+  }
+
+  // Gắn donViCongTac vào thongTinGV nếu là giảng viên
+  if (thongTinGV) {
+    thongTinGV.donViCongTac = donViCongTac;
   }
 
   const nguoiDungFullResponse = {
@@ -52,61 +142,27 @@ const getMyProfile = async (nguoiDungID) => {
     anhDaiDien: nguoiDungVaTaiKhoan.AnhDaiDien,
     ngayTao: new Date(nguoiDungVaTaiKhoan.NgayTao).toISOString(),
     isActive: nguoiDungVaTaiKhoan.IsActive,
+    ngaySinh: nguoiDungVaTaiKhoan.NgaySinh
+      ? new Date(nguoiDungVaTaiKhoan.NgaySinh).toISOString()
+      : null,
   };
 
-  let thongTinSvChiTiet = null;
-  const svData =
-    await nguoiDungRepository.getThongTinSinhVienByNguoiDungID(nguoiDungID);
-  if (svData) {
-    thongTinSvChiTiet = {
-      maSinhVien: nguoiDungFullResponse.maDinhDanh,
-      lop: svData.lop,
-      nganhHoc: svData.nganhHoc,
-      chuyenNganh: svData.chuyenNganh,
-      khoaQuanLy: svData.khoaQuanLy,
-      khoaHoc: svData.khoaHoc,
-      heDaoTao: svData.heDaoTao,
-      ngayNhapHoc: svData.ngayNhapHoc,
-      trangThaiHocTap: svData.trangThaiHocTap,
-    };
-  }
-
-  let thongTinGvChiTiet = null;
-  const gvData =
-    await nguoiDungRepository.getThongTinGiangVienByNguoiDungID(nguoiDungID);
-  if (gvData) {
-    thongTinGvChiTiet = {
-      maGiangVien: nguoiDungFullResponse.maDinhDanh,
-      donViCongTac: gvData.donViCongTac,
-      hocVi: gvData.hocVi,
-      hocHam: gvData.hocHam,
-      chucDanhGD: gvData.chucDanhGD,
-      chuyenMonChinh: gvData.chuyenMonChinh,
-    };
-  }
-
-  // Lấy danh sách vai trò chức năng
-  const vaiTroChucNang =
-    await authRepository.getVaiTroChucNangByNguoiDungID(nguoiDungID);
-  console.log(`Vai trò chức năng: ${JSON.stringify(vaiTroChucNang)}`);
-  const formattedVaiTroChucNang = vaiTroChucNang.map((vt) => ({
-    ganVaiTroID: vt.ganVaiTroID,
-    vaiTroID: vt.vaiTroID,
-    maVaiTro: vt.maVaiTro,
-    tenVaiTro: vt.tenVaiTro,
-    donViThucThi: vt.donViThucThi,
-  }));
-  console.log(`Vai trò chức năng: ${JSON.stringify(formattedVaiTroChucNang)}`);
-  // Lấy thông tin tài khoản
-  const taiKhoan =
-    await nguoiDungRepository.getTaiKhoanInfoByNguoiDungID(nguoiDungID);
+  const taiKhoan = {
+    trangThaiTk: nguoiDungVaTaiKhoan.TrangThaiTk,
+    lanDangNhapCuoi: nguoiDungVaTaiKhoan.LanDangNhapCuoi
+      ? new Date(nguoiDungVaTaiKhoan.LanDangNhapCuoi).toISOString()
+      : null,
+    ngayTaoTk: nguoiDungVaTaiKhoan.NgayTaoTk
+      ? new Date(nguoiDungVaTaiKhoan.NgayTaoTk).toISOString()
+      : null,
+  };
 
   return {
     nguoiDung: nguoiDungFullResponse,
-    thongTinSinhVien: thongTinSvChiTiet || null,
-    thongTinGiangVien: thongTinGvChiTiet || null,
-    vaiTroChucNang: formattedVaiTroChucNang,
-    taiKhoan: taiKhoan || null,
+    thongTinSinhVien: thongTinSV,
+    thongTinGiangVien: thongTinGV,
+    vaiTroChucNang: vaiTroChucNang,
+    taiKhoan: taiKhoan,
   };
 };
 
@@ -166,18 +222,12 @@ const getNguoiDungDetailForAdmin = async (targetNguoiDungID) => {
  */
 const createNguoiDungByAdmin = async (payload) => {
   const {
-    hoTen,
-    email,
-    maDinhDanh,
-    soDienThoai,
-    anhDaiDien,
-    isActiveNguoiDung = true,
-    matKhau,
-    trangThaiTk = 'Active',
+    loaiNguoiDung,
     thongTinSinhVien,
     thongTinGiangVien,
+    donViCongTacID,
     vaiTroChucNang,
-    ngaySinh,
+    ...nguoiDungData
   } = payload;
 
   const pool = await getPool();
@@ -185,173 +235,173 @@ const createNguoiDungByAdmin = async (payload) => {
 
   try {
     await transaction.begin();
-    logger.debug('Transaction started for adminCreateNguoiDung');
 
-    // 1. Kiểm tra Email và MaDinhDanh (là MaSV/MaGV/MaNV) đã tồn tại chưa
-    if (!maDinhDanh) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'Mã định danh (Mã SV/GV/NV) là bắt buộc.'
-      );
-    }
+    // 1. Kiểm tra Email và MaDinhDanh
     const existingUsers =
       await nguoiDungRepository.checkNguoiDungExistsByEmailOrMaDinhDanh(
-        email,
-        maDinhDanh,
+        nguoiDungData.email,
+        nguoiDungData.maDinhDanh,
         null,
         transaction
       );
     if (existingUsers && existingUsers.length > 0) {
-      existingUsers.forEach((user) => {
-        if (user.Email.toLowerCase() === email.toLowerCase()) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Email "${email}" đã được sử dụng.`
-          );
-        }
-        if (
-          user.MaDinhDanh &&
-          user.MaDinhDanh.toLowerCase() === maDinhDanh.toLowerCase()
-        ) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Mã định danh "${maDinhDanh}" đã tồn tại.`
-          );
-        }
-      });
+      // Logic kiểm tra và ném lỗi nếu trùng
+      if (
+        existingUsers.some(
+          (u) => u.Email.toLowerCase() === nguoiDungData.email.toLowerCase()
+        )
+      ) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Email "${nguoiDungData.email}" đã tồn tại.`
+        );
+      }
+      if (
+        existingUsers.some(
+          (u) =>
+            u.MaDinhDanh &&
+            u.MaDinhDanh.toLowerCase() ===
+              nguoiDungData.maDinhDanh.toLowerCase()
+        )
+      ) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Mã định danh "${nguoiDungData.maDinhDanh}" đã tồn tại.`
+        );
+      }
     }
 
-    // 2. Validate các FKs (LopID, DonViCongTacID, VaiTroID, DonViID cho vai trò)
-    if (thongTinSinhVien && thongTinSinhVien.lopID) {
+    // 2. Tạo NguoiDung
+    const nguoiDungID = await nguoiDungRepository.createNguoiDungRecord(
+      nguoiDungData,
+      transaction
+    );
+
+    // 3. Tạo TaiKhoan
+    const hashedPassword = await hashPassword(nguoiDungData.matKhau);
+    await nguoiDungRepository.createTaiKhoanRecord(
+      {
+        nguoiDungID,
+        matKhauHash: hashedPassword,
+        trangThaiTk: nguoiDungData.trangThaiTk || 'Active',
+      },
+      transaction
+    );
+
+    // 4. Tạo thông tin chi tiết (SV/GV) và gán vai trò THANH_VIEN_DON_VI
+    if (loaiNguoiDung === 'SINH_VIEN' && thongTinSinhVien) {
+      // Validate LopID
       const lop = await lopHocRepository.getLopHocById(
         thongTinSinhVien.lopID,
         transaction
-      ); // Cần hàm này
+      );
       if (!lop)
         throw new ApiError(
           httpStatus.BAD_REQUEST,
           `Lớp ID ${thongTinSinhVien.lopID} không tồn tại.`
         );
-      logger.info(
-        `TODO: Validate LopID ${thongTinSinhVien.lopID} in createNguoiDungByAdmin`
-      );
-    }
-    if (thongTinGiangVien && thongTinGiangVien.donViCongTacID) {
-      const donVi = await donViRepository.getDonViById(
-        thongTinGiangVien.donViCongTacID,
-        transaction
-      ); // Cần hàm này
-      if (!donVi)
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          `Đơn vị công tác ID ${thongTinGiangVien.donViCongTacID} không tồn tại.`
-        );
-      logger.info(
-        `TODO: Validate DonViCongTacID ${thongTinGiangVien.donViCongTacID} in createNguoiDungByAdmin`
-      );
-    }
-    if (vaiTroChucNang && vaiTroChucNang.length > 0) {
-      for (const vt of vaiTroChucNang) {
-        const vaiTro = await vaiTroHeThongRepository.getVaiTroHeThongById(
-          vt.vaiTroID,
-          transaction
-        ); // Cần hàm này
-        if (!vaiTro)
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Vai trò ID ${vt.vaiTroID} không tồn tại.`
-          );
-        if (vt.donViID) {
-          const donViVT = await donViRepository.getDonViById(
-            vt.donViID,
-            transaction
-          );
-          if (!donViVT)
-            throw new ApiError(
-              httpStatus.BAD_REQUEST,
-              `Đơn vị thực thi ID ${vt.donViID} cho vai trò không tồn tại.`
-            );
-        }
-        logger.info(
-          `TODO: Validate VaiTroID ${vt.vaiTroID} and DonViID ${vt.donViID} in createNguoiDungByAdmin`
-        );
-      }
-    }
-    // 3. Tạo NguoiDung
-    const nguoiDungID = await nguoiDungRepository.createNguoiDungRecord(
-      {
-        hoTen,
-        email,
-        maDinhDanh,
-        soDienThoai,
-        anhDaiDien,
-        isActiveNguoiDung,
-        ngaySinh,
-      },
-      transaction
-    );
-    logger.debug(`NguoiDung created with ID: ${nguoiDungID}`);
-
-    // 4. Tạo TaiKhoan
-    const hashedPassword = await hashPassword(matKhau);
-    await nguoiDungRepository.createTaiKhoanRecord(
-      { nguoiDungID, matKhauHash: hashedPassword, trangThaiTk },
-      transaction
-    );
-    logger.debug(`TaiKhoan created for NguoiDungID: ${nguoiDungID}`);
-
-    // 5. Tạo ThongTinSinhVien
-    if (thongTinSinhVien) {
       await nguoiDungRepository.createThongTinSinhVienRecord(
         nguoiDungID,
         thongTinSinhVien,
         transaction
       );
-      logger.debug(`ThongTinSinhVien created for NguoiDungID: ${nguoiDungID}`);
-    }
-
-    // 6. Tạo ThongTinGiangVien
-    if (thongTinGiangVien) {
-      await nguoiDungRepository.createThongTinGiangVienRecord(
-        nguoiDungID,
-        thongTinGiangVien,
+    } else if (
+      loaiNguoiDung === 'GIANG_VIEN' ||
+      loaiNguoiDung === 'NHAN_VIEN_KHAC'
+    ) {
+      if (!donViCongTacID) {
+        // Kiểm tra donViCongTacID ở cấp cao nhất
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          'donViCongTacID là bắt buộc cho Giảng viên/Nhân viên.'
+        );
+      }
+      const donVi = await donViRepository.getDonViById(
+        donViCongTacID,
         transaction
       );
-      logger.debug(`ThongTinGiangVien created for NguoiDungID: ${nguoiDungID}`);
+      if (!donVi)
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Đơn vị công tác ID ${donViCongTacID} không tồn tại.`
+        );
+
+      // Nếu là giảng viên thì tạo thêm thông tin chuyên môn
+      if (loaiNguoiDung === 'GIANG_VIEN' && thongTinGiangVien) {
+        // Hàm createThongTinGiangVienRecord đã được sửa để không nhận donViCongTacID
+        await nguoiDungRepository.createThongTinGiangVienRecord(
+          nguoiDungID,
+          thongTinGiangVien,
+          transaction
+        );
+        logger.debug(
+          `ThongTinGiangVien created for NguoiDungID: ${nguoiDungID}`
+        );
+      }
+
+      // Gán vai trò THANH_VIEN_DON_VI cho cả Giảng viên và Nhân viên khác
+      const thanhVienRole = await vaiTroHeThongRepository.getVaiTroHeThongByMa(
+        MaVaiTro.THANH_VIEN_DON_VI,
+        transaction
+      );
+      if (!thanhVienRole)
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Lỗi cấu hình: không tìm thấy vai trò thành viên.'
+        );
+
+      await nguoiDungRepository.upsertNguoiDungVaiTro(
+        nguoiDungID,
+        {
+          vaiTroID: thanhVienRole.VaiTroID,
+          donViID: donViCongTacID, // Sử dụng donViCongTacID từ payload
+          ngayBatDau: new Date(),
+        },
+        transaction
+      );
+      logger.debug(
+        `THANH_VIEN_DON_VI role assigned for NguoiDungID: ${nguoiDungID}`
+      );
     }
 
-    // 7. Gán VaiTroChucNang
+    // 5. Gán các vai trò chức năng khác (nếu có)
     if (vaiTroChucNang && vaiTroChucNang.length > 0) {
       for (const vt of vaiTroChucNang) {
+        // Validate VaiTroID và DonViID
+        const vaiTroExists = await vaiTroHeThongRepository.getVaiTroHeThongById(
+          vt.vaiTroID,
+          transaction
+        );
+        if (!vaiTroExists)
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            `Vai trò ID ${vt.vaiTroID} không tồn tại.`
+          );
+        if (vt.donViID) {
+          const donViExists = await donViRepository.getDonViById(
+            vt.donViID,
+            transaction
+          );
+          if (!donViExists)
+            throw new ApiError(
+              httpStatus.BAD_REQUEST,
+              `Đơn vị ID ${vt.donViID} không tồn tại.`
+            );
+        }
         await nguoiDungRepository.assignVaiTroChucNangToNguoiDung(
           nguoiDungID,
           vt,
           transaction
         );
       }
-      logger.debug(`Functional roles assigned for NguoiDungID: ${nguoiDungID}`);
     }
 
     await transaction.commit();
-    logger.info(
-      `Transaction committed for adminCreateNguoiDung, NguoiDungID: ${nguoiDungID}`
-    );
 
-    // 8. Trả về UserProfileResponse
-    return getMyProfile(nguoiDungID); // Dùng lại hàm getMyProfile để lấy thông tin đầy đủ
+    // Trả về profile đầy đủ
+    return getMyProfile(nguoiDungID);
   } catch (error) {
-    logger.error(
-      'Error during adminCreateNguoiDung transaction, rolling back...',
-      error
-    );
-    if (transaction) {
-      try {
-        await transaction.rollback();
-        logger.info('Transaction rolled back.');
-      } catch (rbError) {
-        logger.error('Error during transaction rollback:', rbError);
-      }
-    }
+    if (transaction) await transaction.rollback();
     if (error instanceof ApiError) throw error;
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
@@ -359,13 +409,12 @@ const createNguoiDungByAdmin = async (payload) => {
     );
   }
 };
-
 /**
- * Admin cập nhật thông tin người dùng.
+ * [SỬA ĐỔI] Admin cập nhật thông tin người dùng.
+ * Xử lý logic phức tạp khi thay đổi loại người dùng.
  * @param {number} nguoiDungId
  * @param {object} updatePayload - UpdateNguoiDungAdminPayload
  * @returns {Promise<object>} UserProfileResponse
- * @throws {ApiError} Nếu dữ liệu không hợp lệ hoặc lỗi hệ thống
  */
 const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
   const currentUserData =
@@ -377,143 +426,159 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
   const {
     thongTinSinhVien,
     thongTinGiangVien,
+    donViCongTacID,
     matKhau,
     email,
     maDinhDanh,
-    ...nguoiDungUpdateData // Các trường còn lại cho bảng NguoiDung
+    trangThaiTk,
+    ...nguoiDungUpdateData
   } = updatePayload;
 
   const pool = await getPool();
   const transaction = new sql.Transaction(pool);
   try {
     await transaction.begin();
-    logger.debug(
-      `Transaction started for adminUpdateNguoiDung ID: ${nguoiDungId}`
-    );
 
-    const taiKhoanUpdateData = { trangThaiTk: updatePayload.trangThaiTk };
-    console.log(
-      'email.toLowerCase() !== currentUserData.Email.toLowerCase()',
-      email,
-      currentUserData.Email
-    );
-    // 1. Kiểm tra unique cho Email và MaDinhDanh nếu thay đổi
+    // 1. Kiểm tra unique cho Email và MaDinhDanh nếu có thay đổi
     if (email && email.toLowerCase() !== currentUserData.Email.toLowerCase()) {
-      const existingEmail =
+      const existing =
         await nguoiDungRepository.checkNguoiDungExistsByEmailOrMaDinhDanh(
           email,
           null,
           nguoiDungId,
           transaction
         );
-      if (
-        existingEmail &&
-        existingEmail.find((u) => u.Email.toLowerCase() === email.toLowerCase())
-      ) {
+      if (existing.length > 0)
         throw new ApiError(
           httpStatus.BAD_REQUEST,
-          `Email "${email}" đã được sử dụng.`
+          `Email "${email}" đã tồn tại.`
         );
-      }
-      nguoiDungUpdateData.email = email;
     }
     if (
       maDinhDanh &&
       maDinhDanh.toLowerCase() !==
         (currentUserData.MaDinhDanh || '').toLowerCase()
     ) {
-      const existingMaDinhDanh =
+      const existing =
         await nguoiDungRepository.checkNguoiDungExistsByEmailOrMaDinhDanh(
           null,
           maDinhDanh,
           nguoiDungId,
           transaction
         );
-      if (
-        existingMaDinhDanh &&
-        existingMaDinhDanh.find(
-          (u) =>
-            u.MaDinhDanh &&
-            u.MaDinhDanh.toLowerCase() === maDinhDanh.toLowerCase()
-        )
-      ) {
+      if (existing.length > 0)
         throw new ApiError(
           httpStatus.BAD_REQUEST,
           `Mã định danh "${maDinhDanh}" đã tồn tại.`
         );
-      }
-      nguoiDungUpdateData.maDinhDanh = maDinhDanh;
     }
 
-    // 2. Validate các FKs trong thongTinSinhVien/thongTinGiangVien nếu được cập nhật
-    if (thongTinSinhVien && typeof thongTinSinhVien === 'object') {
-      if (thongTinSinhVien.lopID) {
-        const lop = await lopHocRepository.getLopHocById(
-          thongTinSinhVien.lopID,
-          transaction
-        );
-        if (!lop) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Lớp ID ${thongTinSinhVien.lopID} không tồn tại.`
-          );
-        }
-      }
-    }
-    if (thongTinGiangVien && typeof thongTinGiangVien === 'object') {
-      if (thongTinGiangVien.donViCongTacID) {
-        const donVi = await donViRepository.getDonViById(
-          thongTinGiangVien.donViCongTacID,
-          transaction
-        );
-        if (!donVi) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            `Đơn vị công tác ID ${thongTinGiangVien.donViCongTacID} không tồn tại.`
-          );
-        }
-      }
-    }
+    // 2. Cập nhật bảng NguoiDung
+    await nguoiDungRepository.updateNguoiDungRecord(
+      nguoiDungId,
+      { email, maDinhDanh, ...nguoiDungUpdateData },
+      transaction
+    );
 
-    // 3. Xử lý mật khẩu nếu được cung cấp
+    // 3. Cập nhật bảng TaiKhoan (mật khẩu và trạng thái)
+    const taiKhoanUpdateData = {};
     if (matKhau) {
       taiKhoanUpdateData.matKhauHash = await hashPassword(matKhau);
     }
-
-    // Cập nhật NguoiDung
-    if (Object.keys(nguoiDungUpdateData).length > 0) {
-      await nguoiDungRepository.updateNguoiDungRecord(
-        nguoiDungId,
-        nguoiDungUpdateData,
-        transaction
-      );
+    if (trangThaiTk) {
+      taiKhoanUpdateData.trangThaiTk = trangThaiTk;
     }
-    // Cập nhật TaiKhoan
-    if (
-      Object.keys(taiKhoanUpdateData).length > 0 &&
-      (taiKhoanUpdateData.trangThaiTk || taiKhoanUpdateData.matKhauHash)
-    ) {
+    if (Object.keys(taiKhoanUpdateData).length > 0) {
       await nguoiDungRepository.updateTaiKhoanRecord(
         nguoiDungId,
         taiKhoanUpdateData,
         transaction
       );
     }
-    // Cập nhật hoặc Xóa ThongTinSinhVien
+
+    // 4. Xử lý logic thay đổi loại người dùng và vai trò thành viên
+    // (Đây là phần phức tạp nhất)
     if (updatePayload.hasOwnProperty('thongTinSinhVien')) {
       await nguoiDungRepository.upsertOrDeleteThongTinSinhVien(
         nguoiDungId,
         thongTinSinhVien,
         transaction
       );
+      // Nếu chuyển thành SV, xóa thông tin GV và vai trò thành viên cũ
+      if (thongTinSinhVien) {
+        await nguoiDungRepository.upsertOrDeleteThongTinGiangVien(
+          nguoiDungId,
+          null,
+          transaction
+        );
+        // Xóa vai trò THANH_VIEN_DON_VI nếu có
+        const thanhVienRole =
+          await vaiTroHeThongRepository.getVaiTroHeThongByMa(
+            MaVaiTro.THANH_VIEN_DON_VI,
+            transaction
+          );
+        if (thanhVienRole) {
+          await nguoiDungRepository.deleteNguoiDungVaiTroByVaiTroID(
+            nguoiDungId,
+            thanhVienRole.VaiTroID,
+            transaction
+          );
+        }
+      }
     }
-    // Cập nhật hoặc Xóa ThongTinGiangVien
     if (updatePayload.hasOwnProperty('thongTinGiangVien')) {
+      // Bước 1: Upsert/delete thông tin chuyên môn (học vị, học hàm...)
       await nguoiDungRepository.upsertOrDeleteThongTinGiangVien(
         nguoiDungId,
         thongTinGiangVien,
         transaction
       );
+
+      // Bước 2: Xóa vai trò thành viên cũ
+      const thanhVienRole = await vaiTroHeThongRepository.getVaiTroHeThongByMa(
+        MaVaiTro.THANH_VIEN_DON_VI,
+        transaction
+      );
+      if (!thanhVienRole)
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Lỗi cấu hình: không tìm thấy vai trò thành viên.'
+        );
+      await nguoiDungRepository.deleteNguoiDungVaiTroByVaiTroID(
+        nguoiDungId,
+        thanhVienRole.VaiTroID,
+        transaction
+      );
+
+      // Bước 3: Nếu thông tin giảng viên mới được cung cấp (không phải null), gán lại vai trò thành viên với đơn vị mới
+      if (thongTinGiangVien) {
+        if (!donViCongTacID) {
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            'donViCongTacID là bắt buộc khi cập nhật thông tin giảng viên.'
+          );
+        }
+        const donVi = await donViRepository.getDonViById(
+          donViCongTacID,
+          transaction
+        );
+        if (!donVi)
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            `Đơn vị công tác ID ${donViCongTacID} không tồn tại.`
+          );
+
+        await nguoiDungRepository.upsertNguoiDungVaiTro(
+          nguoiDungId,
+          {
+            vaiTroID: thanhVienRole.VaiTroID,
+            donViID: donViCongTacID,
+            ngayBatDau: new Date(),
+          },
+          transaction
+        );
+      }
+      // Nếu thongTinGiangVien là null, vai trò thành viên đã được xóa ở trên và không cần làm gì thêm.
     }
 
     await transaction.commit();
@@ -521,20 +586,10 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
       `Transaction committed for adminUpdateNguoiDung ID: ${nguoiDungId}`
     );
 
+    // Trả về profile đầy đủ sau khi đã cập nhật
     return getMyProfile(nguoiDungId);
   } catch (error) {
-    logger.error(
-      `Error during adminUpdateNguoiDung transaction for ID: ${nguoiDungId}, rolling back...`,
-      error
-    );
-    if (transaction) {
-      try {
-        await transaction.rollback();
-        logger.info('Transaction rolled back.');
-      } catch (rbError) {
-        logger.error('Error during transaction rollback:', rbError);
-      }
-    }
+    if (transaction) await transaction.rollback();
     if (error instanceof ApiError) throw error;
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
@@ -651,16 +706,14 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
   }
 
   // 2.1. Ràng buộc nghiệp vụ: Giảng viên KHÔNG được gán các vai trò CLB, CSVC, CB tổ chức sự kiện
-  const khongChoGV = ['TRUONG_CLB', 'QUAN_LY_CSVC', 'CB_TO_CHUC_SU_KIEN'];
+  const khongChoGV = ['QUAN_LY_CSVC', 'CB_TO_CHUC_SU_KIEN'];
   const khongChoSV = [
     'ADMIN_HE_THONG',
     'BGH_DUYET_SK_TRUONG',
     'QUAN_LY_CSVC',
-    'BI_THU_DOAN',
     'CB_TO_CHUC_SU_KIEN',
-    'TRUONG_KHOA',
   ];
-  const khongChoNVKhac = ['BGH_DUYET_SK_TRUONG', 'BI_THU_DOAN'];
+  const khongChoNVKhac = ['BGH_DUYET_SK_TRUONG'];
   // Kiểm tra loại người dùng
   const thongTinGV =
     await nguoiDungRepository.getThongTinGiangVienByNguoiDungID(nguoiDungId);
@@ -694,12 +747,6 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
         `Đơn vị thực thi với ID "${payload.donViID}" không tồn tại.`
       );
     }
-    if (vaiTro.maVaiTro === 'TRUONG_KHOA' && donVi.loaiDonVi !== 'KHOA') {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'Vai trò TRƯỞNG KHOA chỉ có thể gán cho đơn vị loại KHOA.'
-      );
-    }
   }
 
   // 4. Xử lý NgayBatDau (nếu không có thì là ngày hiện tại)
@@ -720,10 +767,10 @@ const assignFunctionalRoleToUser = async (nguoiDungId, payload) => {
   // 5. Kiểm tra xem người dùng đã có vai trò nào còn hiệu lực chưa (chỉ cho phép 1 role duy nhất)
   const currentRoles =
     await nguoiDungRepository.getCurrentActiveRolesOfUser(nguoiDungId);
-  if (currentRoles && currentRoles.length > 0) {
+  if (currentRoles && currentRoles.length > 1) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      'Mỗi cá nhân chỉ được gán 1 vai trò chức năng còn hiệu lực tại một thời điểm.'
+      'Mỗi cá nhân chỉ được gán 2 vai trò chức năng còn hiệu lực tại một thời điểm.'
     );
   }
 
@@ -815,16 +862,6 @@ const updateAssignedFunctionalRole = async (ganVaiTroID, payload) => {
       const vaiTro = await vaiTroHeThongRepository.getVaiTroHeThongById(
         currentAssignment.VaiTroID
       );
-      if (
-        vaiTro &&
-        vaiTro.maVaiTro === 'TRUONG_KHOA' &&
-        donVi.loaiDonVi !== 'KHOA'
-      ) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Vai trò TRƯỞNG KHOA chỉ có thể gán cho đơn vị loại KHOA.'
-        );
-      }
     }
   }
 
@@ -1050,24 +1087,22 @@ const importUsersBatch = async (usersToImport) => {
         {
           nguoiDungID,
           matKhauHash: hashedPassword,
-          // Salt đã được bỏ
           trangThaiTk: 'Active',
         },
         transaction
       );
 
-      // 4. Tạo ThongTinSinhVien hoặc ThongTinGiangVien
+      // 4. Tạo ThongTinSinhVien hoặc ThongTinGiangVien và gán vai trò
       if (userRow.loaiNguoiDung === 'SINH_VIEN') {
         if (!userRow.donViID)
+          // donViID ở đây là LopID
           throw new Error('LopID là bắt buộc cho sinh viên.');
+
         const lop = await lopHocRepository.getLopHocById(
           userRow.donViID,
           transaction
-        ); // Cần hàm này có transaction
-        if (!lop) throw new Error(`Lớp ID ${userRow.donViID} không tồn tại.`);
-        logger.info(
-          `TODO: Validate LopID ${userRow.donViID} in import for SV ${userRow.maDinhDanh}`
         );
+        if (!lop) throw new Error(`Lớp ID ${userRow.donViID} không tồn tại.`);
 
         await nguoiDungRepository.createThongTinSinhVienRecord(
           nguoiDungID,
@@ -1080,23 +1115,59 @@ const importUsersBatch = async (usersToImport) => {
           },
           transaction
         );
-      } else if (userRow.loaiNguoiDung === 'GIANG_VIEN') {
+      } else if (
+        userRow.loaiNguoiDung === 'GIANG_VIEN' ||
+        userRow.loaiNguoiDung === 'NHAN_VIEN_KHAC'
+      ) {
+        // Cả giảng viên và nhân viên đều cần đơn vị công tác
         if (!userRow.donViID)
-          throw new Error('DonViCongTacID là bắt buộc cho giảng viên.');
-        // const donViCongTac = await donViRepository.getDonViById(userRow.donViID, transaction); // Cần hàm này có transaction
-        // if (!donViCongTac) throw new Error(`Đơn vị công tác ID ${userRow.donViID} không tồn tại.`);
-        logger.info(
-          `TODO: Validate DonViCongTacID ${userRow.donViID} in import for GV ${userRow.maDinhDanh}`
-        );
+          // donViID ở đây là DonViCongTacID
+          throw new Error(
+            'DonViCongTacID là bắt buộc cho giảng viên/nhân viên.'
+          );
 
-        await nguoiDungRepository.createThongTinGiangVienRecord(
+        const donViCongTac = await donViRepository.getDonViById(
+          userRow.donViID,
+          transaction
+        );
+        if (!donViCongTac)
+          throw new Error(
+            `Đơn vị công tác ID ${userRow.donViID} không tồn tại.`
+          );
+
+        // Nếu là Giảng viên, tạo thêm bản ghi ThongTinGiangVien
+        if (userRow.loaiNguoiDung === 'GIANG_VIEN') {
+          await nguoiDungRepository.createThongTinGiangVienRecord(
+            nguoiDungID,
+            {
+              // KHÔNG có donViCongTacID ở đây
+              hocVi: userRow.hocVi,
+              hocHam: userRow.hocHam,
+              chucDanhGD: userRow.chucDanhGD,
+              chuyenMonChinh: userRow.chuyenMonChinh,
+            },
+            transaction
+          );
+        }
+
+        // Gán vai trò THANH_VIEN_DON_VI cho cả Giảng viên và Nhân viên
+        const thanhVienRole =
+          await vaiTroHeThongRepository.getVaiTroHeThongByMa(
+            MaVaiTro.THANH_VIEN_DON_VI,
+            transaction
+          );
+        if (!thanhVienRole)
+          throw new ApiError(
+            httpStatus.INTERNAL_SERVER_ERROR,
+            'Lỗi cấu hình: không tìm thấy vai trò thành viên.'
+          );
+
+        await nguoiDungRepository.upsertNguoiDungVaiTro(
           nguoiDungID,
           {
-            donViCongTacID: userRow.donViID,
-            hocVi: userRow.hocVi,
-            hocHam: userRow.hocHam,
-            chucDanhGD: userRow.chucDanhGD,
-            chuyenMonChinh: userRow.chuyenMonChinh,
+            vaiTroID: thanhVienRole.VaiTroID,
+            donViID: userRow.donViID, // Dùng donViID từ file excel
+            ngayBatDau: new Date(),
           },
           transaction
         );
@@ -1139,6 +1210,54 @@ const importUsersBatch = async (usersToImport) => {
   };
 };
 
+/**
+ * Xóa cứng người dùng theo ID. Nếu bị ràng buộc khóa ngoại sẽ báo lỗi chi tiết.
+ * @param {number} nguoiDungID
+ * @returns {Promise<void>}
+ * @throws {ApiError} Nếu không thể xóa do liên kết dữ liệu
+ */
+const deleteNguoiDungByID = async (nguoiDungID) => {
+  console.log('deleteNguoiDungByID called with nguoiDungID:', nguoiDungID);
+  try {
+    const rowsAffected =
+      await nguoiDungRepository.deleteNguoiDungByID(nguoiDungID);
+    if (rowsAffected === 0) {
+      throw new ApiError(
+        httpStatus.NOT_FOUND,
+        'Không tìm thấy người dùng để xóa.'
+      );
+    }
+    return;
+  } catch (err) {
+    if (err.message && err.message.startsWith('Không thể xóa người dùng')) {
+      throw new ApiError(httpStatus.BAD_REQUEST, err.message);
+    }
+    throw err;
+  }
+};
+
+/**
+ * [MỚI] Tìm kiếm người dùng để mời tham gia sự kiện.
+ * @param {object} params - Tham số tìm kiếm từ controller
+ * @returns {Promise<NguoiDungTimKiemItem[]>}
+ */
+const findUsersForInvitation = async (params) => {
+  // Service có thể thêm các logic validate nghiệp vụ phức tạp ở đây nếu cần
+  // Ví dụ: kiểm tra xem sự kiện có còn cho phép mời không, v.v.
+  const users = await nguoiDungRepository.findUsersForInvitation(params);
+
+  // Map kết quả từ DB sang cấu trúc mà FE mong muốn
+  return users.map((user) => ({
+    nguoiDungID: user.NguoiDungID,
+    maDinhDanh: user.MaDinhDanh,
+    hoTen: user.HoTen,
+    email: user.Email,
+    loaiNguoiDungHienThi: user.loaiNguoiDungHienThi,
+    thongTinThem: user.thongTinThem,
+    anhDaiDien: user.AnhDaiDien,
+  }));
+};
+
 export const nguoiDungService = {
   getMyProfile,
   changeMyPassword,
@@ -1151,4 +1270,6 @@ export const nguoiDungService = {
   updateAssignedFunctionalRole,
   removeAssignedFunctionalRole,
   importUsersBatch,
+  deleteNguoiDungByID,
+  findUsersForInvitation,
 };

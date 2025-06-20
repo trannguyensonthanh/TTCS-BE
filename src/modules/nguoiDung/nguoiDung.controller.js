@@ -6,6 +6,8 @@ import {
   createdResponse,
 } from '../../utils/response.util.js';
 import pick from '../../utils/pick.util.js';
+import httpStatus from '../../constants/httpStatus.js';
+import ApiError from '../../utils/ApiError.util.js';
 
 /**
  * Lấy danh sách người dùng (có phân trang, filter).
@@ -185,6 +187,35 @@ const importUsersBatchController = async (req, res) => {
   okResponse(res, result, result.summaryMessage);
 };
 
+/**
+ * Xóa cứng người dùng theo ID.
+ * @param {Request} req - Express request (params: nguoiDungID)
+ * @param {Response} res - Express response
+ * @returns {Promise<void>} Gửi response xác nhận xóa hoặc lỗi nếu có liên kết dữ liệu
+ */
+const deleteNguoiDungByIDController = async (req, res) => {
+  const nguoiDungID = parseInt(req.params.nguoiDungId);
+  await nguoiDungService.deleteNguoiDungByID(nguoiDungID);
+  noContentResponse(res, 'Xóa người dùng thành công.');
+};
+
+/**
+ * [MỚI] Tìm kiếm người dùng để mời tham gia sự kiện.
+ */
+const findUsersForInvitationController = async (req, res) => {
+  const params = pick(req.query, [
+    'suKienID',
+    'searchTerm',
+    'loaiNguoiDung',
+    'donViID',
+    'nganhHocID',
+    'lopID',
+    'limit',
+  ]);
+  const result = await nguoiDungService.findUsersForInvitation(params);
+  okResponse(res, result, 'Tìm kiếm người dùng thành công.');
+};
+
 export const nguoiDungController = {
   getMyProfileController,
   changeMyPasswordController,
@@ -194,7 +225,9 @@ export const nguoiDungController = {
   updateNguoiDungByAdminController,
   updateUserAccountStatusByAdminController,
   assignFunctionalRoleController,
+  findUsersForInvitationController,
   updateAssignedFunctionalRoleController,
   removeAssignedFunctionalRoleController,
   importUsersBatchController,
+  deleteNguoiDungByIDController,
 };

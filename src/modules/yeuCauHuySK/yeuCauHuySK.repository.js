@@ -124,14 +124,8 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         ych.YcHuySkID,
         sk.SuKienID, sk.TenSK AS TenSuKien, sk.TgBatDauDK,
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen,
-        -- Logic lấy đơn vị của người yêu cầu hủy (tương tự như trong yeuCauMuonPhong.repository.js)
-        
-        -- dv_nguoi_yc.DonViID AS DonViYeuCau_ID, dv_nguoi_yc.TenDonVi AS DonViYeuCau_TenDonVi, dv_nguoi_yc.MaDonVi AS DonViYeuCau_MaDonVi, dv_nguoi_yc.LoaiDonVi AS DonViYeuCau_LoaiDonVi,
-        (SELECT TOP 1 d.DonViID FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_ID_GV,
-        (SELECT TOP 1 d.TenDonVi FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_TenDonVi_GV,
-        (SELECT TOP 1 d.MaDonVi FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_MaDonVi_GV,
-        (SELECT TOP 1 d.LoaiDonVi FROM DonVi d JOIN ThongTinGiangVien tgv ON d.DonViID = tgv.DonViCongTacID WHERE tgv.NguoiDungID = nd_yc.NguoiDungID) AS DonViYeuCau_LoaiDonVi_GV,
-        -- Tương tự cho nhân viên nếu có bảng ThongTinNhanVien hoặc lấy từ NguoiDung_VaiTro
+        dv_nguoi_yc.DonViID AS DonViYeuCau_ID, dv_nguoi_yc.TenDonVi AS DonViYeuCau_TenDonVi, 
+        dv_nguoi_yc.MaDonVi AS DonViYeuCau_MaDonVi, dv_nguoi_yc.LoaiDonVi AS DonViYeuCau_LoaiDonVi,
         ych.NgayYeuCauHuy,
         SUBSTRING(ych.LyDoHuy, 1, 150) AS LyDoHuyNganGon,
         tt_ych.TrangThaiYcHuySkID AS TrangThaiYCHSK_ID, tt_ych.MaTrangThai AS TrangThaiYCHSK_Ma, tt_ych.TenTrangThai AS TrangThaiYCHSK_Ten,
@@ -144,9 +138,26 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         JOIN NguoiDung nd_yc ON ych.NguoiYeuCauID = nd_yc.NguoiDungID
         JOIN TrangThaiYeuCauHuySK tt_ych ON ych.TrangThaiYcHuySkID = tt_ych.TrangThaiYcHuySkID
         LEFT JOIN NguoiDung nd_duyet ON ych.NguoiDuyetHuyBGHID = nd_duyet.NguoiDungID
+        -- [SỬA ĐỔI] Dùng OUTER APPLY để lấy đơn vị công tác chính của người yêu cầu
+        OUTER APPLY (
+            SELECT TOP 1 dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID 
+              AND vt.MaVaiTro = @MaVaiTroThanhVien
+              AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+            ORDER BY ndvt.NgayBatDau DESC
+        ) AS dv_nguoi_yc
     `;
   let whereClause = ` WHERE 1=1 `;
-  const queryParams = [];
+  const queryParams = [
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
 
   // Phân quyền xem (logic sẽ ở service)
   if (nguoiYeuCauID) {
@@ -196,8 +207,8 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         ${fromClause}
         ${whereClause}
         ORDER BY ${safeSortBy} ${safeSortOrder}
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
-    `;
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+  `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
   const items = itemsResult.recordset.map((row) => ({
     ycHuySkID: row.YcHuySkID,
@@ -210,13 +221,13 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
       nguoiDungID: row.NguoiYeuCau_ID,
       hoTen: row.NguoiYeuCau_HoTen,
     },
-    donViYeuCau: row.DonViYeuCau_ID_GV
+    donViYeuCau: row.DonViYeuCau_ID
       ? {
           // Ưu tiên lấy đơn vị từ GV trước
-          donViID: row.DonViYeuCau_ID_GV,
-          tenDonVi: row.DonViYeuCau_TenDonVi_GV,
-          maDonVi: row.DonViYeuCau_MaDonVi_GV,
-          loaiDonVi: row.DonViYeuCau_LoaiDonVi_GV,
+          donViID: row.DonViYeuCau_ID,
+          tenDonVi: row.DonViYeuCau_TenDonVi,
+          maDonVi: row.DonViYeuCau_MaDonVi,
+          loaiDonVi: row.DonViYeuCau_LoaiDonVi,
         }
       : null, // Thêm logic lấy đơn vị từ vai trò chức năng nếu người yêu cầu là Nhân viên
     ngayYeuCauHuy: row.NgayYeuCauHuy.toISOString(),
@@ -247,25 +258,42 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
 const getYeuCauHuySKDetailById = async (ycHuySkID) => {
   const query = `
     SELECT
-        ych.*, -- Lấy tất cả cột từ YeuCauHuySK
+        ych.*,
         sk.SuKienID AS SK_ID, sk.TenSK AS SK_TenSK, sk.TgBatDauDK AS SK_TgBatDauDK,
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen, nd_yc.Email AS NguoiYeuCau_Email,
-        dv_nguoi_yc.DonViID AS DonViYeuCau_ID, dv_nguoi_yc.TenDonVi AS DonViYeuCau_TenDonVi, dv_nguoi_yc.MaDonVi AS DonViYeuCau_MaDonVi, dv_nguoi_yc.LoaiDonVi AS DonViYeuCau_LoaiDonVi,
+        -- [SỬA ĐỔI] Lấy đơn vị người yêu cầu qua subquery
+        (
+            SELECT TOP 1 dv_sub.DonViID 
+            FROM NguoiDung_VaiTro ndvt_sub 
+            JOIN VaiTroHeThong vt_sub ON ndvt_sub.VaiTroID = vt_sub.VaiTroID
+            JOIN DonVi dv_sub ON ndvt_sub.DonViID = dv_sub.DonViID
+            WHERE ndvt_sub.NguoiDungID = nd_yc.NguoiDungID AND vt_sub.MaVaiTro = @MaVaiTroThanhVien
+        ) AS DonViYeuCau_ID,
+        (
+            SELECT TOP 1 dv_sub.TenDonVi 
+            FROM NguoiDung_VaiTro ndvt_sub 
+            JOIN VaiTroHeThong vt_sub ON ndvt_sub.VaiTroID = vt_sub.VaiTroID
+            JOIN DonVi dv_sub ON ndvt_sub.DonViID = dv_sub.DonViID
+            WHERE ndvt_sub.NguoiDungID = nd_yc.NguoiDungID AND vt_sub.MaVaiTro = @MaVaiTroThanhVien
+        ) AS DonViYeuCau_TenDonVi,
+        -- ... các cột MaDonVi, LoaiDonVi cũng tương tự
         tt_ych.MaTrangThai AS TrangThaiYCHSK_Ma, tt_ych.TenTrangThai AS TrangThaiYCHSK_Ten,
         nd_duyet.NguoiDungID AS NguoiDuyetBGH_ID, nd_duyet.HoTen AS NguoiDuyetBGH_HoTen, nd_duyet.Email AS NguoiDuyetBGH_Email
-        -- Nếu cần suKienFullDetail, cần join thêm các bảng của SuKien (đã có hàm getSuKienDetailById)
     FROM YeuCauHuySK ych
     JOIN SuKien sk ON ych.SuKienID = sk.SuKienID
     JOIN NguoiDung nd_yc ON ych.NguoiYeuCauID = nd_yc.NguoiDungID
     JOIN TrangThaiYeuCauHuySK tt_ych ON ych.TrangThaiYcHuySkID = tt_ych.TrangThaiYcHuySkID
     LEFT JOIN NguoiDung nd_duyet ON ych.NguoiDuyetHuyBGHID = nd_duyet.NguoiDungID
-    -- Logic lấy dv_nguoi_yc tương tự như hàm get list (phức tạp, cần join ThongTinGiangVien/NguoiDung_VaiTro)
-  
-    LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
-    LEFT JOIN DonVi dv_nguoi_yc ON tgv_yc.DonViCongTacID = dv_nguoi_yc.DonViID
     WHERE ych.YcHuySkID = @YcHuySkID;
   `;
-  const params = [{ name: 'YcHuySkID', type: sql.Int, value: ycHuySkID }];
+  const params = [
+    { name: 'YcHuySkID', type: sql.Int, value: ycHuySkID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
   const result = await executeQuery(query, params);
   if (result.recordset.length === 0) return null;
 

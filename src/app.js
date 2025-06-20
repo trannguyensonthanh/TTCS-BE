@@ -2,8 +2,9 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import httpStatus from './constants/httpStatus.js';
-import serverConfig from './config/server.config.js';
 import ApiError from './utils/ApiError.util.js';
 import {
   errorConverter,
@@ -11,8 +12,7 @@ import {
 } from './middlewares/error.middleware.js';
 import requestLoggerMiddleware from './middlewares/requestLogger.middleware.js';
 import apiV1Routes from './modules/index.route.js';
-import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
+
 dotenv.config();
 const app = express();
 

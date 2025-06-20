@@ -1,4 +1,5 @@
 // src/modules/auth/auth.repository.js
+import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 
@@ -29,43 +30,8 @@ const findTaiKhoanNguoiDungByEmail = async (email) => {
 };
 
 /**
- * Lấy danh sách vai trò của người dùng theo ID.
- * @param {number} nguoiDungID - ID của người dùng.
- * @returns {Promise<Array<object>>} Danh sách vai trò.
- */
-const getVaiTroByNguoiDungID = async (nguoiDungID) => {
-  const query = `
-    SELECT
-        vtht.MaVaiTro,
-        vtht.TenVaiTro,
-        dv.DonViID,
-        dv.TenDonVi,
-        dv.MaDonVi,
-        dv.LoaiDonVi
-    FROM NguoiDung_VaiTro nd_vt
-    JOIN VaiTroHeThong vtht ON nd_vt.VaiTroID = vtht.VaiTroID
-    LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID
-    WHERE nd_vt.NguoiDungID = @NguoiDungID
-      AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= GETDATE());
-  `;
-  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
-  const result = await executeQuery(query, params);
-  return result.recordset.map((row) => ({
-    maVaiTro: row.MaVaiTro,
-    tenVaiTro: row.TenVaiTro,
-    donViThucThi: row.DonViID
-      ? {
-          donViID: row.DonViID,
-          tenDonVi: row.TenDonVi,
-          maDonVi: row.MaDonVi,
-          loaiDonVi: row.LoaiDonVi,
-        }
-      : null,
-  }));
-};
-
-/**
  * Lấy thông tin cơ bản của sinh viên theo ID người dùng.
+
  * @param {number} nguoiDungID - ID của người dùng.
  * @returns {Promise<object|null>} Thông tin sinh viên hoặc null nếu không tìm thấy.
  */
@@ -80,7 +46,8 @@ const getThongTinSinhVienCoBan = async (nguoiDungID) => {
         cn.TenChuyenNganh,
         cn.MaChuyenNganh,
         tsv.KhoaHoc,
-        dv_khoa.TenDonVi AS TenKhoaQuanLy
+        dv_khoa.TenDonVi AS TenKhoaQuanLy,
+        dv_khoa.MaDonVi AS MaKhoaQuanLy
     FROM ThongTinSinhVien tsv
     JOIN LopHoc lh ON tsv.LopID = lh.LopID
     JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID 
@@ -103,13 +70,15 @@ const getThongTinSinhVienCoBan = async (nguoiDungID) => {
       maChuyenNganh: sv.MaChuyenNganh,
       khoaHoc: sv.KhoaHoc,
       tenKhoaQuanLy: sv.TenKhoaQuanLy,
+      maKhoaQuanLy: sv.MaKhoaQuanLy,
     };
   }
   return null;
 };
 
 /**
- * Lấy thông tin cơ bản của giảng viên theo ID người dùng.
+ *
+ * Lấy đơn vị công tác từ vai trò THANH_VIEN_DON_VI, giữ lại đầy đủ các trường HocHam, ChuyenMonChinh.
  * @param {number} nguoiDungID - ID của người dùng.
  * @returns {Promise<object|null>} Thông tin giảng viên hoặc null nếu không tìm thấy.
  */
@@ -117,25 +86,59 @@ const getThongTinGiangVienCoBan = async (nguoiDungID) => {
   const query = `
     SELECT
         nd.MaDinhDanh AS MaGiangVien,
-        dv.TenDonVi AS TenDonViCongTacChinh,
-        dv.MaDonVi AS MaDonViCongTacChinh,
+        -- Lấy đơn vị công tác từ vai trò THANH_VIEN_DON_VI
+        (
+            SELECT TOP 1 dv.DonViID
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = @NguoiDungID AND vt.MaVaiTro = @MaVaiTroThanhVien
+            ORDER BY ndvt.NgayBatDau DESC -- Lấy đơn vị mới nhất nếu có nhiều
+        ) AS DonViCongTacID,
+        (
+            SELECT TOP 1 dv.TenDonVi
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = @NguoiDungID AND vt.MaVaiTro = @MaVaiTroThanhVien
+            ORDER BY ndvt.NgayBatDau DESC
+        ) AS TenDonViCongTacChinh,
+        (
+            SELECT TOP 1 dv.MaDonVi
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = @NguoiDungID AND vt.MaVaiTro = @MaVaiTroThanhVien
+            ORDER BY ndvt.NgayBatDau DESC
+        ) AS MaDonViCongTacChinh,
         tgv.HocVi,
-        tgv.ChucDanhGD
+        tgv.HocHam,          
+        tgv.ChucDanhGD,
+        tgv.ChuyenMonChinh 
     FROM ThongTinGiangVien tgv
     JOIN NguoiDung nd ON tgv.NguoiDungID = nd.NguoiDungID
-    JOIN DonVi dv ON tgv.DonViCongTacID = dv.DonViID
     WHERE tgv.NguoiDungID = @NguoiDungID;
   `;
-  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
+  const params = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
   const result = await executeQuery(query, params);
   if (result.recordset.length > 0) {
     const gv = result.recordset[0];
     return {
       maSo: gv.MaGiangVien,
+      donViCongTacID: gv.DonViCongTacID,
       tenDonViCongTacChinh: gv.TenDonViCongTacChinh,
       maDonViCongTacChinh: gv.MaDonViCongTacChinh,
       hocVi: gv.HocVi,
+      hocHam: gv.HocHam,
       chucDanhGD: gv.ChucDanhGD,
+      chuyenMonChinh: gv.ChuyenMonChinh,
     };
   }
   return null;
@@ -292,31 +295,38 @@ const findTaiKhoanByNguoiDungID = async (nguoiDungID) => {
 };
 
 /**
- * Lấy danh sách vai trò chức năng của người dùng theo ID.
  * @param {number} nguoiDungID - ID của người dùng.
  * @returns {Promise<Array<object>>} Danh sách vai trò chức năng.
  */
 const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
   const query = `
     SELECT
-    vt.VaiTroID,
-        vt.MaVaiTro,
-        vt.TenVaiTro,
+        nd_vt.GanVaiTroID, 
+        vtht.VaiTroID,
+        vtht.MaVaiTro,
+        vtht.TenVaiTro,
         dv.DonViID,
         dv.TenDonVi,
         dv.MaDonVi,
-        dv.LoaiDonVi,
-        nd_vt.GanVaiTroID
+        dv.LoaiDonVi
     FROM NguoiDung_VaiTro nd_vt
-    JOIN VaiTroHeThong vt ON nd_vt.VaiTroID = vt.VaiTroID
+    JOIN VaiTroHeThong vtht ON nd_vt.VaiTroID = vtht.VaiTroID
     LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID
     WHERE nd_vt.NguoiDungID = @NguoiDungID
+      AND vtht.MaVaiTro != @MaVaiTroThanhVien
       AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= GETDATE());
   `;
-  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
+  const params = [
+    { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
   const result = await executeQuery(query, params);
-
   return result.recordset.map((row) => ({
+    ganVaiTroID: row.GanVaiTroID,
     vaiTroID: row.VaiTroID,
     maVaiTro: row.MaVaiTro,
     tenVaiTro: row.TenVaiTro,
@@ -328,7 +338,6 @@ const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
           loaiDonVi: row.LoaiDonVi,
         }
       : null,
-    ganVaiTroID: row.GanVaiTroID,
   }));
 };
 
@@ -352,12 +361,9 @@ const findUsersByRoleMa = async (maVaiTro) => {
   return result.recordset;
 };
 
-/**
- * Repository các hàm xử lý liên quan đến xác thực và người dùng.
- */
 export const authRepository = {
   findTaiKhoanNguoiDungByEmail,
-  getVaiTroByNguoiDungID,
+
   getThongTinSinhVienCoBan,
   getThongTinGiangVienCoBan,
   findNguoiDungByEmail,

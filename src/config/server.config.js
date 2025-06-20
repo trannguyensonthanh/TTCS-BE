@@ -1,9 +1,10 @@
 // src/config/server.config.js
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const serverConfig = {
-  port: parseInt(process.env.PORT || '3000'),
+  port: parseInt(process.env.PORT || '3000', 10),
   env: process.env.NODE_ENV || 'development',
 };
 

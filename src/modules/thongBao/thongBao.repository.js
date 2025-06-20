@@ -3,65 +3,43 @@ import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
 
 /**
- * Lấy danh sách các DonViID liên quan đến người dùng
- * Đầu vào: nguoiDungID (number) - ID người dùng
- * Đầu ra: Promise<number[]> - Mảng các DonViID unique
+ * [SỬA LỖI - TRIỆT ĐỂ] Lấy danh sách các DonViID liên quan đến người dùng.
+ * Cập nhật để lấy đơn vị công tác của GV/NV từ vai trò THANH_VIEN_DON_VI.
  */
 const getRelevantDonViIDsForUser = async (nguoiDungID) => {
   const donViIDs = new Set();
-
-  let query = `SELECT DonViCongTacID FROM ThongTinGiangVien WHERE NguoiDungID = @NguoiDungID AND DonViCongTacID IS NOT NULL;`;
-  let params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
-  let result = await executeQuery(query, params);
-  if (result.recordset.length > 0 && result.recordset[0].DonViCongTacID) {
-    donViIDs.add(result.recordset[0].DonViCongTacID);
-  }
+  const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
 
   // Lấy Khoa quản lý từ ThongTinSinhVien -> LopHoc -> NganhHoc
-  query = `
+  let querySinhVien = `
     SELECT nh.KhoaQuanLyID
     FROM ThongTinSinhVien tsv
     JOIN LopHoc lh ON tsv.LopID = lh.LopID
     JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID
     WHERE tsv.NguoiDungID = @NguoiDungID AND nh.KhoaQuanLyID IS NOT NULL;
   `;
-  result = await executeQuery(query, params); // params vẫn là nguoiDungID
-  if (result.recordset.length > 0 && result.recordset[0].KhoaQuanLyID) {
-    donViIDs.add(result.recordset[0].KhoaQuanLyID);
+  let resultSinhVien = await executeQuery(querySinhVien, params);
+  if (
+    resultSinhVien.recordset.length > 0 &&
+    resultSinhVien.recordset[0].KhoaQuanLyID
+  ) {
+    donViIDs.add(resultSinhVien.recordset[0].KhoaQuanLyID);
   }
 
-  // Lấy các DonViThucThiID từ NguoiDung_VaiTroChucNang
-  query = `
-    SELECT DISTINCT DonViID AS DonViThucThiID
+  // [SỬA ĐỔI] Lấy tất cả DonViID từ bảng NguoiDung_VaiTro (bao gồm cả đơn vị công tác và đơn vị thực thi)
+  const queryRoles = `
+    SELECT DISTINCT DonViID
     FROM NguoiDung_VaiTro 
     WHERE NguoiDungID = @NguoiDungID AND DonViID IS NOT NULL
       AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE());
   `;
-  result = await executeQuery(query, params);
-  result.recordset.forEach((row) => {
-    if (row.DonViThucThiID) donViIDs.add(row.DonViThucThiID);
+  const resultRoles = await executeQuery(queryRoles, params);
+  resultRoles.recordset.forEach((row) => {
+    if (row.DonViID) donViIDs.add(row.DonViID);
   });
-
-  // Lấy các DonViID_CLB từ ThanhVienCLB
-  query = `
-    SELECT DISTINCT DonViID_CLB
-    FROM ThanhVienCLB
-    WHERE NguoiDungID = @NguoiDungID AND IsActiveInCLB = 1
-      AND (NgayRoiCLB IS NULL OR NgayRoiCLB >= GETDATE());
-  `;
-  const checkTableQuery =
-    "SELECT COUNT(*) as count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'ThanhVienCLB'";
-  const tableExistsResult = await executeQuery(checkTableQuery);
-  if (tableExistsResult.recordset[0].count > 0) {
-    result = await executeQuery(query, params);
-    result.recordset.forEach((row) => {
-      if (row.DonViID_CLB) donViIDs.add(row.DonViID_CLB);
-    });
-  }
 
   return Array.from(donViIDs);
 };
-
 /**
  * Lấy thông báo cho người dùng hiện tại (có phân trang, lọc, ưu tiên chưa đọc)
  * Đầu vào: nguoiDungID (number), relevantDonViIDs (number[]), params (object: { limit, page, chiChuaDoc })
@@ -150,51 +128,47 @@ const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
 };
 
 /**
- * Đánh dấu một thông báo là đã đọc cho người dùng
- * Đầu vào: thongBaoID (number), nguoiDungID (number)
- * Đầu ra: Promise<number> - Số dòng được cập nhật (0 nếu không có quyền)
+ * [SỬA LỖI - TRIỆT ĐỂ] Đánh dấu một thông báo là đã đọc cho người dùng.
+ * Đơn giản hóa query, việc kiểm tra quyền sở hữu sẽ do service quyết định
+ * bằng cách truyền vào mảng relevantDonViIDs.
+ * @param {number} thongBaoID - ID thông báo
+ * @param {number} nguoiDungID - ID người dùng
+ * @param {number[]} relevantDonViIDs - Mảng các ID đơn vị mà người dùng có liên quan
+ * @returns {Promise<number>} - Số dòng được cập nhật (0 hoặc 1)
  */
-const markThongBaoAsRead = async (thongBaoID, nguoiDungID) => {
-  // Cần kiểm tra xem thông báo này có thuộc về người dùng không trước khi đánh dấu
-  const queryCheck = `
-        SELECT tb.ThongBaoID
-        FROM ThongBao tb
-        LEFT JOIN ThanhVienCLB tvc ON tb.DonViNhanID = tvc.DonViID_CLB AND tvc.NguoiDungID = @NguoiDungID AND tvc.IsActiveInCLB = 1
-        LEFT JOIN ThongTinGiangVien tgv ON tb.DonViNhanID = tgv.DonViCongTacID AND tgv.NguoiDungID = @NguoiDungID
-        LEFT JOIN (
-            SELECT tsv_lh.NguoiDungID, nh_lh.KhoaQuanLyID
-            FROM ThongTinSinhVien tsv_lh
-            JOIN LopHoc lh_lh ON tsv_lh.LopID = lh_lh.LopID
-            JOIN NganhHoc nh_lh ON lh_lh.NganhHocID = nh_lh.NganhHocID
-        ) sv_khoa ON tb.DonViNhanID = sv_khoa.KhoaQuanLyID AND sv_khoa.NguoiDungID = @NguoiDungID
-        LEFT JOIN NguoiDung_VaiTro ndvt ON tb.DonViNhanID = ndvt.DonViID AND ndvt.NguoiDungID = @NguoiDungID AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
-        WHERE tb.ThongBaoID = @ThongBaoID
-          AND (tb.NguoiNhanID = @NguoiDungID
-               OR tvc.ThanhVienClbID IS NOT NULL
-               OR tgv.NguoiDungID IS NOT NULL
-               OR sv_khoa.NguoiDungID IS NOT NULL
-               OR ndvt.GanVaiTroID IS NOT NULL
-              );
-    `;
-  const paramsCheck = [
+const markThongBaoAsRead = async (
+  thongBaoID,
+  nguoiDungID,
+  relevantDonViIDs
+) => {
+  let whereDonViClause = 'NULL'; // Giá trị mặc định nếu mảng rỗng
+  const paramsUpdate = [
     { name: 'ThongBaoID', type: sql.BigInt, value: thongBaoID },
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
   ];
-  const checkResult = await executeQuery(queryCheck, paramsCheck);
-  if (checkResult.recordset.length === 0) {
-    return 0;
+
+  if (relevantDonViIDs && relevantDonViIDs.length > 0) {
+    const donViParams = relevantDonViIDs.map((id, index) => {
+      const paramName = `DonViID${index}`;
+      paramsUpdate.push({ name: paramName, type: sql.Int, value: id });
+      return `@${paramName}`;
+    });
+    whereDonViClause = donViParams.join(',');
   }
 
-  const queryUpdate = `
+  const finalQueryUpdate = `
         UPDATE ThongBao
         SET DaDocTB = 1, NgayDocTB = GETDATE()
-        WHERE ThongBaoID = @ThongBaoID AND DaDocTB = 0;
-    `; // Chỉ cập nhật nếu chưa đọc
-  const paramsUpdate = [
-    { name: 'ThongBaoID', type: sql.BigInt, value: thongBaoID },
-  ];
-  const result = await executeQuery(queryUpdate, paramsUpdate);
-  return result.rowsAffected[0]; // Số dòng được cập nhật
+        WHERE ThongBaoID = @ThongBaoID 
+          AND DaDocTB = 0
+          AND (
+            NguoiNhanID = @NguoiDungID 
+            OR DonViNhanID IN (${whereDonViClause})
+          );
+    `;
+
+  const result = await executeQuery(finalQueryUpdate, paramsUpdate);
+  return result.rowsAffected[0];
 };
 
 /**

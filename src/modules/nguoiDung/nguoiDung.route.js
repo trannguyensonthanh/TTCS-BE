@@ -46,6 +46,21 @@ router.put(
 );
 
 /**
+ * [MỚI] Tìm kiếm người dùng (SV/GV) để mời.
+ * @route GET /nguoi-dung/tim-kiem-de-moi
+ * @access CONG_TAC_SINH_VIEN, ADMIN_HE_THONG
+ */
+router.get(
+  '/tim-kiem-de-moi',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  nguoiDungValidation.validateFindUsersForInvitationParams,
+  asyncHandler(nguoiDungController.findUsersForInvitationController)
+);
+
+/**
  * Lấy chi tiết người dùng theo ID (chỉ Admin).
  * @route GET /nguoidung/:nguoiDungId
  * @param {string} nguoiDungId - ID người dùng (URL param)
@@ -163,6 +178,20 @@ router.post(
   authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG),
   nguoiDungValidation.validateImportUsersBatchPayload,
   asyncHandler(nguoiDungController.importUsersBatchController)
+);
+
+/**
+ * Xóa cứng người dùng theo ID (chỉ Admin hệ thống).
+ * @route DELETE /nguoidung/:nguoiDungId
+ * @param {string} nguoiDungId - ID người dùng (URL param)
+ * @returns {object} Kết quả xóa hoặc lỗi nếu có liên kết dữ liệu
+ */
+router.delete(
+  '/:nguoiDungId',
+  authMiddleware.authenticateToken,
+  authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG),
+  nguoiDungValidation.validateIdParam,
+  asyncHandler(nguoiDungController.deleteNguoiDungByIDController)
 );
 
 export default router;

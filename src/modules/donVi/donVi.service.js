@@ -1,11 +1,10 @@
 // src/modules/donVi/donVi.service.js
-import { transformKeysPascalToCamel } from '../../utils/pascal_camel.util.js';
+import sql from 'mssql';
 import { donViRepository } from './donVi.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
 import LoaiDonVi from '../../enums/loaiDonVi.enum.js';
 import logger from '../../utils/logger.util.js';
-import sql from 'mssql';
 import { getPool } from '../../utils/database.js';
 
 /**
@@ -44,8 +43,8 @@ const mapLoaiDonViToTen = (maLoai) => {
 const getDonViList = async (params) => {
   const { items, totalItems } =
     await donViRepository.getDonViListWithPagination(params);
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   // Thêm TenLoaiDonVi vào mỗi item nếu chưa có từ repo
@@ -313,20 +312,6 @@ const updateDonVi = async (donViId, updateBody) => {
         );
       }
     }
-    // Nếu đổi từ CLB sang loại khác mà đơn vị này đang có thành viên CLB thì không cho phép
-    if (
-      currentDonVi.loaiDonVi === LoaiDonVi.CLB &&
-      updateBody.loaiDonVi !== LoaiDonVi.CLB
-    ) {
-      const thanhVienCLBCount =
-        await donViRepository.countThanhVienCLBByDonViID(donViId);
-      if (thanhVienCLBCount > 0) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Không thể đổi loại đơn vị từ CLB sang loại khác khi còn thành viên CLB.'
-        );
-      }
-    }
   }
 
   const updatedResult = await donViRepository.updateDonViRecordById(
@@ -358,7 +343,7 @@ const deleteDonVi = async (donViId) => {
 
   // Kiểm tra các ràng buộc trước khi xóa
   const usage = await donViRepository.checkDonViUsage(donViId);
-  let usageMessages = [];
+  const usageMessages = [];
   if (usage.hasChildren) usageMessages.push('có đơn vị con trực thuộc');
   if (usage.hasNganhHoc) usageMessages.push('đang quản lý ngành học');
   if (usage.hasLopHoc)
@@ -430,7 +415,7 @@ const getDonViChaOptions = async (params) => {
     .filter((dv) => !excludedIds.includes(dv.DonViID)) // Lọc bỏ các ID không được phép làm cha
     .map((dv) => ({
       donViID: dv.DonViID,
-      tenDonViHienThi: `${dv.TenDonVi} (${mapLoaiDonViToTen(dv.LoaiDonVi)})${dv.MaDonVi ? ' - ' + dv.MaDonVi : ''}`,
+      tenDonViHienThi: `${dv.TenDonVi} (${mapLoaiDonViToTen(dv.LoaiDonVi)})${dv.MaDonVi ? ` - ${dv.MaDonVi}` : ''}`,
     }));
 };
 

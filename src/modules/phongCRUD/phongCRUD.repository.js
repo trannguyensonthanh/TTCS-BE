@@ -1,10 +1,10 @@
 // src/modules/phongCRUD/phongCRUD.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 import { suKienRepository } from '../suKien/suKien.repository.js';
 
 const SELECT_PHONG_FIELDS_FOR_LIST = `
-    p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, p.SoThuTuPhong,
+    p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, p.SoThuTuPhong, p.AnhMinhHoa,
     lp.LoaiPhongID AS Phong_LoaiPhongID, lp.TenLoaiPhong AS Phong_TenLoaiPhong,
     ttp.TrangThaiPhongID AS Phong_TrangThaiPhongID, ttp.TenTrangThai AS Phong_TenTrangThaiPhong,
     tnt.ToaNhaTangID AS Phong_ToaNhaTangID,
@@ -130,6 +130,7 @@ const getPhongListWithPagination = async (params) => {
     phongID: row.PhongID,
     tenPhong: row.TenPhong,
     maPhong: row.MaPhong,
+
     loaiPhong: {
       loaiPhongID: row.Phong_LoaiPhongID,
       tenLoaiPhong: row.Phong_TenLoaiPhong,
@@ -245,7 +246,7 @@ const getPhongDetailById = async (phongID) => {
     soThuTuPhong: phongData.SoThuTuPhong,
     moTaChiTietPhong: phongData.MoTaChiTietPhong,
     anhMinhHoa: phongData.AnhMinhHoa,
-    thietBiTrongPhong: thietBiTrongPhong,
+    thietBiTrongPhong,
   };
 };
 

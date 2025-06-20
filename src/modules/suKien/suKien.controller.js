@@ -117,9 +117,8 @@ const getPublicSuKienDetailController = async (req, res) => {
  * @returns {void} Trả về sự kiện vừa tạo qua createdResponse
  */
 const createSuKienController = async (req, res) => {
-  // req.body đã được validate bởi suKienValidation.validateCreateSuKien
   const suKienBody = req.body;
-  const nguoiTaoID = req.user.nguoiDungID; // Lấy NguoiDungID từ middleware xác thực token
+  const nguoiTaoID = req.user.nguoiDungID;
 
   const newSuKienDetail = await suKienService.createSuKienService(
     suKienBody,
@@ -225,6 +224,88 @@ const getSuKiensForYeuCauPhongSelectController = async (req, res) => {
   );
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đủ điều kiện để mời.
+ */
+const getSuKienCoTheMoiController = async (req, res) => {
+  const params = pick(req.query, [
+    'searchTerm',
+    'donViToChucID',
+    'loaiSuKienID',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+  const result = await suKienService.getSuKienCoTheMoi(params);
+  okResponse(res, result, 'Lấy danh sách sự kiện có thể mời thành công.');
+};
+
+/**
+ * [MỚI] Gửi lời mời tham gia sự kiện.
+ */
+const guiLoiMoiThamGiaController = async (req, res) => {
+  const { suKienID } = req.params;
+  const payload = req.body;
+  const nguoiGui = req.user;
+
+  const result = await suKienService.guiLoiMoiThamGia(
+    parseInt(suKienID),
+    payload,
+    nguoiGui
+  );
+  okResponse(res, result, result.message);
+};
+
+/**
+ * [MỚI] Lấy danh sách người đã được mời cho một sự kiện.
+ */
+const getDanhSachMoiController = async (req, res) => {
+  const { suKienID } = req.params;
+  const params = pick(req.query, [
+    'searchTerm',
+    'trangThaiPhanHoi',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+  const result = await suKienService.getDanhSachMoi(parseInt(suKienID), params);
+  okResponse(res, result, 'Lấy danh sách mời thành công.');
+};
+
+/**
+ * [MỚI] Gửi lời mời hàng loạt.
+ */
+const guiLoiMoiHangLoatController = async (req, res) => {
+  const { suKienID } = req.params;
+  const payload = req.body;
+  const nguoiGui = req.user;
+
+  const result = await suKienService.guiLoiMoiHangLoat(
+    parseInt(suKienID),
+    payload,
+    nguoiGui
+  );
+  okResponse(res, result, result.message);
+};
+
+const getMyAttendedEventsController = async (req, res) => {
+  const nguoiDungID = req.user.nguoiDungID;
+  const params = pick(req.query, [
+    'trangThaiSuKien',
+    'daDanhGia',
+    'tuNgay',
+    'denNgay',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+  const result = await suKienService.getMyAttendedEvents(nguoiDungID, params);
+  okResponse(res, result, 'Lấy danh sách sự kiện đã tham gia thành công.');
+};
+
 export const suKienController = {
   getSuKienListController,
   getSuKienDetailController,
@@ -236,4 +317,9 @@ export const suKienController = {
   duyetSuKienByBGHController,
   tuChoiSuKienByBGHController,
   getSuKiensForYeuCauPhongSelectController,
+  getDanhSachMoiController,
+  getSuKienCoTheMoiController,
+  guiLoiMoiThamGiaController,
+  guiLoiMoiHangLoatController,
+  getMyAttendedEventsController,
 };

@@ -32,8 +32,8 @@ const sendEmail = async (to, subject, templateName, context) => {
     from: `"PTIT Event Booking" <${
       process.env.EMAIL_FROM || process.env.EMAIL_USER
     }>`,
-    to: to,
-    subject: subject,
+    to,
+    subject,
     template: templateName,
     context: {
       ...context,
@@ -63,10 +63,10 @@ const sendOtpEmail = async (email, userName, otp) => {
   const subject = 'PTIT Event Booking - Yêu Cầu Đặt Lại Mật Khẩu';
   await sendEmail(email, subject, 'resetPassword.template', {
     title: 'Đặt Lại Mật Khẩu',
-    userName: userName,
-    otp: otp,
+    userName,
+    otp,
     otpExpiryMinutes: OTP_EXPIRY_MINUTES,
-    email: email,
+    email,
     resetPasswordPageUrl: `${process.env.FRONTEND_URL}/reset-password`,
   });
 };
@@ -80,15 +80,42 @@ const sendWelcomeEmail = async (
   const subject = 'Chào mừng bạn đến với Hệ thống Quản lý Sự kiện PTITHCM!';
   await sendEmail(email, subject, 'welcome.template', {
     title: 'Chào Mừng Thành Viên Mới',
-    userName: userName,
-    loginName: loginName,
-    initialPassword: initialPassword,
+    userName,
+    loginName,
+    initialPassword,
     loginPageUrl: `${process.env.FRONTEND_URL}/login`,
   });
+};
+
+/**
+ * [MỚI] Gửi email mời tham gia sự kiện.
+ * @param {string} email - Email người nhận
+ * @param {object} nguoiDuocMoi - { hoTen }
+ * @param {object} suKien - { tenSK, donViChuTri: { tenDonVi }, thoiGianBatDau, thoiGianKetThuc, diaDiem }
+ * @param {object} loiMoi - { vaiTroDuKienSK, ghiChuMoi }
+ * @returns {Promise<void>}
+ */
+const sendEventInvitationEmail = async (
+  email,
+  nguoiDuocMoi,
+  suKien,
+  loiMoi
+) => {
+  const subject = `PTIT Event Booking - Thư Mời Tham Gia Sự Kiện: ${suKien.tenSK}`;
+  const context = {
+    title: 'Thư Mời Tham Gia Sự Kiện',
+    nguoiDuocMoi,
+    suKien,
+    ...loiMoi, // vaiTroDuKienSK, ghiChuMoi
+    // Link để người dùng có thể xem và phản hồi lời mời
+    phanHoiMoiUrl: `${process.env.FRONTEND_URL}/my-invitations`, // Ví dụ
+  };
+  await sendEmail(email, subject, 'eventInvitation.template', context);
 };
 
 export default {
   sendEmail,
   sendOtpEmail,
   sendWelcomeEmail,
+  sendEventInvitationEmail,
 };

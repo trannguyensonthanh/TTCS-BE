@@ -47,9 +47,12 @@ const getThongBaoCuaToi = async (nguoiDungID, queryParams) => {
  * @returns {Promise<{message: string, updated: boolean}>}
  */
 const danhDauDaDoc = async (thongBaoID, nguoiDungID) => {
+  const relevantDonViIDs =
+    await thongBaoRepository.getRelevantDonViIDsForUser(nguoiDungID);
   const rowsAffected = await thongBaoRepository.markThongBaoAsRead(
     thongBaoID,
-    nguoiDungID
+    nguoiDungID,
+    relevantDonViIDs
   );
   if (rowsAffected === 0) {
     return {

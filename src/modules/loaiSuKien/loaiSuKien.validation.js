@@ -1,7 +1,5 @@
 // src/modules/loaiSuKien/loaiSuKien.validation.js
 import Joi from 'joi';
-import httpStatus from '../../constants/httpStatus.js';
-import ApiError from '../../utils/ApiError.util.js';
 import validate from '../../utils/validation.utils.js';
 
 const createLoaiSKSchema = Joi.object({

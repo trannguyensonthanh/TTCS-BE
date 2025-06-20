@@ -23,19 +23,19 @@ const getLichDatPhongController = async (req, res) => {
     params.phongIDs = params.phongIDs
       .split(',')
       .map((id) => parseInt(id.trim(), 10))
-      .filter((id) => !isNaN(id) && id > 0);
+      .filter((id) => !Number.isNaN(id) && id > 0);
   } else if (params.phongIDs) {
     params.phongIDs = []
       .concat(params.phongIDs)
       .map((id) => parseInt(id, 10))
-      .filter((id) => !isNaN(id) && id > 0);
+      .filter((id) => !Number.isNaN(id) && id > 0);
   }
   const result = await lichSuDungPhongService.getLichDatPhong(params);
   okResponse(res, result, 'Lấy dữ liệu lịch đặt phòng thành công.');
 };
 
 const getLichDatPhongTheoPhongController = async (req, res) => {
-  const phongId = parseInt(req.params.phongId);
+  const phongId = parseInt(req.params.phongId, 10);
   const queryParams = pick(req.query, [
     'tuNgay',
     'denNgay',

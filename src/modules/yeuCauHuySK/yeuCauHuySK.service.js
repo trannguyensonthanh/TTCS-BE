@@ -1,4 +1,5 @@
 // src/modules/yeuCauHuySK/yeuCauHuySK.service.js
+import sql from 'mssql';
 import { yeuCauHuySKRepository } from './yeuCauHuySK.repository.js';
 import { suKienRepository } from '../suKien/suKien.repository.js'; // Để lấy chi tiết sự kiện sau khi cập nhật
 import ApiError from '../../utils/ApiError.util.js';
@@ -10,8 +11,7 @@ import { authRepository } from '../auth/auth.repository.js';
 import LoaiThongBao from '../../enums/loaiThongBao.enum.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
 import logger from '../../utils/logger.util.js';
-import { getPool } from '../../utils/database.js';
-import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 import { yeuCauMuonPhongRepository } from '../yeuCauMuonPhong/yeuCauMuonPhong.repository.js';
 
 /**
@@ -20,7 +20,7 @@ import { yeuCauMuonPhongRepository } from '../yeuCauMuonPhong/yeuCauMuonPhong.re
  * Đầu ra: object { items, totalPages, currentPage, totalItems, pageSize }
  */
 const getYeuCauHuySKs = async (params, currentUser) => {
-  let modifiedParams = { ...params };
+  const modifiedParams = { ...params };
   const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(
     currentUser.nguoiDungID
   );

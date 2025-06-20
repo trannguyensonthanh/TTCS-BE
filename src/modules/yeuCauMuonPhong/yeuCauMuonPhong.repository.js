@@ -49,44 +49,30 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
         ) AS SoLuongChiTietDaXepPhong
   `;
   let queryFrom = `
-       FROM YeuCauMuonPhong yc
+    FROM YeuCauMuonPhong yc
     JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
     JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
     JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
-    LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
-    LEFT JOIN DonVi dv_tgv_yc ON tgv_yc.DonViCongTacID = dv_tgv_yc.DonViID
-    LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID
-        AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= GETDATE())
-    LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID
-        AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}' 
-    LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
+    -- [SỬA ĐỔI] Dùng OUTER APPLY để lấy đơn vị công tác chính của người yêu cầu
     OUTER APPLY (
-        SELECT TOP 1 DonViID_src AS DonViID, TenDonVi_src AS TenDonVi, MaDonVi_src AS MaDonVi, LoaiDonVi_src AS LoaiDonVi
-        FROM (
-            -- Ưu tiên đơn vị từ vai trò được gán
-            SELECT 
-                dv_ndvt_yc.DonViID AS DonViID_src, 
-                dv_ndvt_yc.TenDonVi AS TenDonVi_src, 
-                dv_ndvt_yc.MaDonVi AS MaDonVi_src, 
-                dv_ndvt_yc.LoaiDonVi AS LoaiDonVi_src, 
-                1 as priority 
-            WHERE dv_ndvt_yc.DonViID IS NOT NULL -- Chỉ lấy nếu join dv_ndvt_yc thành công
-            UNION ALL
-            -- Sau đó đến đơn vị công tác của giảng viên
-            SELECT 
-                dv_tgv_yc.DonViID AS DonViID_src, 
-                dv_tgv_yc.TenDonVi AS TenDonVi_src, 
-                dv_tgv_yc.MaDonVi AS MaDonVi_src, 
-                dv_tgv_yc.LoaiDonVi AS LoaiDonVi_src, 
-                2 as priority 
-            WHERE dv_tgv_yc.DonViID IS NOT NULL -- Chỉ lấy nếu join dv_tgv_yc thành công
-            -- Thêm logic lấy đơn vị cho các loại người dùng khác nếu cần (ví dụ: sinh viên thuộc CLB, CLB là đơn vị yêu cầu)
-        ) AS dv_src_ordered
-        ORDER BY priority ASC
+        SELECT TOP 1 dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
+        FROM NguoiDung_VaiTro ndvt
+        JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+        JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+        WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID 
+          AND vt.MaVaiTro = @MaVaiTroThanhVien
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+        ORDER BY ndvt.NgayBatDau DESC
     ) AS dv_nguoi_yc
   `;
   let queryWhere = ` WHERE 1=1 `;
-  const queryParams = [];
+  const queryParams = [
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
+  ];
 
   // Phân quyền xem:
   // ADMIN và CSVC thấy hết. CBTC chỉ thấy của mình hoặc của đơn vị mình (nếu có logic này)
@@ -228,24 +214,26 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
     JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
     LEFT JOIN NguoiDung nd_duyet_tong ON yc.NguoiDuyetTongCSVCID = nd_duyet_tong.NguoiDungID
     -- Logic lấy dv_nguoi_yc tương tự như hàm get list
-    LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
-    LEFT JOIN DonVi dv_tgv_yc ON tgv_yc.DonViCongTacID = dv_tgv_yc.DonViID
     LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= GETDATE())
     LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}'
     LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
     OUTER APPLY (
-        SELECT TOP 1 DonViID, TenDonVi, MaDonVi, LoaiDonVi
-        FROM (
-            SELECT dv_ndvt_yc.DonViID, dv_ndvt_yc.TenDonVi, dv_ndvt_yc.MaDonVi, dv_ndvt_yc.LoaiDonVi, 1 as priority FROM DonVi dv_ndvt_yc WHERE dv_ndvt_yc.DonViID = ndvt_yc.DonViID
-            UNION ALL
-            SELECT dv_tgv_yc.DonViID, dv_tgv_yc.TenDonVi, dv_tgv_yc.MaDonVi, dv_tgv_yc.LoaiDonVi, 2 as priority FROM DonVi dv_tgv_yc WHERE dv_tgv_yc.DonViID = tgv_yc.DonViCongTacID
-        ) AS dv_src
-        ORDER BY priority ASC
-    ) AS dv_nguoi_yc
-    WHERE yc.YcMuonPhongID = @YcMuonPhongID;
+            SELECT TOP 1 dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID AND vt.MaVaiTro = @MaVaiTroThanhVien
+            ORDER BY ndvt.NgayBatDau DESC
+        ) AS dv_nguoi_yc
+        WHERE yc.YcMuonPhongID = @YcMuonPhongID;
   `;
   const headerParams = [
     { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+    {
+      name: 'MaVaiTroThanhVien',
+      type: sql.VarChar,
+      value: MaVaiTro.THANH_VIEN_DON_VI,
+    },
   ];
   const headerResult = await executeQuery(headerQuery, headerParams);
   if (headerResult.recordset.length === 0) return null;
@@ -1111,69 +1099,3 @@ export const yeuCauMuonPhongRepository = {
   updateYeuCauMuonPhongHeaderInfo,
   getAllChiTietByHeaderID,
 };
-
-// Lưu ý quan trọng:
-// Phân quyền xem (getYeuCauMuonPhongsService): Logic phân quyền hiện tại khá đơn giản (Admin/CSVC thấy hết, người khác chỉ thấy của mình). Bạn cần mở rộng logic này để Trưởng Khoa/CLB/Bí thư Đoàn có thể xem các yêu cầu liên quan đến đơn vị của họ. Điều này đòi hỏi phải lấy được các DonViID mà người dùng đó quản lý và thêm vào điều kiện WHERE của query.
-// Logic lấy donViYeuCau: Trong getYeuCauMuonPhongListWithPagination và getYeuCauMuonPhongDetailById, cách lấy thông tin đơn vị của người yêu cầu (dv_nguoi_yc) đang dựa trên giả định họ là Giảng viên hoặc Cán bộ có vai trò CB_TO_CHUC_SU_KIEN được gán cho một đơn vị. Bạn cần xem xét kỹ và điều chỉnh cho phù hợp với cách bạn quản lý "đơn vị chính" của người dùng.
-// Hiệu năng Query: Câu query lấy danh sách yêu cầu mượn phòng có nhiều JOIN và subquery. Với lượng dữ liệu lớn, bạn cần kiểm tra và tối ưu hóa (ví dụ: đảm bảo có index trên các cột khóa ngoại và các cột dùng trong WHERE, ORDER BY).
-
-// Lưu ý quan trọng trong Repository:
-// Logic lấy dv_nguoi_yc (Đơn vị của người yêu cầu): Phần này khá phức tạp vì người yêu cầu có thể là Giảng viên (lấy DonViCongTacID) hoặc Cán bộ được gán vai trò CB_TO_CHUC_SU_KIEN cho một DonViThucThiID. Tôi đã dùng CROSS APPLY với UNION ALL và priority để ưu tiên lấy đơn vị từ vai trò chức năng trước. Bạn cần kiểm tra kỹ logic này với cấu trúc dữ liệu và quy tắc nghiệp vụ của mình.
-// SoLuongChiTietDaXepPhong: Subquery này đếm số phòng khác nhau đã được xếp cho các chi tiết của yêu cầu header.
-// getYeuCauMuonPhongDetailById:
-// Thực hiện 2 query: 1 cho header, 1 cho tất cả các detail và phòng được cấp.
-// Sau đó gom nhóm các phongDuocCap cho mỗi YcMuonPhongChiTiet ở tầng ứng dụng (JavaScript).
-
-// FROM YeuCauMuonPhong yc
-// JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
-// JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
-// JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
-// LEFT JOIN ThongTinGiangVien tgv_yc ON nd_yc.NguoiDungID = tgv_yc.NguoiDungID
-// LEFT JOIN DonVi dv_tgv_yc ON tgv_yc.DonViCongTacID = dv_tgv_yc.DonViID
-
-// -- ✅ Đổi sang OUTER APPLY để được phép dùng alias nd_yc.NguoiDungID
-// OUTER APPLY (
-//     SELECT TOP 1
-//         ndvt_inner.NguoiDungID,
-//         ndvt_inner.DonViID,
-//         ndvt_inner.VaiTroID AS VaiTroID_ndvt,
-//         ndvt_inner.NgayBatDau,
-//         ndvt_inner.NgayKetThuc,
-//         vt_inner.VaiTroID AS VaiTroID_vt,
-//         vt_inner.MaVaiTro,
-//         vt_inner.TenVaiTro
-//     FROM NguoiDung_VaiTro ndvt_inner
-//     JOIN VaiTroHeThong vt_inner ON ndvt_inner.VaiTroID = vt_inner.VaiTroID
-//     WHERE ndvt_inner.NguoiDungID = nd_yc.NguoiDungID
-//       AND vt_inner.MaVaiTro = 'CB_TO_CHUC_SU_KIEN'
-//       AND (ndvt_inner.NgayKetThuc IS NULL OR ndvt_inner.NgayKetThuc >= GETDATE())
-//     ORDER BY ndvt_inner.NgayBatDau DESC
-// ) AS ndvt_yc
-
-// LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
-
-// OUTER APPLY (
-//     SELECT TOP 1 DonViID_src AS DonViID, TenDonVi_src AS TenDonVi, MaDonVi_src AS MaDonVi, LoaiDonVi_src AS LoaiDonVi
-//     FROM (
-//         -- Ưu tiên đơn vị từ vai trò được gán
-//         SELECT
-//             ndvt_yc.DonViID AS DonViID_src,
-//             dv_ndvt_yc.TenDonVi AS TenDonVi_src,
-//             dv_ndvt_yc.MaDonVi AS MaDonVi_src,
-//             dv_ndvt_yc.LoaiDonVi AS LoaiDonVi_src,
-//             1 AS priority
-//         WHERE ndvt_yc.DonViID IS NOT NULL
-
-//         UNION ALL
-
-//         -- Sau đó đến đơn vị công tác của giảng viên
-//         SELECT
-//             tgv_yc.DonViCongTacID AS DonViID_src,
-//             dv_tgv_yc.TenDonVi AS TenDonVi_src,
-//             dv_tgv_yc.MaDonVi AS MaDonVi_src,
-//             dv_tgv_yc.LoaiDonVi AS LoaiDonVi_src,
-//             2 AS priority
-//         WHERE tgv_yc.DonViCongTacID IS NOT NULL
-//     ) AS dv_src_ordered
-//     ORDER BY priority ASC
-// ) AS dv_nguoi_yc

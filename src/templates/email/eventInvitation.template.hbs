@@ -1,0 +1,32 @@
+<h1>Thư Mời Tham Gia Sự Kiện: {{suKien.tenSK}}</h1>
+<p>Chào {{nguoiDuocMoi.hoTen}},</p>
+<p>
+    Phòng Công tác Sinh viên (CTSV) trân trọng kính mời bạn tham gia sự kiện 
+    <strong>"{{suKien.tenSK}}"</strong> do <strong>{{suKien.donViChuTri.tenDonVi}}</strong> tổ chức.
+</p>
+
+<div style="background-color: #f8f9fa; border-left: 4px solid #D8242B; padding: 15px 20px; margin: 20px 0;">
+    <h3 style="margin-top: 0; color: #D8242B;">Thông tin chi tiết sự kiện:</h3>
+    <p><strong>Thời gian:</strong> Từ {{suKien.thoiGianBatDau}} đến {{suKien.thoiGianKetThuc}}</p>
+    <p><strong>Địa điểm:</strong> {{suKien.diaDiem}}</p>
+    {{#if vaiTroDuKienSK}}
+        <p><strong>Vai trò dự kiến của bạn:</strong> {{vaiTroDuKienSK}}</p>
+    {{/if}}
+    {{#if ghiChuMoi}}
+        <p><strong>Ghi chú từ người mời:</strong> <em>{{ghiChuMoi}}</em></p>
+    {{/if}}
+</div>
+
+<p>Sự tham gia của bạn là niềm vinh hạnh cho chúng tôi và sẽ góp phần vào thành công của sự kiện. Vui lòng phản hồi lời mời này bằng cách truy cập vào hệ thống.</p>
+
+{{#if phanHoiMoiUrl}}
+<div class="button-container">
+    <a href="{{phanHoiMoiUrl}}" target="_blank" class="button">Xem Lời Mời và Phản Hồi</a>
+</div>
+{{/if}}
+
+<p>Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi qua email này hoặc phòng CTSV.</p>
+
+<p>Trân trọng,<br>
+Phòng Công tác Sinh viên<br>
+PTITHCM</p>
