@@ -192,6 +192,17 @@ const updateNguoiDungAdminPayloadSchema = Joi.object({
 
   thongTinSinhVien: thongTinSinhVienPayloadSchema.allow(null).optional(),
   thongTinGiangVien: thongTinGiangVienPayloadSchema.allow(null).optional(),
+  donViCongTacID: Joi.number()
+    .integer()
+    .positive()
+    .when('loaiNguoiDung', {
+      is: Joi.valid('GIANG_VIEN', 'NHAN_VIEN_KHAC'),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
+  loaiNguoiDung: Joi.string()
+    .valid('SINH_VIEN', 'GIANG_VIEN', 'NHAN_VIEN_KHAC')
+    .optional(),
 })
   .min(1)
   .messages({

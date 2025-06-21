@@ -7,6 +7,7 @@ const LoaiDonVi = Object.freeze({
   BO_MON: 'BO_MON',
   CLB: 'CLB',
   DOAN_THE: 'DOAN_THE',
+  CO_SO: 'CO_SO',
 });
 
 export default LoaiDonVi;

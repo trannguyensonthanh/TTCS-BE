@@ -1,6 +1,6 @@
 // src/modules/lopHoc/lopHoc.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 
 const SELECT_LOPHOC_FIELDS = `
     lh.LopID, lh.TenLop, lh.MaLop, lh.NienKhoa,
@@ -247,7 +247,7 @@ const updateLopHocRecordById = async (
   const addUpdateField = (dbField, paramName, paramType, value) => {
     if (value !== undefined) {
       setClauses.push(`${dbField} = @${paramName}`);
-      params.push({ name: paramName, type: paramType, value: value });
+      params.push({ name: paramName, type: paramType, value });
     }
   };
 

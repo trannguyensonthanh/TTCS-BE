@@ -173,6 +173,41 @@ const getAllChildDonViIds = async (donViChaId) => {
 };
 
 /**
+ * [MỚI] Hàm đệ quy để lấy tất cả ID của đơn vị con (bao gồm cả chính nó).
+ * @param {number} donViId - ID của đơn vị cha khởi đầu.
+ * @param {sql.Transaction} [transaction=null] - Transaction tùy chọn.
+ * @returns {Promise<Set<number>>} Một Set chứa ID của tất cả các đơn vị con.
+ */
+const getAllChildDonViIdsRecursive = async (donViId, transaction = null) => {
+  const childrenIds = new Set();
+  const queue = [donViId]; // Hàng đợi để xử lý, bắt đầu với chính nó
+
+  // Thêm chính nó vào danh sách loại trừ ngay từ đầu
+  childrenIds.add(donViId);
+
+  const pool = await getPool();
+  const request = transaction ? transaction.request() : pool.request();
+
+  while (queue.length > 0) {
+    const currentParentId = queue.shift(); // Lấy ID đầu tiên ra khỏi hàng đợi
+
+    const query = `SELECT DonViID FROM DonVi WHERE DonViChaID = @CurrentParentId`;
+    request.parameters = {}; // Xóa các tham số cũ
+    request.input('CurrentParentId', sql.Int, currentParentId);
+
+    const result = await request.query(query);
+
+    for (const row of result.recordset) {
+      if (!childrenIds.has(row.DonViID)) {
+        childrenIds.add(row.DonViID);
+        queue.push(row.DonViID); // Thêm con vào hàng đợi để tiếp tục tìm cháu
+      }
+    }
+  }
+  return childrenIds;
+};
+
+/**
  * Cập nhật thông tin đơn vị.
  * @param {number} donViId - ID đơn vị
  * @param {object} updateBody - Dữ liệu cập nhật
@@ -394,25 +429,30 @@ const getLoaiDonViOptions = async () => {
 };
 
 /**
- * Lấy danh sách đơn vị cha tiềm năng cho select.
+ * [SỬA ĐỔI] Lấy danh sách đơn vị cha tiềm năng cho select.
+ * Đã thêm logic chống vòng lặp cha-con.
  * @param {object} params - { excludeDonViId, searchTerm, limit }
  * @returns {Promise<Array<{donViID: number, tenDonViHienThi: string}>>}
  */
 const getDonViChaOptions = async (params) => {
   const { excludeDonViId, searchTerm, limit } = params;
-  let excludedIds = [];
+  let excludedIds = new Set();
+
+  // Nếu đang sửa một đơn vị (có excludeDonViId), tìm tất cả con cháu của nó để loại trừ
   if (excludeDonViId) {
-    excludedIds = await getAllChildDonViIds(excludeDonViId);
+    excludedIds = await getAllChildDonViIdsRecursive(excludeDonViId);
   }
 
+  // Lấy tất cả các đơn vị có thể làm cha từ DB
   const donVis = await donViRepository.getDonViChaOptionsFromDB(
-    null,
+    null, // Không cần truyền excludeDonViId vào repo nữa
     searchTerm,
     limit
   );
 
+  // Lọc bỏ các ID không hợp lệ ở tầng service
   return donVis
-    .filter((dv) => !excludedIds.includes(dv.DonViID)) // Lọc bỏ các ID không được phép làm cha
+    .filter((dv) => !excludedIds.has(dv.DonViID))
     .map((dv) => ({
       donViID: dv.DonViID,
       tenDonViHienThi: `${dv.TenDonVi} (${mapLoaiDonViToTen(dv.LoaiDonVi)})${dv.MaDonVi ? ` - ${dv.MaDonVi}` : ''}`,
@@ -422,6 +462,8 @@ const getDonViChaOptions = async (params) => {
 export const donViService = {
   getDonViList,
   getDonViDetail,
+  getAllChildDonViIds,
+  getAllChildDonViIdsRecursive,
   createDonVi,
   updateDonVi,
   deleteDonVi,

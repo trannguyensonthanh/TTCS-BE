@@ -366,17 +366,13 @@ const deleteDonViRecordById = async (donViId, transaction = null) => {
 };
 
 /**
- * Lấy danh sách đơn vị cha tiềm năng cho select.
- * @param {number|null} excludeDonViId - Loại trừ đơn vị này (và con cháu nếu cần).
+ * [SỬA ĐỔI] Lấy danh sách đơn vị cha tiềm năng cho select.
+ * Đã bỏ logic excludeDonViId, việc này sẽ do service xử lý.
  * @param {string|null} searchTerm - Từ khóa tìm kiếm.
  * @param {number} limit - Giới hạn số lượng kết quả.
  * @returns {Promise<Array<object>>} Danh sách đơn vị cha phù hợp.
  */
-const getDonViChaOptionsFromDB = async (
-  excludeDonViId = null,
-  searchTerm = null,
-  limit = 50
-) => {
+const getDonViChaOptionsFromDB = async (searchTerm = null, limit = 50) => {
   let query = `
         SELECT TOP (@Limit) DonViID, TenDonVi, MaDonVi, LoaiDonVi
         FROM DonVi
@@ -384,20 +380,6 @@ const getDonViChaOptionsFromDB = async (
     `;
   const queryParams = [{ name: 'Limit', type: sql.Int, value: limit }];
 
-  if (excludeDonViId) {
-    // Loại trừ chính nó và các con cháu của nó (cần hàm đệ quy để lấy allChildren)
-    // Để đơn giản, hiện tại chỉ loại trừ chính nó.
-    // tạo hàm getAllChildDonViIds từ service, có thể truyền danh sách ID đó vào đây.
-    query += ` AND DonViID <> @ExcludeDonViId `;
-    queryParams.push({
-      name: 'ExcludeDonViId',
-      type: sql.Int,
-      value: excludeDonViId,
-    });
-    // Nếu muốn loại trừ cả con cháu:
-    // query += ` AND DonViID NOT IN (SELECT ID FROM dbo.fnGetAllChildrenOfDonVi(@ExcludeDonViId)) `
-    // (Yêu cầu có user-defined function fnGetAllChildrenOfDonVi)
-  }
   if (searchTerm) {
     query += ` AND (TenDonVi LIKE @SearchTerm OR MaDonVi LIKE @SearchTerm) `;
     queryParams.push({
@@ -406,10 +388,11 @@ const getDonViChaOptionsFromDB = async (
       value: `%${searchTerm}%`,
     });
   }
-  // Thêm điều kiện loại trừ các loại đơn vị không thể làm cha (ví dụ: CLB không thể là cha của Khoa)
-  query += ` AND LoaiDonVi IN ('KHOA', 'PHONG', 'BAN', 'TRUNG_TAM', 'DOAN_THE', 'CO_SO') `;
 
+  // Chỉ lấy các đơn vị có thể làm cha
+  query += ` AND LoaiDonVi IN ('KHOA', 'PHONG', 'BAN', 'TRUNG_TAM', 'DOAN_THE', 'CO_SO') `;
   query += ` ORDER BY TenDonVi ASC;`;
+
   const result = await executeQuery(query, queryParams);
   return result.recordset;
 };

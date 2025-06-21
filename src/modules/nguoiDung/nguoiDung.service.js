@@ -5,7 +5,6 @@ import { authRepository } from '../auth/auth.repository.js'; // Để lấy vai 
 import { hashPassword, comparePassword } from '../../utils/password.util.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
-import errorMessages from '../../constants/errorMessages.js';
 import logger from '../../utils/logger.util.js';
 import { vaiTroHeThongRepository } from '../vaiTroHeThong/vaiTroHeThong.repository.js';
 import { donViRepository } from '../donVi/donVi.repository.js';
@@ -51,7 +50,7 @@ const getNguoiDungList = async (params) => {
       if (thongTinGV && donViCongTac) {
         thongTinGV.donViCongTac = donViCongTac;
       }
-      console.log('donViCongTac', donViCongTac);
+      console.log('donViCongTacfucku', donViCongTac);
       // Xác định các trường hiển thị chung
       let loaiNguoiDungHienThi = 'Nhân viên';
       let donViCongTacChinh = null;
@@ -60,9 +59,9 @@ const getNguoiDungList = async (params) => {
         donViCongTacChinh = thongTinSV.lop?.tenLop || null;
       } else if (thongTinGV) {
         loaiNguoiDungHienThi = 'Giảng viên';
-        donViCongTacChinh = donViCongTac?.tenDonVi || null;
+        donViCongTacChinh = donViCongTac || null;
       } else {
-        donViCongTacChinh = donViCongTac?.tenDonVi || null;
+        donViCongTacChinh = donViCongTac || null;
       }
 
       // Trả về object với cấu trúc đầy đủ
@@ -432,6 +431,7 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
     email,
     maDinhDanh,
     trangThaiTk,
+    loaiNguoiDung,
     ...nguoiDungUpdateData
   } = updatePayload;
 
@@ -584,6 +584,47 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
         );
       }
       // Nếu thongTinGiangVien là null, vai trò thành viên đã được xóa ở trên và không cần làm gì thêm.
+    }
+    console.log('updatePayload', updatePayload);
+    // [NEW] Xử lý cập nhật vai trò thành viên cho NHAN_VIEN_KHAC nếu có donViCongTacID
+    if (loaiNguoiDung === 'NHAN_VIEN_KHAC' && donViCongTacID !== undefined) {
+      // Xóa vai trò thành viên cũ
+      const thanhVienRole = await vaiTroHeThongRepository.getVaiTroHeThongByMa(
+        MaVaiTro.THANH_VIEN_DON_VI,
+        null,
+        transaction
+      );
+      if (!thanhVienRole)
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          'Lỗi cấu hình: không tìm thấy vai trò thành viên.'
+        );
+      await nguoiDungRepository.deleteNguoiDungVaiTroByVaiTroID(
+        nguoiDungId,
+        thanhVienRole.VaiTroID,
+        transaction
+      );
+      // Gán lại vai trò thành viên với đơn vị mới
+      if (donViCongTacID) {
+        const donVi = await donViRepository.getDonViById(
+          donViCongTacID,
+          transaction
+        );
+        if (!donVi)
+          throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            `Đơn vị công tác ID ${donViCongTacID} không tồn tại.`
+          );
+        await nguoiDungRepository.upsertNguoiDungVaiTro(
+          nguoiDungId,
+          {
+            vaiTroID: thanhVienRole.VaiTroID,
+            donViID: donViCongTacID,
+            ngayBatDau: new Date(),
+          },
+          transaction
+        );
+      }
     }
 
     await transaction.commit();

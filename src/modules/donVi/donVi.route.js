@@ -21,6 +21,17 @@ router.get(
 );
 
 /**
+ * Lấy danh sách đơn vị cha tiềm năng cho select (GET /v1/donvi/don-vi-cha-options)
+ * Query: excludeDonViId, searchTerm, limit
+ * @returns 200: Danh sách đơn vị cha phù hợp
+ */
+router.get(
+  '/don-vi-cha-options',
+  donViValidation.validateGetDonViChaOptionsParams,
+  asyncHandler(donViController.getDonViChaOptionsController)
+);
+
+/**
  * Lấy chi tiết đơn vị theo ID (GET /v1/donvi/:donViId)
  * @returns 200: Thông tin chi tiết đơn vị
  */
@@ -64,17 +75,6 @@ router.delete(
   authMiddleware.authorizeRoles(MaVaiTro.ADMIN_HE_THONG),
   donViValidation.validateIdParam,
   asyncHandler(donViController.deleteDonViController)
-);
-
-/**
- * Lấy danh sách đơn vị cha tiềm năng cho select (GET /v1/donvi/don-vi-cha-options)
- * Query: excludeDonViId, searchTerm, limit
- * @returns 200: Danh sách đơn vị cha phù hợp
- */
-router.get(
-  '/don-vi-cha-options',
-  donViValidation.validateGetDonViChaOptionsParams,
-  asyncHandler(donViController.getDonViChaOptionsController)
 );
 
 export default router;

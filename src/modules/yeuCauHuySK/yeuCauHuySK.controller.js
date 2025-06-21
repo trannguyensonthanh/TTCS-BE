@@ -29,7 +29,7 @@ const getYeuCauHuySKsController = async (req, res) => {
  * Đầu ra: Response trả về chi tiết yêu cầu hủy sự kiện
  */
 const getYeuCauHuySKDetailController = async (req, res) => {
-  const ycHuySkID = parseInt(req.params.id);
+  const ycHuySkID = parseInt(req.params.id, 10);
   const currentUser = req.user;
   const fetchSuKienFullDetail = req.query.includeSuKienDetail === 'true';
   const result = await yeuCauHuySKService.getYeuCauHuySKDetail(

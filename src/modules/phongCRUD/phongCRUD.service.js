@@ -85,8 +85,19 @@ const createPhong = async (phongBody) => {
     'TODO: Implement full FK validation for LoaiPhong, TrangThaiPhong, ToaNhaTang in createPhong service.'
   );
 
-  // 2. Validate ThietBiID trong thietBiTrongPhong
+  // 2. Kiểm tra trùng lặp thiết bị trong thietBiTrongPhong
   if (thietBiTrongPhong && thietBiTrongPhong.length > 0) {
+    const seen = new Set();
+    for (const tb of thietBiTrongPhong) {
+      if (seen.has(tb.thietBiID)) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Thiết bị ID ${tb.thietBiID} bị trùng lặp trong danh sách thiết bị.`
+        );
+      }
+      seen.add(tb.thietBiID);
+    }
+    // ...vẫn giữ validate thiết bị hợp lệ bên dưới...
     for (const tb of thietBiTrongPhong) {
       const thietBi = await trangThietBiRepository.getTrangThietBiById(
         tb.thietBiID
