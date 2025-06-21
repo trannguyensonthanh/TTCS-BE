@@ -52,7 +52,19 @@ const getLichDatPhongTheoPhongController = async (req, res) => {
   okResponse(res, result, 'Lấy lịch đặt của phòng thành công.');
 };
 
+// const getPublicRoomUsageController = async (req, res) => {
+//   const params = pick(req.query, [
+//     'tuNgay',
+//     'denNgay',
+//     'toaNhaID',
+//     'loaiPhongID',
+//   ]);
+//   const result = await lichSuDungPhongService.getPublicRoomUsage(params);
+//   okResponse(res, result, 'Lấy dữ liệu sử dụng phòng tổng quan thành công.');
+// };
+
 export const lichSuDungPhongController = {
   getLichDatPhongController,
   getLichDatPhongTheoPhongController,
+  // getPublicRoomUsageController,
 };

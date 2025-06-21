@@ -275,8 +275,8 @@ const getAllMyNotifications = async (nguoiDungID, queryParams) => {
       queryParams
     );
 
-  const page = parseInt(queryParams.page) || 1;
-  const limit = parseInt(queryParams.limit) || 15;
+  const page = parseInt(queryParams.page, 10) || 1;
+  const limit = parseInt(queryParams.limit, 10) || 15;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -285,8 +285,27 @@ const getAllMyNotifications = async (nguoiDungID, queryParams) => {
     currentPage: page,
     totalItems,
     pageSize: limit,
-    totalUnread: totalUnread,
+    totalUnread,
   };
+};
+
+/**
+ * [MỚI] Lấy danh sách các thông báo công khai nổi bật.
+ * @param {object} params - { limit }
+ * @returns {Promise<ThongBaoChungItem[]>}
+ */
+const getPublicAnnouncements = async (params) => {
+  const announcements = await thongBaoRepository.getPublicAnnouncements(
+    params.limit
+  );
+
+  return announcements.map((item) => ({
+    thongBaoID: Number(item.ThongBaoID),
+    tieuDe: item.NoiDungTB, // Tạm thời dùng nội dung làm tiêu đề
+    tomTat: item.TomTat, // Sẽ là null vì DB chưa có cột này
+    ngayDang: item.NgayTaoTB.toISOString(),
+    duongDanChiTiet: item.DuongDanTB,
+  }));
 };
 
 export const thongBaoService = {
@@ -296,4 +315,5 @@ export const thongBaoService = {
   createThongBao,
   createYeuCauChinhSuaThongBao,
   getAllMyNotifications,
+  getPublicAnnouncements,
 };

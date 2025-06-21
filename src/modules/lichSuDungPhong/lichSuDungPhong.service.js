@@ -64,8 +64,8 @@ const getLichDatPhongTheoPhong = async (phongId, queryParams) => {
       phongId,
       queryParams
     );
-  const page = parseInt(queryParams.page) || 1;
-  const limit = parseInt(queryParams.limit) || 10;
+  const page = parseInt(queryParams.page, 10) || 1;
+  const limit = parseInt(queryParams.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -77,7 +77,42 @@ const getLichDatPhongTheoPhong = async (phongId, queryParams) => {
   };
 };
 
+// /**
+//  * [MỚI] Lấy và xử lý dữ liệu lịch sử dụng phòng công khai.
+//  * @param {object} params - Tham số lọc.
+//  * @returns {Promise<KhungGioPhongBanItem[]>}
+//  */
+// const getPublicRoomUsage = async (params) => {
+//   const rawUsageData =
+//     await lichSuDungPhongRepository.getPublicRoomUsage(params);
+
+//   const usageMap = new Map();
+
+//   for (const record of rawUsageData) {
+//     const ngay = record.BatDau.toISOString().split('T')[0];
+//     const phongKey = `${ngay}_${record.PhongID}`;
+
+//     if (!usageMap.has(phongKey)) {
+//       usageMap.set(phongKey, {
+//         ngay,
+//         phongID: record.PhongID,
+//         tenPhong: record.TenPhong,
+//         maPhong: record.MaPhong,
+//         khungGioBan: [],
+//       });
+//     }
+
+//     usageMap.get(phongKey).khungGioBan.push({
+//       batDau: record.BatDau.toISOString(),
+//       ketThuc: record.KetThuc.toISOString(),
+//     });
+//   }
+
+//   return Array.from(usageMap.values());
+// };
+
 export const lichSuDungPhongService = {
   getLichDatPhong,
   getLichDatPhongTheoPhong,
+  // getPublicRoomUsage,
 };

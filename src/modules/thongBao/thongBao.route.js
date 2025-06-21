@@ -72,4 +72,11 @@ router.get(
   asyncHandler(thongBaoController.getAllMyNotificationsController)
 );
 
+router.get(
+  '/cong-khai-noi-bat',
+  // Middleware xác thực token đã có ở đầu file
+  thongBaoValidation.validateGetPublicAnnouncementsParams, // Sẽ tạo
+  asyncHandler(thongBaoController.getPublicAnnouncementsController)
+);
+
 export default router;

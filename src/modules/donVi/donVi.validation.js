@@ -27,9 +27,7 @@ const getDonViParamsSchema = Joi.object({
       return loaiArray;
     })
     .messages({
-      'any.invalid':
-        'Loại đơn vị "{{#value}}" không hợp lệ. Các giá trị hợp lệ là: ' +
-        cacLoaiDonViHopLe.join(', '),
+      'any.invalid': `Loại đơn vị "{{#value}}" không hợp lệ. Các giá trị hợp lệ là: ${cacLoaiDonViHopLe.join(', ')}`,
     }),
   donViChaID: Joi.number().integer().positive().allow(null).optional(),
   page: Joi.number().integer().min(1).default(1).allow(null).optional(),

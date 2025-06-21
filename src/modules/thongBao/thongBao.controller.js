@@ -9,7 +9,7 @@ import pick from '../../utils/pick.util.js';
  * @param {import('express').Response} res - Express response
  */
 const getThongBaoCuaToiController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID; // Từ authMiddleware
+  const { nguoiDungID } = req.user; // Từ authMiddleware
   const queryParams = pick(req.query, ['limit', 'page', 'chiChuaDoc']);
   const result = await thongBaoService.getThongBaoCuaToi(
     nguoiDungID,
@@ -24,8 +24,8 @@ const getThongBaoCuaToiController = async (req, res) => {
  * @param {import('express').Response} res - Express response
  */
 const danhDauDaDocController = async (req, res) => {
-  const thongBaoID = parseInt(req.params.id);
-  const nguoiDungID = req.user.nguoiDungID;
+  const thongBaoID = parseInt(req.params.id, 10);
+  const { nguoiDungID } = req.user;
   const result = await thongBaoService.danhDauDaDoc(thongBaoID, nguoiDungID);
   okResponse(res, result, result.message);
 };
@@ -36,7 +36,7 @@ const danhDauDaDocController = async (req, res) => {
  * @param {import('express').Response} res - Express response
  */
 const danhDauTatCaDaDocController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID;
+  const { nguoiDungID } = req.user;
   const result = await thongBaoService.danhDauTatCaDaDoc(nguoiDungID);
   okResponse(res, { countUpdated: result.countUpdated }, result.message);
 };
@@ -63,7 +63,7 @@ const createYeuCauChinhSuaThongBaoController = async (req, res) => {
  * @param {import('express').Response} res - Express response
  */
 const getAllMyNotificationsController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID;
+  const { nguoiDungID } = req.user;
   const queryParams = pick(req.query, [
     'daDoc',
     'loaiThongBao',
@@ -80,10 +80,17 @@ const getAllMyNotificationsController = async (req, res) => {
   okResponse(res, result, 'Lấy tất cả thông báo thành công.');
 };
 
+const getPublicAnnouncementsController = async (req, res) => {
+  const params = pick(req.query, ['limit']);
+  const result = await thongBaoService.getPublicAnnouncements(params);
+  okResponse(res, result, 'Lấy thông báo công khai thành công.');
+};
+
 export const thongBaoController = {
   getThongBaoCuaToiController,
   danhDauDaDocController,
   danhDauTatCaDaDocController,
   createYeuCauChinhSuaThongBaoController,
   getAllMyNotificationsController,
+  getPublicAnnouncementsController,
 };

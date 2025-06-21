@@ -51,6 +51,10 @@ const getAllMyNotificationsParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
 });
 
+const getPublicAnnouncementsParamsSchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(20).default(5),
+});
+
 export const thongBaoValidation = {
   /**
    * Validate query params cho lấy danh sách thông báo của tôi (lọc, phân trang).
@@ -78,6 +82,10 @@ export const thongBaoValidation = {
    */
   validateGetAllMyNotificationsParams: validate(
     getAllMyNotificationsParamsSchema,
+    'query'
+  ),
+  validateGetPublicAnnouncementsParams: validate(
+    getPublicAnnouncementsParamsSchema,
     'query'
   ),
 };

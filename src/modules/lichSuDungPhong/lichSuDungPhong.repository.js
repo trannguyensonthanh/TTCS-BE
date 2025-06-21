@@ -277,7 +277,67 @@ const getLichDatPhongByPhongId = async (phongId, params) => {
   return { items, totalItems };
 };
 
+// /**
+//  * [MỚI] Lấy dữ liệu các khung giờ bận của các phòng cho dashboard công khai.
+//  * @param {object} params - { tuNgay, denNgay, toaNhaID, loaiPhongID }
+//  * @returns {Promise<Array<object>>} Danh sách các bản ghi chứa thông tin phòng và khung giờ bận.
+//  */
+// const getPublicRoomUsage = async (params) => {
+//   const { tuNgay, denNgay, toaNhaID, loaiPhongID } = params;
+
+//   let whereClause =
+//     ' WHERE cdp.TgNhanPhongTT < @DenNgayNextDay AND cdp.TgTraPhongTT > @TuNgay ';
+//   const queryParams = [
+//     { name: 'TuNgay', type: sql.Date, value: tuNgay },
+//     // Thêm 1 ngày vào denNgay để bao gồm cả các lịch đặt trong ngày cuối cùng
+//     {
+//       name: 'DenNgayNextDay',
+//       type: sql.Date,
+//       value: new Date(
+//         new Date(denNgay).setDate(new Date(denNgay).getDate() + 1)
+//       ),
+//     },
+//   ];
+
+//   let fromClause = `
+//         FROM ChiTietDatPhong cdp
+//         JOIN Phong p ON cdp.PhongID = p.PhongID
+//     `;
+
+//   if (toaNhaID) {
+//     fromClause += `
+//             JOIN ToaNha_Tang tnt ON p.ToaNhaTangID = tnt.ToaNhaTangID
+//         `;
+//     whereClause += ` AND tnt.ToaNhaID = @ToaNhaID `;
+//     queryParams.push({ name: 'ToaNhaID', type: sql.Int, value: toaNhaID });
+//   }
+//   if (loaiPhongID) {
+//     whereClause += ` AND p.LoaiPhongID = @LoaiPhongID `;
+//     queryParams.push({
+//       name: 'LoaiPhongID',
+//       type: sql.Int,
+//       value: loaiPhongID,
+//     });
+//   }
+
+//   const query = `
+//         SELECT
+//             p.PhongID,
+//             p.TenPhong,
+//             p.MaPhong,
+//             cdp.TgNhanPhongTT AS BatDau,
+//             cdp.TgTraPhongTT AS KetThuc
+//         ${fromClause}
+//         ${whereClause}
+//         ORDER BY p.PhongID, cdp.TgNhanPhongTT;
+//     `;
+
+//   const result = await executeQuery(query, queryParams);
+//   return result.recordset;
+// };
+
 export const lichSuDungPhongRepository = {
   getLichDatPhongRecords,
   getLichDatPhongByPhongId,
+  // getPublicRoomUsage,
 };

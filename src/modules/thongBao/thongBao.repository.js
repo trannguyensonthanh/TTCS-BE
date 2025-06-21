@@ -1,6 +1,7 @@
 // src/modules/thongBao/thongBao.repository.js
-import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery } from '../../utils/database.js';
+import LoaiThongBao from '../../enums/loaiThongBao.enum.js';
 
 /**
  * [SỬA LỖI - TRIỆT ĐỂ] Lấy danh sách các DonViID liên quan đến người dùng.
@@ -11,14 +12,14 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
 
   // Lấy Khoa quản lý từ ThongTinSinhVien -> LopHoc -> NganhHoc
-  let querySinhVien = `
+  const querySinhVien = `
     SELECT nh.KhoaQuanLyID
     FROM ThongTinSinhVien tsv
     JOIN LopHoc lh ON tsv.LopID = lh.LopID
     JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID
     WHERE tsv.NguoiDungID = @NguoiDungID AND nh.KhoaQuanLyID IS NOT NULL;
   `;
-  let resultSinhVien = await executeQuery(querySinhVien, params);
+  const resultSinhVien = await executeQuery(querySinhVien, params);
   if (
     resultSinhVien.recordset.length > 0 &&
     resultSinhVien.recordset[0].KhoaQuanLyID
@@ -48,7 +49,7 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
 const getThongBaoForUser = async (nguoiDungID, relevantDonViIDs, params) => {
   const { limit = 10, page = 1, chiChuaDoc } = params;
 
-  let whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
+  const whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
   const queryParams = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
   ];
@@ -177,7 +178,7 @@ const markThongBaoAsRead = async (
  * Đầu ra: Promise<number> - Số dòng được cập nhật
  */
 const markAllThongBaoAsReadForUser = async (nguoiDungID, relevantDonViIDs) => {
-  let whereClauses = [`(NguoiNhanID = @NguoiDungID)`];
+  const whereClauses = [`(NguoiNhanID = @NguoiDungID)`];
   const queryParams = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
   ];
@@ -267,7 +268,7 @@ const getAllThongBaoForUserWithPagination = async (
     sortOrder = 'DESC',
   } = params;
 
-  let whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
+  const whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
   const queryParams = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
   ];
@@ -362,7 +363,7 @@ const getAllThongBaoForUserWithPagination = async (
  * Đầu ra: Promise<number> - Tổng số thông báo chưa đọc
  */
 const getTotalUnreadThongBaoForUser = async (nguoiDungID, relevantDonViIDs) => {
-  let whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
+  const whereClauses = [`(tb.NguoiNhanID = @NguoiDungID)`];
   const queryParams = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
   ];
@@ -385,6 +386,37 @@ const getTotalUnreadThongBaoForUser = async (nguoiDungID, relevantDonViIDs) => {
   return result.recordset[0].TotalUnread;
 };
 
+/**
+ * [MỚI] Lấy danh sách các thông báo công khai nổi bật.
+ * @param {number} limit - Giới hạn số lượng bản ghi.
+ * @returns {Promise<Array<object>>}
+ */
+const getPublicAnnouncements = async (limit) => {
+  const query = `
+        SELECT TOP (@Limit)
+            ThongBaoID,
+            NoiDungTB, -- Sẽ được dùng làm TieuDe
+            -- Cần thêm một cột TomTat nếu muốn, hiện tại để là NULL
+            NULL AS TomTat, 
+            NgayTaoTB,
+            DuongDanTB
+        FROM ThongBao
+        WHERE LoaiThongBao = @LoaiThongBao
+        ORDER BY NgayTaoTB DESC;
+    `;
+  const params = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    {
+      name: 'LoaiThongBao',
+      type: sql.VarChar,
+      value: LoaiThongBao.THONG_BAO_CONG_KHAI,
+    },
+  ];
+
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const thongBaoRepository = {
   getRelevantDonViIDsForUser,
   getThongBaoForUser,
@@ -393,4 +425,5 @@ export const thongBaoRepository = {
   createThongBaoRecord,
   getAllThongBaoForUserWithPagination,
   getTotalUnreadThongBaoForUser,
+  getPublicAnnouncements,
 };

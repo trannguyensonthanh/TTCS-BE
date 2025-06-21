@@ -3,17 +3,30 @@ import Joi from 'joi';
 
 import validate from '../../utils/validation.utils.js';
 
+// Hàm so sánh ngày ISO string
+function compareDateRef(value, helpers, refKey) {
+  const refValue = helpers.state.ancestors[0][refKey];
+  if (refValue && value && new Date(value) < new Date(refValue)) {
+    return helpers.error('date.min', { limit: refValue });
+  }
+  return value;
+}
+
 const getLichDatPhongParamsSchema = Joi.object({
-  tuNgay: Joi.date().iso().required().messages({
+  tuNgay: Joi.string().isoDate().required().messages({
     'any.required': 'Từ ngày là bắt buộc',
     'date.format': 'Từ ngày không đúng định dạng YYYY-MM-DD',
   }),
 
-  denNgay: Joi.date().iso().min(Joi.ref('tuNgay')).required().messages({
-    'any.required': 'Đến ngày là bắt buộc',
-    'date.format': 'Đến ngày không đúng định dạng YYYY-MM-DD',
-    'date.min': 'Đến ngày phải sau hoặc bằng Từ ngày',
-  }),
+  denNgay: Joi.string()
+    .isoDate()
+    .required()
+    .custom((value, helpers) => compareDateRef(value, helpers, 'tuNgay'))
+    .messages({
+      'any.required': 'Đến ngày là bắt buộc',
+      'date.format': 'Đến ngày không đúng định dạng YYYY-MM-DD',
+      'date.min': 'Đến ngày phải sau hoặc bằng Từ ngày',
+    }),
   phongIDs: Joi.string()
     .allow('', null)
     .optional()
@@ -42,8 +55,15 @@ const phongIdParamSchema = Joi.object({
 });
 
 const getLichDatPhongTheoPhongParamsSchema = Joi.object({
-  tuNgay: Joi.date().iso().allow(null).optional(),
-  denNgay: Joi.date().iso().allow(null).optional().min(Joi.ref('tuNgay')),
+  tuNgay: Joi.string().isoDate().allow(null).optional(),
+  denNgay: Joi.string()
+    .isoDate()
+    .allow(null)
+    .optional()
+    .custom((value, helpers) => compareDateRef(value, helpers, 'tuNgay'))
+    .messages({
+      'date.min': 'Đến ngày phải sau hoặc bằng Từ ngày',
+    }),
   page: Joi.number().integer().min(1).default(1).optional(),
   limit: Joi.number().integer().min(1).max(100).default(10).optional(),
   sortBy: Joi.string().allow(null).optional().default('TgNhanPhongTT'), // Sắp xếp theo thời gian nhận phòng
@@ -53,6 +73,19 @@ const getLichDatPhongTheoPhongParamsSchema = Joi.object({
     .allow(null)
     .optional(), // Mới nhất lên đầu
 });
+
+// const getPublicRoomUsageParamsSchema = Joi.object({
+//   tuNgay: Joi.string().isoDate().required(),
+//   denNgay: Joi.string()
+//     .isoDate()
+//     .required()
+//     .custom((value, helpers) => compareDateRef(value, helpers, 'tuNgay'))
+//     .messages({
+//       'date.min': 'Đến ngày phải sau hoặc bằng Từ ngày',
+//     }),
+//   toaNhaID: Joi.number().integer().positive().optional(),
+//   loaiPhongID: Joi.number().integer().positive().optional(),
+// });
 
 /**
  * Middleware validate query params cho API lấy dữ liệu lịch sử sử dụng phòng.
@@ -68,4 +101,8 @@ export const lichSuDungPhongValidation = {
     getLichDatPhongTheoPhongParamsSchema,
     'query'
   ),
+  // validateGetPublicRoomUsageParams: validate(
+  //   getPublicRoomUsageParamsSchema,
+  //   'query'
+  // ),
 };

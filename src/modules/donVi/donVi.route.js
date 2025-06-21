@@ -5,6 +5,7 @@ import asyncHandler from '../../utils/asyncHandler.util.js';
 import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import { donViValidation } from './donVi.validation.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
+
 const router = express.Router();
 router.use(authMiddleware.authenticateToken);
 

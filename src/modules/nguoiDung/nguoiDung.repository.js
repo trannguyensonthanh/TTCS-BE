@@ -1,6 +1,6 @@
 // src/modules/nguoiDung/nguoiDung.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 import logger from '../../utils/logger.util.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
@@ -69,7 +69,7 @@ const getNguoiDungListWithPagination = async (params) => {
         FROM NguoiDung nd
         LEFT JOIN TaiKhoan tk ON nd.NguoiDungID = tk.NguoiDungID
     `;
-  let whereClauses = ['1=1'];
+  const whereClauses = ['1=1'];
   const queryParams = [];
 
   // Thêm các JOINs và WHERE clauses dựa trên bộ lọc
@@ -86,13 +86,39 @@ const getNguoiDungListWithPagination = async (params) => {
     }
   }
   if (maVaiTro) {
-    fromClause += ` JOIN NguoiDung_VaiTro ndvt ON nd.NguoiDungID = ndvt.NguoiDungID JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID `;
-    whereClauses.push(`vt.MaVaiTro = @MaVaiTro`);
-    queryParams.push({
-      name: 'MaVaiTro',
-      type: sql.VarChar(50),
-      value: maVaiTro,
-    });
+    // Hỗ trợ truyền lên 1 mã hoặc nhiều mã (phân tách bởi dấu phẩy)
+    const maVaiTroArr = maVaiTro
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Nếu là SINH_VIEN hoặc GIANG_VIEN thì lọc theo bảng thông tin tương ứng
+    if (maVaiTroArr.length === 1 && maVaiTroArr[0] === 'SINH_VIEN') {
+      fromClause += ` JOIN ThongTinSinhVien tsv_ma ON nd.NguoiDungID = tsv_ma.NguoiDungID `;
+    } else if (maVaiTroArr.length === 1 && maVaiTroArr[0] === 'GIANG_VIEN') {
+      fromClause += ` JOIN ThongTinGiangVien tgv_ma ON nd.NguoiDungID = tgv_ma.NguoiDungID `;
+    } else {
+      fromClause += ` JOIN NguoiDung_VaiTro ndvt ON nd.NguoiDungID = ndvt.NguoiDungID JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID `;
+      if (maVaiTroArr.length === 1) {
+        whereClauses.push(`vt.MaVaiTro = @MaVaiTro`);
+        queryParams.push({
+          name: 'MaVaiTro',
+          type: sql.VarChar(50),
+          value: maVaiTroArr[0],
+        });
+      } else if (maVaiTroArr.length > 1) {
+        // Tạo các tham số động cho IN clause
+        const inParams = maVaiTroArr.map((val, idx) => `@MaVaiTro${idx}`);
+        whereClauses.push(`vt.MaVaiTro IN (${inParams.join(',')})`);
+        maVaiTroArr.forEach((val, idx) => {
+          queryParams.push({
+            name: `MaVaiTro${idx}`,
+            type: sql.VarChar(50),
+            value: val,
+          });
+        });
+      }
+    }
   }
   if (donViID) {
     // Logic lọc theo đơn vị đã được đơn giản hóa để hoạt động với mô hình mới
@@ -304,7 +330,7 @@ const getDonViCongTacByNguoiDungID = async (nguoiDungID) => {
  * @returns {Promise<void>}
  */
 const updatePasswordByNguoiDungID = async (nguoiDungID, newMatKhauHash) => {
-  let query = `
+  const query = `
     UPDATE TaiKhoan
     SET MatKhauHash = @NewMatKhauHash
     WHERE NguoiDungID = @NguoiDungID;
@@ -625,7 +651,7 @@ const upsertOrDeleteThongTinSinhVien = async (
   if (typeof dataSV === 'object' && Object.keys(dataSV).length > 0) {
     // Kiểm tra xem đã có bản ghi ThongTinSinhVien cho NguoiDungID này chưa
     const checkQuery = `SELECT NguoiDungID FROM ThongTinSinhVien WHERE NguoiDungID = @NguoiDungIDCheck;`;
-    let requestCheck = transaction.request();
+    const requestCheck = transaction.request();
     requestCheck.input('NguoiDungIDCheck', sql.Int, nguoiDungID);
     const existingSV = await requestCheck.query(checkQuery);
 
@@ -673,7 +699,7 @@ const upsertOrDeleteThongTinSinhVien = async (
       }
       if (setClauses.length > 0) {
         const updateQuery = `UPDATE ThongTinSinhVien SET ${setClauses.join(', ')} WHERE NguoiDungID = @NguoiDungID;`;
-        let requestUpdate = transaction.request();
+        const requestUpdate = transaction.request();
         params.forEach((p) => requestUpdate.input(p.name, p.type, p.value));
         await requestUpdate.query(updateQuery);
       }
@@ -705,7 +731,7 @@ const upsertOrDeleteThongTinGiangVien = async (
   }
   if (typeof dataGV === 'object' && Object.keys(dataGV).length > 0) {
     const checkQuery = `SELECT NguoiDungID FROM ThongTinGiangVien WHERE NguoiDungID = @NguoiDungIDCheck;`;
-    let requestCheck = transaction.request();
+    const requestCheck = transaction.request();
     requestCheck.input('NguoiDungIDCheck', sql.Int, nguoiDungID);
     const existingGV = await requestCheck.query(checkQuery);
 
@@ -751,7 +777,7 @@ const upsertOrDeleteThongTinGiangVien = async (
 
       if (setClauses.length > 0) {
         const updateQuery = `UPDATE ThongTinGiangVien SET ${setClauses.join(', ')} WHERE NguoiDungID = @NguoiDungID;`;
-        let requestUpdate = transaction.request();
+        const requestUpdate = transaction.request();
         params.forEach((p) => requestUpdate.input(p.name, p.type, p.value));
         await requestUpdate.query(updateQuery);
       }
@@ -1128,7 +1154,7 @@ const findUsersForInvitation = async (params) => {
     limit = 15,
   } = params;
 
-  let selectFields = `
+  const selectFields = `
         SELECT TOP (@Limit)
             nd.NguoiDungID,
             nd.MaDinhDanh,
@@ -1148,7 +1174,7 @@ const findUsersForInvitation = async (params) => {
             END AS thongTinThem
     `;
 
-  let fromClauses = `
+  const fromClauses = `
         FROM NguoiDung nd
         LEFT JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID
         LEFT JOIN LopHoc lh ON tsv.LopID = lh.LopID
@@ -1159,7 +1185,7 @@ const findUsersForInvitation = async (params) => {
         LEFT JOIN DonVi dv_ct ON ndvt_ct.DonViID = dv_ct.DonViID
     `;
 
-  let whereClauses = [
+  const whereClauses = [
     'nd.IsActive = 1',
     // Loại trừ những người đã được mời cho sự kiện này
     'nd.NguoiDungID NOT IN (SELECT NguoiDuocMoiID FROM SK_MoiThamGia WHERE SuKienID = @SuKienID)',

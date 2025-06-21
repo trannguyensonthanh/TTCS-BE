@@ -7,7 +7,7 @@ import { lichSuDungPhongValidation } from './lichSuDungPhong.validation.js';
 
 const router = express.Router();
 
-router.use(authMiddleware.authenticateToken); // Tất cả người dùng đăng nhập đều có thể xem lịch
+router.use(authMiddleware.authenticateToken);
 
 /**
  * Lấy dữ liệu lịch sử sử dụng phòng theo các tiêu chí lọc.
@@ -29,5 +29,11 @@ router.get(
   lichSuDungPhongValidation.validateGetLichDatPhongTheoPhongParams, // Validate query params
   asyncHandler(lichSuDungPhongController.getLichDatPhongTheoPhongController)
 );
+
+// router.get(
+//   '/tong-quan-cong-khai',
+//   lichSuDungPhongValidation.validateGetPublicRoomUsageParams, // Sẽ tạo
+//   asyncHandler(lichSuDungPhongController.getPublicRoomUsageController)
+// );
 
 export default router;
