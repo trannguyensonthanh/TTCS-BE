@@ -1,3 +1,6 @@
+// File: src/modules/thongKe/thongKe.validation.js
+// Cấu trúc: Định nghĩa các schema validate cho các API thống kê sử dụng Joi
+
 import Joi from 'joi';
 import validate from '../../utils/validation.utils.js';
 
@@ -41,7 +44,7 @@ const thongKeDanhGiaParamsSchema = Joi.object({
 });
 
 /**
- * [MỚI] Schema validate params cho API thống kê sự kiện theo thời gian.
+ * Schema validate params cho API thống kê sự kiện theo thời gian.
  */
 const thongKeThoiGianParamsSchema = Joi.object({
   tuNgay: Joi.string().isoDate().required().messages({
@@ -60,7 +63,7 @@ const thongKeThoiGianParamsSchema = Joi.object({
 });
 
 /**
- * [MỚI] Schema validate params cho API lấy yêu cầu chờ xử lý.
+ * Schema validate params cho API lấy yêu cầu chờ xử lý.
  */
 const getYeuCauChoXuLyParamsSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(50).default(5),

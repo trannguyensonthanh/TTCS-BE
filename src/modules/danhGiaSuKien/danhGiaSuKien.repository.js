@@ -1,3 +1,6 @@
+// File: danhGiaSuKien.repository.js
+// Chứa các hàm thao tác với bảng DanhGiaSK (đánh giá sự kiện)
+
 import sql from 'mssql';
 import { executeQuery } from '../../utils/database.js';
 
@@ -13,7 +16,6 @@ const checkRatingEligibility = async (suKienID, nguoiDungID) => {
         SELECT 
             sk.SuKienID
         FROM SuKien sk
-        -- Kiểm tra sự tham gia dựa trên lời mời đã chấp nhận
         JOIN SK_MoiThamGia skm ON sk.SuKienID = skm.SuKienID
         JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
         WHERE 
@@ -147,10 +149,9 @@ const updateRating = async (danhGiaSkID, updateData) => {
   }
 
   if (setClauses.length === 0) {
-    return getRatingById(danhGiaSkID); // Nếu không có gì thay đổi, trả về bản ghi hiện tại
+    return getRatingById(danhGiaSkID);
   }
 
-  // Luôn cập nhật lại thời gian đánh giá khi có sự thay đổi
   setClauses.push('TgDanhGia = GETDATE()');
 
   const query = `

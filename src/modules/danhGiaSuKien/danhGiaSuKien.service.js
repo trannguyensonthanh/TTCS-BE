@@ -1,3 +1,6 @@
+// File: src/modules/danhGiaSuKien/danhGiaSuKien.service.js
+// Service xử lý logic đánh giá sự kiện
+
 import { suKienRepository } from '../suKien/suKien.repository.js';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import ApiError from '../../utils/ApiError.util.js';
@@ -16,7 +19,6 @@ const submitEventRating = async (payload, currentUser) => {
     payload;
   const nguoiDanhGiaID = currentUser.nguoiDungID;
 
-  // 1. Kiểm tra người dùng có đủ điều kiện để đánh giá không
   const eligibility = await danhGiaSuKienRepository.checkRatingEligibility(
     suKienID,
     nguoiDanhGiaID
@@ -28,7 +30,6 @@ const submitEventRating = async (payload, currentUser) => {
     );
   }
 
-  // 2. Kiểm tra xem đã đánh giá trước đó chưa
   const alreadyRated = await danhGiaSuKienRepository.checkIfRatingExists(
     suKienID,
     nguoiDanhGiaID
@@ -37,7 +38,6 @@ const submitEventRating = async (payload, currentUser) => {
     throw new ApiError(httpStatus.CONFLICT, 'Bạn đã đánh giá sự kiện này rồi.');
   }
 
-  // 3. Tạo bản ghi đánh giá mới
   const newRating = await danhGiaSuKienRepository.createRating({
     suKienID,
     nguoiDanhGiaID,
@@ -47,7 +47,6 @@ const submitEventRating = async (payload, currentUser) => {
     yKienDongGop,
   });
 
-  // 4. Map kết quả về đúng định dạng response
   return {
     danhGiaSkID: Number(newRating.DanhGiaSkID),
     suKienID: newRating.SuKienID,
@@ -60,7 +59,7 @@ const submitEventRating = async (payload, currentUser) => {
   };
 };
 
-const RATING_EDIT_TIMEFRAME_HOURS = 24; // Ví dụ: cho phép sửa trong 24 giờ
+const RATING_EDIT_TIMEFRAME_HOURS = 24; // Thời gian cho phép sửa/xóa đánh giá (giờ)
 
 /**
  * [MỚI] Cập nhật một đánh giá đã có.
@@ -70,14 +69,12 @@ const RATING_EDIT_TIMEFRAME_HOURS = 24; // Ví dụ: cho phép sửa trong 24 gi
  * @returns {Promise<DanhGiaSKResponse>}
  */
 const updateEventRating = async (danhGiaSkID, payload, currentUser) => {
-  // 1. Lấy đánh giá gốc từ DB
   const existingRating =
     await danhGiaSuKienRepository.getRatingById(danhGiaSkID);
   if (!existingRating) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Không tìm thấy đánh giá này.');
   }
 
-  // 2. Kiểm tra quyền sở hữu
   if (existingRating.NguoiDanhGiaID !== currentUser.nguoiDungID) {
     throw new ApiError(
       httpStatus.FORBIDDEN,
@@ -85,7 +82,6 @@ const updateEventRating = async (danhGiaSkID, payload, currentUser) => {
     );
   }
 
-  // 3. (Tùy chọn) Kiểm tra thời gian cho phép sửa
   const tgTaoDanhGia = new Date(existingRating.TgDanhGia);
   const tgHienTai = new Date();
   const thoiGianDaTroiMs = tgHienTai.getTime() - tgTaoDanhGia.getTime();
@@ -98,13 +94,11 @@ const updateEventRating = async (danhGiaSkID, payload, currentUser) => {
     );
   }
 
-  // 4. Cập nhật bản ghi
   const updatedRating = await danhGiaSuKienRepository.updateRating(
     danhGiaSkID,
     payload
   );
 
-  // 5. Map kết quả về đúng định dạng
   return {
     danhGiaSkID: Number(updatedRating.DanhGiaSkID),
     suKienID: updatedRating.SuKienID,
@@ -124,14 +118,12 @@ const updateEventRating = async (danhGiaSkID, payload, currentUser) => {
  * @returns {Promise<{message: string}>}
  */
 const deleteEventRating = async (danhGiaSkID, currentUser) => {
-  // 1. Lấy đánh giá gốc từ DB để kiểm tra
   const existingRating =
     await danhGiaSuKienRepository.getRatingById(danhGiaSkID);
   if (!existingRating) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Không tìm thấy đánh giá này.');
   }
 
-  // 2. Kiểm tra quyền sở hữu
   if (existingRating.NguoiDanhGiaID !== currentUser.nguoiDungID) {
     throw new ApiError(
       httpStatus.FORBIDDEN,
@@ -139,24 +131,9 @@ const deleteEventRating = async (danhGiaSkID, currentUser) => {
     );
   }
 
-  // 3. (Tùy chọn) Kiểm tra thời gian cho phép xóa, tương tự như khi sửa
-  // const tgTaoDanhGia = new Date(existingRating.TgDanhGia);
-  // const tgHienTai = new Date();
-  // const thoiGianDaTroiMs = tgHienTai.getTime() - tgTaoDanhGia.getTime();
-  // const thoiGianDaTroiH = thoiGianDaTroiMs / (1000 * 60 * 60);
-  //
-  // if (thoiGianDaTroiH > RATING_EDIT_TIMEFRAME_HOURS) {
-  //   throw new ApiError(
-  //     httpStatus.FORBIDDEN,
-  //     `Bạn chỉ có thể xóa đánh giá trong vòng ${RATING_EDIT_TIMEFRAME_HOURS} giờ sau khi gửi.`
-  //   );
-  // }
-
-  // 4. Thực hiện xóa
   const rowsAffected =
     await danhGiaSuKienRepository.deleteRatingById(danhGiaSkID);
   if (rowsAffected === 0) {
-    // Trường hợp hiếm, có thể do race condition
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Xóa đánh giá thất bại.'

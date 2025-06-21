@@ -1,6 +1,12 @@
+// loiMoiSuKien.validation.js
+// Cấu trúc file: Định nghĩa các schema validation cho lời mời sự kiện và export các hàm validate
+
 import Joi from 'joi';
 import validate from '../../utils/validation.utils.js';
 
+/**
+ * Schema validate tham số truy vấn lấy danh sách lời mời của tôi
+ */
 const getMyInvitationsParamsSchema = Joi.object({
   trangThaiPhanHoi: Joi.string()
     .valid('CHUA_PHAN_HOI', 'DA_CHAP_NHAN', 'DA_TU_CHOI', 'ALL')
@@ -12,6 +18,9 @@ const getMyInvitationsParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('asc'),
 });
 
+/**
+ * Schema validate payload phản hồi lời mời
+ */
 const respondToInvitationPayloadSchema = Joi.object({
   chapNhan: Joi.boolean().required().messages({
     'any.required': 'Trạng thái chấp nhận là bắt buộc.',
@@ -21,12 +30,14 @@ const respondToInvitationPayloadSchema = Joi.object({
     .allow('', null)
     .when('chapNhan', {
       is: false,
-      // Có thể để là optional hoặc required tùy yêu cầu nghiệp vụ
       then: Joi.string().allow('', null),
       otherwise: Joi.forbidden(),
     }),
 });
 
+/**
+ * Schema validate tham số id lời mời
+ */
 const moiThamGiaIdParamSchema = Joi.object({
   moiThamGiaID: Joi.number().integer().positive().required().messages({
     'any.required': 'ID Lời mời là bắt buộc.',

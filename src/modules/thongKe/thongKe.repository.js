@@ -1,3 +1,6 @@
+// File: src/modules/thongKe/thongKe.repository.js
+// Chứa các hàm truy vấn thống kê cho module Thống Kê
+
 import sql from 'mssql';
 import { executeQuery } from '../../utils/database.js';
 
@@ -27,14 +30,9 @@ const getKpiData = async (params) => {
 
   const query = `
         SELECT
-            -- Chỉ số cơ bản
             COUNT(DISTINCT sk.SuKienID) AS TongSuKien,
-            
             SUM(CASE WHEN sk.TgBatDauDK > GETDATE() AND ttsk.MaTrangThai NOT IN ('DA_HUY', 'HOAN_THANH') THEN 1 ELSE 0 END) AS SuKienSapToi,
-            
             SUM(ISNULL(sk.SlThamDuDK, 0)) AS TongLuotThamGiaDuKien,
-            
-            -- Chỉ số về đánh giá
             COUNT(dg.DanhGiaSkID) AS SoLuotDanhGia,
             AVG(CAST(dg.DiemNoiDung AS FLOAT)) AS DiemNoiDungTrungBinh,
             AVG(CAST(dg.DiemToChuc AS FLOAT)) AS DiemToChucTrungBinh,
@@ -102,18 +100,15 @@ const getStatsOverTime = async (params) => {
   let timeGroup;
   switch (donViThoiGian) {
     case 'TUAN':
-      // Lấy năm và số tuần trong năm
       timeFormat = `CONCAT(YEAR(sk.TgBatDauDK), '-W', FORMAT(DATEPART(iso_week, sk.TgBatDauDK), '00'))`;
       timeGroup = `YEAR(sk.TgBatDauDK), DATEPART(iso_week, sk.TgBatDauDK)`;
       break;
     case 'QUY':
-      // Lấy năm và quý
       timeFormat = `CONCAT(YEAR(sk.TgBatDauDK), '-Q', DATEPART(quarter, sk.TgBatDauDK))`;
       timeGroup = `YEAR(sk.TgBatDauDK), DATEPART(quarter, sk.TgBatDauDK)`;
       break;
     case 'THANG':
     default:
-      // Lấy năm và tháng
       timeFormat = `FORMAT(sk.TgBatDauDK, 'yyyy-MM')`;
       timeGroup = `FORMAT(sk.TgBatDauDK, 'yyyy-MM')`;
       break;
@@ -123,7 +118,6 @@ const getStatsOverTime = async (params) => {
     ' WHERE sk.TgBatDauDK >= @TuNgay AND sk.TgBatDauDK < @DenNgayNextDay ';
   const queryParams = [
     { name: 'TuNgay', type: sql.Date, value: tuNgay },
-    // Thêm 1 ngày vào denNgay để bao gồm cả ngày cuối cùng trong khoảng
     {
       name: 'DenNgayNextDay',
       type: sql.Date,
@@ -215,7 +209,6 @@ const getEventRatingStats = async (params) => {
   } = params;
 
   let diemField;
-  // Xác định cột điểm hoặc công thức tính điểm sẽ được dùng để GROUP BY
   switch (tieuChiDiem) {
     case 'NOI_DUNG':
       diemField = 'dg.DiemNoiDung';
@@ -228,7 +221,6 @@ const getEventRatingStats = async (params) => {
       break;
     case 'TONG_QUAT':
     default:
-      // Tính điểm trung bình tổng quát và làm tròn về số nguyên gần nhất
       diemField =
         'ROUND((CAST(dg.DiemNoiDung AS FLOAT) + CAST(dg.DiemToChuc AS FLOAT) + CAST(dg.DiemDiaDiem AS FLOAT)) / 3, 0)';
       break;
@@ -291,7 +283,6 @@ const getEventRatingStats = async (params) => {
 const getFacilityKpiData = async (params) => {
   const { toaNhaID, coSoID, ngayHienTai } = params;
 
-  // --- Xây dựng các điều kiện WHERE dùng chung ---
   let phongFilterClause = ' WHERE 1=1 ';
   const phongFilterParams = [];
   if (toaNhaID) {
@@ -307,7 +298,6 @@ const getFacilityKpiData = async (params) => {
     phongFilterParams.push({ name: 'CoSoID', type: sql.Int, value: coSoID });
   }
 
-  // --- Query 1: Thống kê trạng thái phòng ---
   const phongStatsQuery = `
         SELECT
             COUNT(p.PhongID) AS TongSoPhong,
@@ -321,7 +311,6 @@ const getFacilityKpiData = async (params) => {
         ${phongFilterClause};
     `;
 
-  // --- Query 2: Đếm số phòng đang sử dụng vào ngày cụ thể ---
   const phongDangSuDungQuery = `
         SELECT COUNT(DISTINCT p.PhongID) AS PhongDangSuDung
         FROM Phong p
@@ -336,21 +325,18 @@ const getFacilityKpiData = async (params) => {
     { name: 'NgayHienTai', type: sql.Date, value: ngayHienTai },
   ];
 
-  // --- Query 3: Thống kê thiết bị ---
   const thietBiStatsQuery = `
         SELECT
             SUM(ptb.SoLuong) AS TongSoThietBi,
             SUM(CASE WHEN ptb.TinhTrang LIKE N'%Tốt%' THEN ptb.SoLuong ELSE 0 END) AS ThietBiTot,
             SUM(CASE WHEN ptb.TinhTrang NOT LIKE N'%Tốt%' AND ptb.TinhTrang IS NOT NULL THEN ptb.SoLuong ELSE 0 END) AS ThietBiCanBaoTri
         FROM Phong_ThietBi ptb
-        -- Join với phòng để lọc theo tòa nhà/cơ sở nếu cần
         JOIN Phong p ON ptb.PhongID = p.PhongID
         LEFT JOIN ToaNha_Tang tnt ON p.ToaNhaTangID = tnt.ToaNhaTangID
         LEFT JOIN ToaNha tn ON tnt.ToaNhaID = tn.ToaNhaID
         ${phongFilterClause};
     `;
 
-  // --- Query 4 & 5: Đếm các yêu cầu đang chờ ---
   const yeuCauMuonPhongQuery = `
         SELECT COUNT(*) AS YeuCauMuonPhongChoDuyet
         FROM YeuCauMuonPhong yc
@@ -364,7 +350,6 @@ const getFacilityKpiData = async (params) => {
         WHERE tt_ycdp.MaTrangThai = 'CHO_DUYET_DOI_PHONG';
     `;
 
-  // Thực thi tất cả các query song song
   const [
     phongStatsResult,
     phongDangSuDungResult,
@@ -512,7 +497,6 @@ const getEquipmentStatusStats = async (params) => {
   let whereClause = " WHERE ptb.TinhTrang IS NOT NULL AND ptb.TinhTrang != '' ";
   const queryParams = [];
 
-  // Tạo các JOIN cần thiết nếu có filter
   let fromClause = `
         FROM Phong_ThietBi ptb
     `;

@@ -1,3 +1,6 @@
+// File: danhGiaSuKien.controller.js
+// Controller cho các API đánh giá sự kiện
+
 import { danhGiaSuKienService } from './danhGiaSuKien.service.js';
 import {
   createdResponse,
@@ -5,6 +8,9 @@ import {
   okResponse,
 } from '../../utils/response.util.js';
 
+/**
+ * Gửi đánh giá sự kiện
+ */
 const submitEventRatingController = async (req, res) => {
   const payload = req.body;
   const currentUser = req.user;
@@ -15,6 +21,9 @@ const submitEventRatingController = async (req, res) => {
   createdResponse(res, result, 'Gửi đánh giá thành công.');
 };
 
+/**
+ * Cập nhật đánh giá sự kiện
+ */
 const updateEventRatingController = async (req, res) => {
   const { danhGiaSkID } = req.params;
   const payload = req.body;
@@ -27,6 +36,9 @@ const updateEventRatingController = async (req, res) => {
   okResponse(res, result, 'Cập nhật đánh giá thành công.');
 };
 
+/**
+ * Xóa đánh giá sự kiện
+ */
 const deleteEventRatingController = async (req, res) => {
   const { danhGiaSkID } = req.params;
   const currentUser = req.user;
@@ -34,7 +46,7 @@ const deleteEventRatingController = async (req, res) => {
     parseInt(danhGiaSkID, 10),
     currentUser
   );
-  noContentResponse(res); // Trả về 204 No Content
+  noContentResponse(res);
 };
 
 export const danhGiaSuKienController = {

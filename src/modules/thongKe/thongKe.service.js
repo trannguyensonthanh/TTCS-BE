@@ -1,3 +1,6 @@
+// File: src/modules/thongKe/thongKe.service.js
+// Chứa các service thống kê cho dashboard và quản trị
+
 import httpStatus from '../../constants/httpStatus.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import ApiError from '../../utils/ApiError.util.js';
@@ -28,7 +31,7 @@ const getSuKienKpi = async (params) => {
     tongSuKien: kpiData.TongSuKien || 0,
     suKienSapToi: kpiData.SuKienSapToi || 0,
     tongLuotThamGiaDuKien: kpiData.TongLuotThamGiaDuKien || 0,
-    tongLuotThamGiaThucTe: null, // Sẽ bổ sung khi có dữ liệu điểm danh
+    tongLuotThamGiaThucTe: null,
     trungBinhNguoiThamGiaMoiSuKien:
       kpiData.TongSuKien > 0
         ? parseFloat(
@@ -64,17 +67,17 @@ const getThongKeSuKienTheoLoai = async (params) => {
         : 0,
   }));
 };
+
 /**
  * [MỚI] Lấy dữ liệu thống kê sự kiện và người tham gia theo thời gian.
  */
 const getThongKeSuKienTheoThoiGian = async (params) => {
   const stats = await thongKeRepository.getStatsOverTime(params);
-  // Repository đã định dạng sẵn, chỉ cần trả về
   return stats.map((item) => ({
     thoiGian: item.ThoiGian,
     soLuongSuKien: item.SoLuongSuKien,
     soNguoiThamGiaDuKien: item.SoNguoiThamGiaDuKien,
-    soNguoiThamGiaThucTe: null, // Sẽ bổ sung khi có dữ liệu điểm danh
+    soNguoiThamGiaThucTe: null,
   }));
 };
 
@@ -132,7 +135,6 @@ const getYeuCauChoXuLy = async (params, currentUser) => {
   const results = await Promise.all(promises);
   const combinedList = [];
 
-  // Duyệt sự kiện chờ
   if (results[0]) {
     combinedList.push(
       ...results[0].map((item) => ({
@@ -148,20 +150,18 @@ const getYeuCauChoXuLy = async (params, currentUser) => {
       }))
     );
   }
-  // Duyệt hủy sự kiện
   if (results[1]) {
     combinedList.push(
       ...results[1].map((item) => ({
         idYeuCau: `YCHS_${item.YcHuySkID}`,
         loaiYeuCau: 'DUYET_HUY_SU_KIEN',
         tenYeuCau: `Duyệt hủy sự kiện: ${item.TenSK}`,
-        nguoiGuiYeuCau: { hoTen: item.HoTenNguoiYeuCau, donVi: null }, // Cần join thêm để có đơn vị người yêu cầu
+        nguoiGuiYeuCau: { hoTen: item.HoTenNguoiYeuCau, donVi: null },
         ngayGuiYeuCau: item.NgayYeuCauHuy.toISOString(),
         duongDanChiTiet: `/admin/yeu-cau-huy-cho-duyet/${item.YcHuySkID}`,
       }))
     );
   }
-  // Duyệt mượn phòng
   if (results[2]) {
     combinedList.push(
       ...results[2].map((item) => ({
@@ -174,7 +174,6 @@ const getYeuCauChoXuLy = async (params, currentUser) => {
       }))
     );
   }
-  // Duyệt đổi phòng
   if (results[3]) {
     combinedList.push(
       ...results[3].map((item) => ({
@@ -188,7 +187,6 @@ const getYeuCauChoXuLy = async (params, currentUser) => {
     );
   }
 
-  // Sắp xếp lại theo ngày gửi gần nhất và cắt theo limit
   combinedList.sort(
     (a, b) => new Date(b.ngayGuiYeuCau) - new Date(a.ngayGuiYeuCau)
   );
@@ -230,7 +228,6 @@ const getThongKeDanhGiaSuKien = async (params) => {
  * [MỚI] Lấy dữ liệu cho các thẻ KPI CSVC.
  */
 const getCsVcKpi = async (params) => {
-  // Đặt ngày mặc định là hôm nay nếu không được cung cấp
   if (!params.ngayHienTai) {
     [params.ngayHienTai] = new Date().toISOString().split('T');
   }
@@ -239,7 +236,6 @@ const getCsVcKpi = async (params) => {
 
   const tongSoPhong = kpiData.phongStats.TongSoPhong || 0;
   const phongDangSuDung = kpiData.phongDangSuDung || 0;
-  // Phòng có thể sử dụng = Tổng - Ngưng sử dụng
   const tongSoPhongCoTheSuDung =
     tongSoPhong - (kpiData.phongStats.PhongNgungSuDung || 0);
 
@@ -305,8 +301,6 @@ const getThongKeThietBi = async (params) => {
   }
 
   if (loaiThongKe === 'SU_DUNG_NHIEU') {
-    // Logic cho thống kê sử dụng nhiều chưa được hỗ trợ do cấu trúc DB.
-    // Trả về mảng rỗng hoặc thông báo.
     logger.warn('Thống kê thiết bị theo "SU_DUNG_NHIEU" chưa được hỗ trợ.');
     return [];
   }

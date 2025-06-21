@@ -8,7 +8,7 @@ const thuHoiLoiMoiController = async (req, res) => {
   const { moiThamGiaID } = req.params;
   const currentUser = req.user;
 
-  await suKienService.thuHoiLoiMoi(parseInt(moiThamGiaID), currentUser);
+  await suKienService.thuHoiLoiMoi(parseInt(moiThamGiaID, 10), currentUser);
   noContentResponse(res, 'Đã thu hồi lời mời thành công.');
 };
 
