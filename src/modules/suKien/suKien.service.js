@@ -1,4 +1,6 @@
 // src/modules/suKien/suKien.service.js
+import sql from 'mssql';
+import { format } from 'morgan';
 import { suKienRepository } from './suKien.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
@@ -10,7 +12,6 @@ import LoaiThongBao from '../../enums/loaiThongBao.enum.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
 import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
-import sql from 'mssql';
 import { nguoiDungRepository } from '../nguoiDung/nguoiDung.repository.js';
 import emailService from '../../services/email.service.js';
 /**
@@ -22,8 +23,8 @@ const getSuKienList = async (params) => {
   const { items, totalItems } =
     await suKienRepository.getSuKienListWithPagination(params);
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -145,8 +146,8 @@ const getPublicSuKienList = async (params) => {
   const { items, totalItems } =
     await suKienRepository.getPublicSuKienListWithPagination(params);
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 9;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 9;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -230,7 +231,7 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
 
   const suKienPayloadForDB = {
     ...suKienDataToCreate,
-    nguoiTaoID: nguoiTaoID,
+    nguoiTaoID,
     trangThaiSkID: trangThaiBanDauID,
     isCongKhaiNoiBo:
       suKienDataToCreate.isCongKhaiNoiBo !== undefined
@@ -421,12 +422,12 @@ const updateSuKienService = async (suKienID, updateBody, nguoiThucHien) => {
         MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO
     ) {
       shouldNotifyBGH = true;
-      const trangThaiChoDuyetBGH_ID =
+      const trangThaiChoDuyetBGHID =
         await suKienRepository.getTrangThaiSkIDByMa(
           MaTrangThaiSK.CHO_DUYET_BGH,
           transaction
         );
-      if (!trangThaiChoDuyetBGH_ID)
+      if (!trangThaiChoDuyetBGHID)
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           'Lỗi cấu hình trạng thái.'
@@ -434,7 +435,7 @@ const updateSuKienService = async (suKienID, updateBody, nguoiThucHien) => {
 
       await suKienRepository.updateSuKienTrangThai(
         suKienID,
-        trangThaiChoDuyetBGH_ID,
+        trangThaiChoDuyetBGHID,
         transaction
       );
       logger.info(
@@ -632,7 +633,7 @@ const tuChoiSuKienByBGH = async (suKienID, payload, nguoiDuyet) => {
  * @returns {Promise<Array<SuKienForSelectResponse>>} Danh sách sự kiện phù hợp
  */
 const getSuKiensForYeuCauPhongSelect = async (params, currentUser) => {
-  let queryParams = { ...params };
+  const queryParams = { ...params };
   const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(
     currentUser.nguoiDungID
   );
@@ -649,8 +650,8 @@ const getSuKiensForYeuCauPhongSelect = async (params, currentUser) => {
 
   const { items, totalItems } =
     await suKienRepository.getSuKienForYeuCauPhongSelect(queryParams);
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 20;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 20;
   const totalPages = Math.ceil(totalItems / limit);
 
   return items;
@@ -851,8 +852,8 @@ const getSuKienCoTheMoi = async (params) => {
     slThamDuDK: item.SlThamDuDK,
   }));
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -975,7 +976,7 @@ const guiLoiMoiThamGia = async (suKienID, payload, nguoiGui) => {
     const successCount = results.filter((r) => r.status === 'success').length;
     return {
       message: `Đã gửi lời mời thành công cho ${successCount}/${payload.length} người.`,
-      results: results,
+      results,
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -1020,8 +1021,8 @@ const getDanhSachMoi = async (suKienID, params) => {
     ghiChuMoi: item.GhiChuMoi,
   }));
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -1050,7 +1051,7 @@ const thuHoiLoiMoi = async (moiThamGiaID, currentUser) => {
   // Logic kiểm tra quyền hạn (ví dụ)
   // Cho phép Admin hoặc người tạo sự kiện gốc thu hồi.
   // Có thể mở rộng cho người trong đơn vị chủ trì, ...
-  const userRoles = await authRepository.getVaiTroByNguoiDungID(
+  const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(
     currentUser.nguoiDungID
   );
   const isAdmin = userRoles.some(
@@ -1178,7 +1179,7 @@ const guiLoiMoiHangLoat = async (suKienID, payload, nguoiGui) => {
       .filter((id) => !alreadyInvitedIds.has(id)) // Lọc những người chưa được mời
       .map((id) => ({
         nguoiDuocMoiID: id,
-        vaiTroDuKienSK: vaiTroDuKienSK,
+        vaiTroDuKienSK,
         ghiChuMoi: ghiChuMoiChung,
       }));
 
@@ -1255,20 +1256,18 @@ const guiLoiMoiHangLoat = async (suKienID, payload, nguoiGui) => {
             )
           );
       }
-    } else {
-      await transaction.commit(); // Commit nếu không có gì để tạo
+      return {
+        message: `Đã gửi lời mời thành công cho ${createdRecords.length} người.`,
+        soLuongMoiThanhCong: createdRecords.length,
+        soLuongMoiLoi: targetUserIds.length - createdRecords.length,
+        chiTietLoi: targetUserIds
+          .filter(
+            (id) => !invitationsToCreate.some((i) => i.nguoiDuocMoiID === id)
+          )
+          .map((id) => ({ nguoiDungID: id, lyDo: 'Đã được mời trước đó.' })),
+      };
     }
-
-    return {
-      message: `Đã gửi lời mời thành công cho ${createdRecords.length} người.`,
-      soLuongMoiThanhCong: createdRecords.length,
-      soLuongMoiLoi: targetUserIds.length - createdRecords.length,
-      chiTietLoi: targetUserIds
-        .filter(
-          (id) => !invitationsToCreate.some((i) => i.nguoiDuocMoiID === id)
-        )
-        .map((id) => ({ nguoiDungID: id, lyDo: 'Đã được mời trước đó.' })),
-    };
+    await transaction.commit(); // Commit nếu không có gì để tạo
   } catch (error) {
     if (transaction) await transaction.rollback();
     throw new ApiError(
@@ -1314,8 +1313,8 @@ const getMyInvitations = async (nguoiDungID, params) => {
       : null,
   }));
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {

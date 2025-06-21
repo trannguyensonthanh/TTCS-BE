@@ -1,6 +1,6 @@
 // src/modules/vaiTroHeThong/vaiTroHeThong.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 
 const SELECT_VAITRO_FIELDS = `
     vt.VaiTroID, vt.MaVaiTro, vt.TenVaiTro, vt.MoTaVT
@@ -26,9 +26,9 @@ const getVaiTroHeThongForSelectRecords = async (params) => {
   let whereClause = '';
 
   if (searchTerm) {
-    whereClause +=
-      (whereClause ? ' AND ' : ' WHERE ') +
-      `(TenVaiTro LIKE @SearchTerm OR MaVaiTro LIKE @SearchTerm)`;
+    whereClause += `${
+      whereClause ? ' AND ' : ' WHERE '
+    }(TenVaiTro LIKE @SearchTerm OR MaVaiTro LIKE @SearchTerm)`;
     queryParams.push({
       name: 'SearchTerm',
       type: sql.NVarChar,
@@ -138,9 +138,14 @@ const getVaiTroHeThongById = async (vaiTroId, transaction = null) => {
  * Lấy vai trò hệ thống theo mã (dùng để kiểm tra trùng mã).
  * @param {string} maVaiTro - Mã vai trò.
  * @param {number|null} [excludeVaiTroID] - ID vai trò loại trừ (tùy chọn).
+ * @param {sql.Transaction} [transaction=null] - Transaction SQL (tùy chọn).
  * @returns {Promise<Object|null>} Đối tượng vai trò hoặc null nếu không tồn tại.
  */
-const getVaiTroHeThongByMa = async (maVaiTro, excludeVaiTroID = null) => {
+const getVaiTroHeThongByMa = async (
+  maVaiTro,
+  excludeVaiTroID = null,
+  transaction = null
+) => {
   let query = `SELECT VaiTroID, MaVaiTro FROM VaiTroHeThong WHERE MaVaiTro = @MaVaiTro`;
   const params = [{ name: 'MaVaiTro', type: sql.VarChar(50), value: maVaiTro }];
   if (excludeVaiTroID) {
@@ -151,7 +156,13 @@ const getVaiTroHeThongByMa = async (maVaiTro, excludeVaiTroID = null) => {
       value: excludeVaiTroID,
     });
   }
-  const result = await executeQuery(query, params);
+
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+
+  const result = await request.query(query);
   return result.recordset.length > 0 ? result.recordset[0] : null;
 };
 

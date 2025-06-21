@@ -5,6 +5,7 @@ import asyncHandler from '../../utils/asyncHandler.util.js';
 import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import { nguoiDungValidation } from './nguoiDung.validation.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js'; // Enum cho vai trò người dùng
+
 const router = express.Router();
 router.use(authMiddleware.authenticateToken);
 

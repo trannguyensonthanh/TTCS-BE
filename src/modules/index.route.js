@@ -18,6 +18,7 @@ import vaiTroHeThongRoutes from './vaiTroHeThong/vaiTroHeThong.route.js';
 import moiThamGiaRoutes from './moiThamGia/moiThamGia.route.js';
 import loiMoiSuKienRoutes from './loiMoiSuKien/loiMoiSuKien.route.js';
 import danhGiaSuKienRoutes from './danhGiaSuKien/danhGiaSuKien.route.js';
+import thongKeRoutes from './thongKe/thongKe.route.js';
 
 const router = express.Router();
 
@@ -50,6 +51,7 @@ const defaultRoutes = [
     route: loiMoiSuKienRoutes,
   },
   { path: '/danh-gia-su-kien', route: danhGiaSuKienRoutes },
+  { path: '/thong-ke', route: thongKeRoutes },
 ];
 
 defaultRoutes.forEach((route) => {

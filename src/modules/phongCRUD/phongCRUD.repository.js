@@ -6,7 +6,7 @@ import { suKienRepository } from '../suKien/suKien.repository.js';
 const SELECT_PHONG_FIELDS_FOR_LIST = `
     p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, p.SoThuTuPhong, p.AnhMinhHoa,
     lp.LoaiPhongID AS Phong_LoaiPhongID, lp.TenLoaiPhong AS Phong_TenLoaiPhong,
-    ttp.TrangThaiPhongID AS Phong_TrangThaiPhongID, ttp.TenTrangThai AS Phong_TenTrangThaiPhong,
+    ttp.TrangThaiPhongID AS Phong_TrangThaiPhongID, ttp.TenTrangThai AS Phong_TenTrangThaiPhong, ttp.MoTa AS Phong_MoTaTrangThaiPhong,
     tnt.ToaNhaTangID AS Phong_ToaNhaTangID,
     tn.ToaNhaID AS Phong_ToaNhaID, tn.TenToaNha AS Phong_TenToaNha, tn.MaToaNha AS Phong_MaToaNha,
     lt.LoaiTangID AS Phong_LoaiTangID, lt.TenLoaiTang AS Phong_TenLoaiTang, lt.MaLoaiTang AS Phong_MaLoaiTang,
@@ -29,6 +29,7 @@ const FROM_JOIN_PHONG_FOR_LIST = `
  * @param {string} [params.searchTerm] - Từ khóa tìm kiếm
  * @param {number} [params.loaiPhongID] - Lọc theo loại phòng
  * @param {number} [params.trangThaiPhongID] - Lọc theo trạng thái phòng
+ * @param {string} [params.trangThaiPhongMa] - Lọc theo mã trạng thái phòng
  * @param {number} [params.toaNhaID] - Lọc theo tòa nhà
  * @param {number} [params.toaNhaTangID] - Lọc theo tầng
  * @param {number} [params.sucChuaTu] - Sức chứa từ
@@ -44,6 +45,7 @@ const getPhongListWithPagination = async (params) => {
     searchTerm,
     loaiPhongID,
     trangThaiPhongID,
+    trangThaiPhongMa, // thêm tham số mã trạng thái phòng
     toaNhaID,
     toaNhaTangID,
     sucChuaTu,
@@ -79,6 +81,14 @@ const getPhongListWithPagination = async (params) => {
       name: 'TrangThaiPhongID',
       type: sql.Int,
       value: trangThaiPhongID,
+    });
+  }
+  if (trangThaiPhongMa) {
+    whereClause += ` AND ttp.MaTrangThai = @TrangThaiPhongMa `;
+    queryParams.push({
+      name: 'TrangThaiPhongMa',
+      type: sql.VarChar(50),
+      value: trangThaiPhongMa,
     });
   }
   if (toaNhaID) {
@@ -139,6 +149,7 @@ const getPhongListWithPagination = async (params) => {
     trangThaiPhong: {
       trangThaiPhongID: row.Phong_TrangThaiPhongID,
       tenTrangThai: row.Phong_TenTrangThaiPhong,
+      moTa: row.Phong_MoTaTrangThaiPhong,
     },
     toaNhaTang: row.Phong_ToaNhaTangID
       ? {

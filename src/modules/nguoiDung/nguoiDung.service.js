@@ -1,4 +1,5 @@
 // src/modules/nguoiDung/nguoiDung.service.js
+import sql from 'mssql'; // Sử dụng mssql để quản lý transaction
 import { nguoiDungRepository } from './nguoiDung.repository.js';
 import { authRepository } from '../auth/auth.repository.js'; // Để lấy vai trò chức năng
 import { hashPassword, comparePassword } from '../../utils/password.util.js';
@@ -10,7 +11,6 @@ import { vaiTroHeThongRepository } from '../vaiTroHeThong/vaiTroHeThong.reposito
 import { donViRepository } from '../donVi/donVi.repository.js';
 import { lopHocRepository } from '../lopHoc/lopHoc.repository.js';
 import { getPool } from '../../utils/database.js';
-import sql from 'mssql'; // Sử dụng mssql để quản lý transaction
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 
 /**
@@ -91,8 +91,8 @@ const getNguoiDungList = async (params) => {
     })
   );
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -161,8 +161,8 @@ const getMyProfile = async (nguoiDungID) => {
     nguoiDung: nguoiDungFullResponse,
     thongTinSinhVien: thongTinSV,
     thongTinGiangVien: thongTinGV,
-    vaiTroChucNang: vaiTroChucNang,
-    taiKhoan: taiKhoan,
+    vaiTroChucNang,
+    taiKhoan,
   };
 };
 
@@ -342,6 +342,7 @@ const createNguoiDungByAdmin = async (payload) => {
       // Gán vai trò THANH_VIEN_DON_VI cho cả Giảng viên và Nhân viên khác
       const thanhVienRole = await vaiTroHeThongRepository.getVaiTroHeThongByMa(
         MaVaiTro.THANH_VIEN_DON_VI,
+        null,
         transaction
       );
       if (!thanhVienRole)
@@ -498,7 +499,9 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
 
     // 4. Xử lý logic thay đổi loại người dùng và vai trò thành viên
     // (Đây là phần phức tạp nhất)
-    if (updatePayload.hasOwnProperty('thongTinSinhVien')) {
+    if (
+      Object.prototype.hasOwnProperty.call(updatePayload, 'thongTinSinhVien')
+    ) {
       await nguoiDungRepository.upsertOrDeleteThongTinSinhVien(
         nguoiDungId,
         thongTinSinhVien,
@@ -515,6 +518,7 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
         const thanhVienRole =
           await vaiTroHeThongRepository.getVaiTroHeThongByMa(
             MaVaiTro.THANH_VIEN_DON_VI,
+            null,
             transaction
           );
         if (thanhVienRole) {
@@ -526,7 +530,7 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
         }
       }
     }
-    if (updatePayload.hasOwnProperty('thongTinGiangVien')) {
+    if (Object.hasOwnProperty.call(updatePayload, 'thongTinGiangVien')) {
       // Bước 1: Upsert/delete thông tin chuyên môn (học vị, học hàm...)
       await nguoiDungRepository.upsertOrDeleteThongTinGiangVien(
         nguoiDungId,
@@ -537,6 +541,7 @@ const updateNguoiDungByAdmin = async (nguoiDungId, updatePayload) => {
       // Bước 2: Xóa vai trò thành viên cũ
       const thanhVienRole = await vaiTroHeThongRepository.getVaiTroHeThongByMa(
         MaVaiTro.THANH_VIEN_DON_VI,
+        null,
         transaction
       );
       if (!thanhVienRole)
@@ -868,12 +873,16 @@ const updateAssignedFunctionalRole = async (ganVaiTroID, payload) => {
   const ngayBatDauToSave = ngayBatDau
     ? new Date(ngayBatDau)
     : currentAssignment.NgayBatDau;
-  const ngayKetThucToSave =
-    ngayKetThuc !== undefined
-      ? ngayKetThuc
-        ? new Date(ngayKetThuc)
-        : null
-      : currentAssignment.NgayKetThuc;
+  let ngayKetThucToSave;
+  if (ngayKetThuc !== undefined) {
+    if (ngayKetThuc) {
+      ngayKetThucToSave = new Date(ngayKetThuc);
+    } else {
+      ngayKetThucToSave = null;
+    }
+  } else {
+    ngayKetThucToSave = currentAssignment.NgayKetThuc;
+  }
 
   if (
     ngayKetThucToSave &&
@@ -1031,7 +1040,7 @@ const importUsersBatch = async (usersToImport) => {
   const pool = await getPool();
 
   for (const userRow of usersToImport) {
-    totalProcessed++;
+    totalProcessed += 1;
     const transaction = new sql.Transaction(pool);
     try {
       await transaction.begin();
@@ -1154,6 +1163,7 @@ const importUsersBatch = async (usersToImport) => {
         const thanhVienRole =
           await vaiTroHeThongRepository.getVaiTroHeThongByMa(
             MaVaiTro.THANH_VIEN_DON_VI,
+            null, // Không cần VaiTroID vì đang lấy theo MaVaiTro
             transaction
           );
         if (!thanhVienRole)
@@ -1178,7 +1188,7 @@ const importUsersBatch = async (usersToImport) => {
         `User imported successfully: ${userRow.email} (NguoiDungID: ${nguoiDungID})`
       );
       results.push({ email: userRow.email, status: 'success', nguoiDungID });
-      totalSuccess++;
+      totalSuccess += 1;
     } catch (error) {
       logger.error(`Error importing user ${userRow.email}:`, error.message);
       if (transaction) {
@@ -1197,7 +1207,7 @@ const importUsersBatch = async (usersToImport) => {
         status: 'error',
         message: error.message,
       });
-      totalError++;
+      totalError += 1;
     }
   }
 
@@ -1227,7 +1237,6 @@ const deleteNguoiDungByID = async (nguoiDungID) => {
         'Không tìm thấy người dùng để xóa.'
       );
     }
-    return;
   } catch (err) {
     if (err.message && err.message.startsWith('Không thể xóa người dùng')) {
       throw new ApiError(httpStatus.BAD_REQUEST, err.message);

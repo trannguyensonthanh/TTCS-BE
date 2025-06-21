@@ -1,6 +1,6 @@
 // src/modules/yeuCauMuonPhong/yeuCauMuonPhong.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js'; // Nếu cần lọc sự kiện theo trạng thái
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
@@ -23,7 +23,7 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
     sortOrder = 'DESC',
   } = params;
 
-  let querySelect = `
+  const querySelect = `
     SELECT DISTINCT
         yc.YcMuonPhongID,
         yc.NgayYeuCau,
@@ -48,7 +48,7 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
          WHERE yct_count_xep.YcMuonPhongID = yc.YcMuonPhongID
         ) AS SoLuongChiTietDaXepPhong
   `;
-  let queryFrom = `
+  const queryFrom = `
     FROM YeuCauMuonPhong yc
     JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
     JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
@@ -1075,6 +1075,37 @@ const getAllChiTietByHeaderID = async (ycMuonPhongID, transaction) => {
   return result.recordset;
 };
 
+/**
+ * [MỚI] Lấy các yêu cầu mượn phòng đang chờ CSVC xử lý cho dashboard.
+ * @param {number} limit - Giới hạn số lượng.
+ * @returns {Promise<Array<object>>}
+ */
+const getPendingRoomRequestsForDashboard = async (limit) => {
+  const query = `
+        SELECT TOP (@Limit)
+            yc.YcMuonPhongID,
+            sk.TenSK,
+            nd_yc.HoTen AS HoTenNguoiYeuCau,
+            yc.NgayYeuCau
+        FROM YeuCauMuonPhong yc
+        JOIN TrangThaiYeuCauPhong ttyc ON yc.TrangThaiChungID = ttyc.TrangThaiYcpID
+        JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+        JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
+        WHERE ttyc.MaTrangThai = @MaTrangThai
+        ORDER BY yc.NgayYeuCau DESC;
+    `;
+  const params = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauMuonPhongRepository = {
   getYeuCauMuonPhongListWithPagination,
   getYeuCauMuonPhongDetailById,
@@ -1098,4 +1129,5 @@ export const yeuCauMuonPhongRepository = {
   deleteYcMuonPhongChiTietByIds,
   updateYeuCauMuonPhongHeaderInfo,
   getAllChiTietByHeaderID,
+  getPendingRoomRequestsForDashboard,
 };

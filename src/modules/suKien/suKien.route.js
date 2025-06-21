@@ -40,6 +40,12 @@ router.get(
   asyncHandler(suKienController.getSuKienCoTheMoiController)
 );
 
+router.get(
+  '/sap-dien-ra-dashboard',
+  // suKienValidation.validateGetSapDienRaDashboardParams, // Sẽ tạo validation
+  asyncHandler(suKienController.getSuKienSapDienRaDashboardController)
+);
+
 /**
  * [MỚI] Gửi lời mời hàng loạt theo tiêu chí hoặc danh sách.
  * @route POST /api/v1/su-kien/{suKienID}/gui-loi-moi-hang-loat
@@ -109,7 +115,7 @@ router.post(
   '/', // POST /v1/sukien
   authMiddleware.authorizeRoles(
     MaVaiTro.CB_TO_CHUC_SU_KIEN,
-    MaVaiTro.ADMIN_HE_THONG /*, các vai trò khác được tạo SK */
+    MaVaiTro.ADMIN_HE_THONG /* , các vai trò khác được tạo SK */
   ),
   (req, res, next) => {
     console.log('Creating new suKien:', req.body);

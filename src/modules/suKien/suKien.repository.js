@@ -1,9 +1,10 @@
 // src/modules/suKien/suKien.repository.js
+import sql from 'mssql';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import { executeQuery, getPool } from '../../utils/database.js';
-import sql from 'mssql';
 import logger from '../../utils/logger.util.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
+
 const PUBLIC_VISIBLE_STATUS_CODES = [
   MaTrangThaiSK.DA_DUYET_BGH,
   MaTrangThaiSK.CHO_DUYET_PHONG,
@@ -1318,7 +1319,7 @@ const getSuKienCoTheMoiList = async (params) => {
     .map((code) => `'${code}'`)
     .join(',');
 
-  let fromClause = `
+  const fromClause = `
     FROM SuKien sk
     JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
     JOIN DonVi dv ON sk.DonViChuTriID = dv.DonViID
@@ -1472,7 +1473,7 @@ const getInvitedListForSuKien = async (suKienID, params) => {
     sortOrder = 'ASC',
   } = params;
 
-  let fromClause = `
+  const fromClause = `
         FROM SK_MoiThamGia skm
         JOIN NguoiDung nd ON skm.NguoiDuocMoiID = nd.NguoiDungID
     `;
@@ -1586,7 +1587,7 @@ const getMyInvitations = async (nguoiDungID, params) => {
     sortOrder = 'ASC',
   } = params;
 
-  let fromClause = `
+  const fromClause = `
         FROM SK_MoiThamGia skm
         JOIN SuKien sk ON skm.SuKienID = sk.SuKienID
         JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
@@ -1711,7 +1712,7 @@ const getMyAttendedEvents = async (nguoiDungID, params) => {
     sortOrder = 'DESC',
   } = params;
 
-  let fromClause = `
+  const fromClause = `
         FROM SK_MoiThamGia skm
         JOIN SuKien sk ON skm.SuKienID = sk.SuKienID
         JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
@@ -1807,6 +1808,38 @@ const getMyAttendedEvents = async (nguoiDungID, params) => {
   return { items: itemsResult.recordset, totalItems };
 };
 
+/**
+ * [MỚI] Lấy các sự kiện đang chờ BGH duyệt cho dashboard.
+ * @param {number} limit - Giới hạn số lượng.
+ * @returns {Promise<Array<object>>}
+ */
+const getPendingApprovalEventsForDashboard = async (limit) => {
+  const query = `
+        SELECT TOP (@Limit)
+            sk.SuKienID,
+            sk.TenSK,
+            nd_tao.HoTen AS HoTenNguoiTao,
+            dv_chutri.TenDonVi AS TenDonViChuTri,
+            sk.NgayTaoSK
+        FROM SuKien sk
+        JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+        JOIN NguoiDung nd_tao ON sk.NguoiTaoID = nd_tao.NguoiDungID
+        JOIN DonVi dv_chutri ON sk.DonViChuTriID = dv_chutri.DonViID
+        WHERE ttsk.MaTrangThai = @MaTrangThai
+        ORDER BY sk.NgayTaoSK DESC;
+    `;
+  const params = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiSK.CHO_DUYET_BGH,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const suKienRepository = {
   addDonViThamGiaToSuKien,
   getSuKienListWithPagination,
@@ -1837,4 +1870,5 @@ export const suKienRepository = {
   updateInvitationResponse,
   getMoiMoi,
   getMyAttendedEvents,
+  getPendingApprovalEventsForDashboard,
 };

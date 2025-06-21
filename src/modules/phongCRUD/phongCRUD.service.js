@@ -1,10 +1,10 @@
 // src/modules/phongCRUD/phongCRUD.service.js
-import { phongCRUDRepository } from './phongCRUD.repository.js';
-import ApiError from '../../utils/ApiError.util.js';
-import httpStatus from '../../constants/httpStatus.js';
 import xlsx from 'xlsx'; // Thư viện đọc file Excel
 import fs from 'fs'; // Để xóa file tạm nếu dùng diskStorage
 import sql from 'mssql';
+import { phongCRUDRepository } from './phongCRUD.repository.js';
+import ApiError from '../../utils/ApiError.util.js';
+import httpStatus from '../../constants/httpStatus.js';
 import { toaNhaTangRepository } from '../toaNhaTang/toaNhaTang.repository.js'; // Để validate
 import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
@@ -20,8 +20,8 @@ import { trangThietBiRepository } from '../trangThietBi/trangThietBi.repository.
 const getPhongs = async (params) => {
   const { items, totalItems } =
     await phongCRUDRepository.getPhongListWithPagination(params);
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
   return { items, totalPages, currentPage: page, totalItems, pageSize: limit };
 };
@@ -480,7 +480,7 @@ const importPhongFromExcel = async (filePath) => {
     for (let i = 1; i < jsonData.length; i++) {
       const rowDataArray = jsonData[i];
       const rowNumber = i + 1; // Số dòng trong Excel (bao gồm header)
-      let phongPayload = {};
+      const phongPayload = {};
       let rowError = null;
 
       headers.forEach((header, index) => {
@@ -517,8 +517,7 @@ const importPhongFromExcel = async (filePath) => {
         if (phongPayload.sucChua) {
           phongPayload.sucChua = parseInt(phongPayload.sucChua, 10);
           if (isNaN(phongPayload.sucChua))
-            rowError =
-              (rowError ? rowError + '; ' : '') + 'Sức chứa phải là số.';
+            rowError = `${rowError ? `${rowError}; ` : ''}Sức chứa phải là số.`;
         }
         // Xử lý ThietBiTrongPhong (chuỗi JSON)
         if (
@@ -533,15 +532,15 @@ const importPhongFromExcel = async (filePath) => {
               throw new Error();
             // TODO: Validate từng item trong mảng thietBiTrongPhong (thietBiID, soLuong)
           } catch (e) {
-            rowError =
-              (rowError ? rowError + '; ' : '') +
-              'Cột ThietBiTrongPhong không phải là JSON array hợp lệ.';
+            rowError = `${
+              rowError ? `${rowError}; ` : ''
+            }Cột ThietBiTrongPhong không phải là JSON array hợp lệ.`;
           }
         } else if (phongPayload.thietBiTrongPhong) {
           // Nếu không phải string và không phải null/undefined
-          rowError =
-            (rowError ? rowError + '; ' : '') +
-            'Cột ThietBiTrongPhong phải là chuỗi JSON.';
+          rowError = `${
+            rowError ? `${rowError}; ` : ''
+          }Cột ThietBiTrongPhong phải là chuỗi JSON.`;
         } else {
           phongPayload.thietBiTrongPhong = []; // Mặc định là mảng rỗng nếu không có hoặc null
         }

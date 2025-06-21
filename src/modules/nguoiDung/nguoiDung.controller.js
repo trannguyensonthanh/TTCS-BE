@@ -38,7 +38,7 @@ const getNguoiDungListController = async (req, res) => {
  * @returns {Promise<void>} Gửi response thông tin hồ sơ
  */
 const getMyProfileController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID; // Từ authMiddleware
+  const { nguoiDungID } = req.user; // Từ authMiddleware
   const userProfile = await nguoiDungService.getMyProfile(nguoiDungID);
   okResponse(res, userProfile, 'Lấy thông tin hồ sơ thành công.');
 };
@@ -50,7 +50,7 @@ const getMyProfileController = async (req, res) => {
  * @returns {Promise<void>} Gửi response xác nhận đổi mật khẩu
  */
 const changeMyPasswordController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID;
+  const { nguoiDungID } = req.user;
   const { matKhauHienTai, matKhauMoi } = req.body; // Đã validate
   const result = await nguoiDungService.changeMyPassword(
     nguoiDungID,
@@ -67,7 +67,7 @@ const changeMyPasswordController = async (req, res) => {
  * @returns {Promise<void>} Gửi response chi tiết người dùng
  */
 const getNguoiDungDetailForAdminController = async (req, res) => {
-  const targetNguoiDungID = parseInt(req.params.nguoiDungId);
+  const targetNguoiDungID = parseInt(req.params.nguoiDungId, 10);
   const userProfile =
     await nguoiDungService.getNguoiDungDetailForAdmin(targetNguoiDungID);
   okResponse(res, userProfile, 'Lấy chi tiết người dùng thành công.');
@@ -91,7 +91,7 @@ const createNguoiDungByAdminController = async (req, res) => {
  * @returns {Promise<void>} Gửi response người dùng sau khi cập nhật
  */
 const updateNguoiDungByAdminController = async (req, res) => {
-  const nguoiDungId = parseInt(req.params.nguoiDungId);
+  const nguoiDungId = parseInt(req.params.nguoiDungId, 10);
   const updatePayload = req.body; // Đã được validate
   const updatedUserProfile = await nguoiDungService.updateNguoiDungByAdmin(
     nguoiDungId,
@@ -111,7 +111,7 @@ const updateNguoiDungByAdminController = async (req, res) => {
  * @returns {Promise<void>} Gửi response trạng thái tài khoản mới
  */
 const updateUserAccountStatusByAdminController = async (req, res) => {
-  const nguoiDungId = parseInt(req.params.nguoiDungId);
+  const nguoiDungId = parseInt(req.params.nguoiDungId, 10);
   const payload = req.body; // Đã validate
   const updatedNguoiDung =
     await nguoiDungService.updateUserAccountStatusByAdmin(nguoiDungId, payload);
@@ -129,7 +129,7 @@ const updateUserAccountStatusByAdminController = async (req, res) => {
  * @returns {Promise<void>} Gửi response xác nhận gán vai trò
  */
 const assignFunctionalRoleController = async (req, res) => {
-  const nguoiDungId = parseInt(req.params.nguoiDungId);
+  const nguoiDungId = parseInt(req.params.nguoiDungId, 10);
   const payload = req.body; // Đã validate
   const assignedRole = await nguoiDungService.assignFunctionalRoleToUser(
     nguoiDungId,
@@ -145,7 +145,7 @@ const assignFunctionalRoleController = async (req, res) => {
  * @returns {Promise<void>} Gửi response xác nhận cập nhật vai trò
  */
 const updateAssignedFunctionalRoleController = async (req, res) => {
-  const ganVaiTroID = parseInt(req.params.ganVaiTroID);
+  const ganVaiTroID = parseInt(req.params.ganVaiTroID, 10);
   const payload = req.body; // Đã validate
   const updatedAssignment = await nguoiDungService.updateAssignedFunctionalRole(
     ganVaiTroID,
@@ -165,7 +165,7 @@ const updateAssignedFunctionalRoleController = async (req, res) => {
  * @returns {Promise<void>} Gửi response xác nhận gỡ bỏ vai trò
  */
 const removeAssignedFunctionalRoleController = async (req, res) => {
-  const ganVaiTroID = parseInt(req.params.ganVaiTroID);
+  const ganVaiTroID = parseInt(req.params.ganVaiTroID, 10);
   await nguoiDungService.removeAssignedFunctionalRole(ganVaiTroID);
   noContentResponse(res, 'Gỡ bỏ vai trò chức năng đã gán thành công.'); // Trả về 204 No Content
 };
@@ -194,7 +194,7 @@ const importUsersBatchController = async (req, res) => {
  * @returns {Promise<void>} Gửi response xác nhận xóa hoặc lỗi nếu có liên kết dữ liệu
  */
 const deleteNguoiDungByIDController = async (req, res) => {
-  const nguoiDungID = parseInt(req.params.nguoiDungId);
+  const nguoiDungID = parseInt(req.params.nguoiDungId, 10);
   await nguoiDungService.deleteNguoiDungByID(nguoiDungID);
   noContentResponse(res, 'Xóa người dùng thành công.');
 };

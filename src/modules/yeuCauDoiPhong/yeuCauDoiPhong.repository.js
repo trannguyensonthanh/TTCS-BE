@@ -1,6 +1,7 @@
 // src/modules/yeuCauDoiPhong/yeuCauDoiPhong.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
+import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enum.js';
 
 /**
  * Lấy danh sách yêu cầu đổi phòng với phân trang và bộ lọc.
@@ -25,7 +26,7 @@ const getYeuCauDoiPhongListWithPagination = async (params, currentUser) => {
     sortOrder = 'DESC',
   } = params;
 
-  let selectFields = `
+  const selectFields = `
         ycdp.YcDoiPhongID,
         sk.SuKienID, sk.TenSK AS TenSuKien,
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen,
@@ -340,7 +341,7 @@ const getYeuCauDoiPhongDetailById = async (ycDoiPhongID) => {
  */
 const validateYcĐoiPhongPreRequisites = async (
   ycMuonPhongCtID,
-  datPhongID_Cu,
+  datPhongIDCu,
   nguoiYeuCauID
 ) => {
   const query = `
@@ -364,7 +365,7 @@ const validateYcĐoiPhongPreRequisites = async (
   `;
   const params = [
     { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
-    { name: 'DatPhongID_Cu', type: sql.Int, value: datPhongID_Cu },
+    { name: 'DatPhongID_Cu', type: sql.Int, value: datPhongIDCu },
   ];
   const result = await executeQuery(query, params);
   if (result.recordset.length > 0) {
@@ -372,7 +373,7 @@ const validateYcĐoiPhongPreRequisites = async (
     return {
       suKienID: row.SuKienID,
       ycMuonPhongCtID: row.YcMuonPhongCtID,
-      datPhongID_Cu_Valid: row.DatPhongID_Cu_Result === datPhongID_Cu,
+      datPhongID_Cu_Valid: row.DatPhongID_Cu_Result === datPhongIDCu,
       suKienNguoiTaoID: row.SuKienNguoiTaoID,
       yeuCauPhongNguoiTaoID: row.YeuCauPhongNguoiTaoID,
       tgMuonDkCuaChiTiet: row.TgMuonDkCuaChiTiet,
@@ -570,6 +571,39 @@ const updateUserCancelYeuCauDoiPhong = async (
   await request.query(query);
 };
 
+/**
+ * [MỚI] Lấy các yêu cầu đổi phòng đang chờ CSVC xử lý cho dashboard.
+ * @param {number} limit - Giới hạn số lượng.
+ * @returns {Promise<Array<object>>}
+ */
+const getPendingChangeRoomRequestsForDashboard = async (limit) => {
+  const query = `
+        SELECT TOP (@Limit)
+            ycdp.YcDoiPhongID,
+            sk.TenSK,
+            nd_yc.HoTen AS HoTenNguoiYeuCau,
+            ycdp.NgayYeuCauDoi
+        FROM YeuCauDoiPhong ycdp
+        JOIN TrangThaiYeuCauDoiPhong tt_ycdp ON ycdp.TrangThaiYcDoiPID = tt_ycdp.TrangThaiYcDoiPID
+        JOIN YcMuonPhongChiTiet yct ON ycdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
+        JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+        JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+        JOIN NguoiDung nd_yc ON ycdp.NguoiYeuCauID = nd_yc.NguoiDungID
+        WHERE tt_ycdp.MaTrangThai = @MaTrangThai
+        ORDER BY ycdp.NgayYeuCauDoi DESC;
+    `;
+  const params = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauDoiPhong.CHO_DUYET_DOI_PHONG,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauDoiPhongRepository = {
   getYeuCauDoiPhongListWithPagination,
   getYeuCauDoiPhongDetailById,
@@ -581,4 +615,5 @@ export const yeuCauDoiPhongRepository = {
   deleteChiTietDatPhongById,
   getYeuCauDoiPhongForUserCancel,
   updateUserCancelYeuCauDoiPhong,
+  getPendingChangeRoomRequestsForDashboard,
 };

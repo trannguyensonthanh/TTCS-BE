@@ -5,6 +5,7 @@ import pick from '../../utils/pick.util.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
 import logger from '../../utils/logger.util.js';
+import { thongKeService } from '../thongKe/thongKe.service.js';
 
 /**
  * Lấy danh sách sự kiện (có phân trang, lọc, phân quyền).
@@ -47,7 +48,9 @@ const getSuKienDetailController = async (req, res) => {
   console.log('getSuKienDetailController called with params:', req.params);
   const { suKienID } = req.params;
 
-  const suKienDetail = await suKienService.getSuKienDetail(parseInt(suKienID));
+  const suKienDetail = await suKienService.getSuKienDetail(
+    parseInt(suKienID, 10)
+  );
   okResponse(res, suKienDetail, 'Lấy chi tiết sự kiện thành công.');
 };
 
@@ -63,7 +66,7 @@ const updateSuKienTrangThaiController = async (req, res) => {
   const nguoiThucHien = req.user;
 
   const suKienUpdated = await suKienService.updateSuKienTrangThai(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     payload,
     nguoiThucHien
   );
@@ -105,7 +108,7 @@ const getPublicSuKienListController = async (req, res) => {
 const getPublicSuKienDetailController = async (req, res) => {
   const { id: suKienID } = req.params; // Lấy 'id' từ path params
   const suKienDetail = await suKienService.getPublicSuKienDetail(
-    parseInt(suKienID)
+    parseInt(suKienID, 10)
   );
   okResponse(res, suKienDetail, 'Lấy chi tiết sự kiện công khai thành công.');
 };
@@ -144,7 +147,7 @@ const updateSuKienController = async (req, res) => {
   const nguoiThucHien = req.user;
 
   const updatedSuKien = await suKienService.updateSuKienService(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     suKienBody,
     nguoiThucHien
   );
@@ -164,7 +167,7 @@ const duyetSuKienByBGHController = async (req, res) => {
   const nguoiDuyet = req.user;
 
   const suKienUpdated = await suKienService.duyetSuKienByBGH(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     payload,
     nguoiDuyet
   );
@@ -183,7 +186,7 @@ const tuChoiSuKienByBGHController = async (req, res) => {
   const nguoiDuyet = req.user;
 
   const suKienUpdated = await suKienService.tuChoiSuKienByBGH(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     payload,
     nguoiDuyet
   );
@@ -250,7 +253,7 @@ const guiLoiMoiThamGiaController = async (req, res) => {
   const nguoiGui = req.user;
 
   const result = await suKienService.guiLoiMoiThamGia(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     payload,
     nguoiGui
   );
@@ -270,7 +273,10 @@ const getDanhSachMoiController = async (req, res) => {
     'sortBy',
     'sortOrder',
   ]);
-  const result = await suKienService.getDanhSachMoi(parseInt(suKienID), params);
+  const result = await suKienService.getDanhSachMoi(
+    parseInt(suKienID, 10),
+    params
+  );
   okResponse(res, result, 'Lấy danh sách mời thành công.');
 };
 
@@ -283,7 +289,7 @@ const guiLoiMoiHangLoatController = async (req, res) => {
   const nguoiGui = req.user;
 
   const result = await suKienService.guiLoiMoiHangLoat(
-    parseInt(suKienID),
+    parseInt(suKienID, 10),
     payload,
     nguoiGui
   );
@@ -291,7 +297,7 @@ const guiLoiMoiHangLoatController = async (req, res) => {
 };
 
 const getMyAttendedEventsController = async (req, res) => {
-  const nguoiDungID = req.user.nguoiDungID;
+  const { nguoiDungID } = req.user;
   const params = pick(req.query, [
     'trangThaiSuKien',
     'daDanhGia',
@@ -304,6 +310,12 @@ const getMyAttendedEventsController = async (req, res) => {
   ]);
   const result = await suKienService.getMyAttendedEvents(nguoiDungID, params);
   okResponse(res, result, 'Lấy danh sách sự kiện đã tham gia thành công.');
+};
+
+const getSuKienSapDienRaDashboardController = async (req, res) => {
+  const params = pick(req.query, ['limit', 'donViID']);
+  const result = await thongKeService.getSuKienSapDienRaDashboard(params);
+  okResponse(res, result, 'Lấy danh sách sự kiện sắp diễn ra thành công.');
 };
 
 export const suKienController = {
@@ -322,4 +334,5 @@ export const suKienController = {
   guiLoiMoiThamGiaController,
   guiLoiMoiHangLoatController,
   getMyAttendedEventsController,
+  getSuKienSapDienRaDashboardController,
 };

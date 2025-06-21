@@ -1,8 +1,8 @@
 // src/modules/donVi/donVi.repository.js
+import sql from 'mssql';
 import LoaiDonVi from '../../enums/loaiDonVi.enum.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import { executeQuery, getPool } from '../../utils/database.js';
-import sql from 'mssql';
 
 const SELECT_DONVI_FIELDS = `
     dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi, dv.MoTaDv,
@@ -49,7 +49,7 @@ const mapRowToDonViListItem = async (row) => {
     tenDonVi: row.TenDonVi,
     maDonVi: row.MaDonVi,
     loaiDonVi: row.LoaiDonVi,
-    tenLoaiDonVi: tenLoaiDonVi,
+    tenLoaiDonVi,
     donViCha: row.DonViCha_ID
       ? {
           donViID: row.DonViCha_ID,
@@ -58,7 +58,7 @@ const mapRowToDonViListItem = async (row) => {
         }
       : null,
     soLuongDonViCon: row.SoLuongDonViCon,
-    soLuongThanhVien: soLuongThanhVien,
+    soLuongThanhVien,
     moTaDv: row.MoTaDv,
   };
 };
@@ -260,7 +260,7 @@ const updateDonViRecordById = async (
   const addUpdateField = (dbField, paramName, paramType, value) => {
     if (value !== undefined) {
       setClauses.push(`${dbField} = @${paramName}`);
-      params.push({ name: paramName, type: paramType, value: value });
+      params.push({ name: paramName, type: paramType, value });
     }
   };
 

@@ -1,6 +1,6 @@
 // src/modules/yeuCauHuySK/yeuCauHuySK.repository.js
-import { executeQuery, getPool } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery, getPool } from '../../utils/database.js';
 // Import các enums cần thiết
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import MaTrangThaiYeuCauHuySK from '../../enums/maTrangThaiYeuCauHuySK.enum.js';
@@ -120,7 +120,7 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
     sortOrder = 'DESC',
   } = params;
 
-  let selectFields = `
+  const selectFields = `
         ych.YcHuySkID,
         sk.SuKienID, sk.TenSK AS TenSuKien, sk.TgBatDauDK,
         nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen,
@@ -132,7 +132,7 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         nd_duyet.NguoiDungID AS NguoiDuyetBGH_ID, nd_duyet.HoTen AS NguoiDuyetBGH_HoTen,
         ych.NgayDuyetHuyBGH
     `;
-  let fromClause = `
+  const fromClause = `
         FROM YeuCauHuySK ych
         JOIN SuKien sk ON ych.SuKienID = sk.SuKienID
         JOIN NguoiDung nd_yc ON ych.NguoiYeuCauID = nd_yc.NguoiDungID
@@ -444,6 +444,37 @@ const deleteChiTietDatPhongBySuKienID = async (suKienID, transaction) => {
   await request.query(query);
 };
 
+/**
+ * [MỚI] Lấy các yêu cầu hủy sự kiện đang chờ BGH duyệt cho dashboard.
+ * @param {number} limit - Giới hạn số lượng.
+ * @returns {Promise<Array<object>>}
+ */
+const getPendingCancelRequestsForDashboard = async (limit) => {
+  const query = `
+        SELECT TOP (@Limit)
+            ych.YcHuySkID,
+            sk.TenSK,
+            nd_yc.HoTen AS HoTenNguoiYeuCau,
+            ych.NgayYeuCauHuy
+        FROM YeuCauHuySK ych
+        JOIN TrangThaiYeuCauHuySK ttyc ON ych.TrangThaiYcHuySkID = ttyc.TrangThaiYcHuySkID
+        JOIN SuKien sk ON ych.SuKienID = sk.SuKienID
+        JOIN NguoiDung nd_yc ON ych.NguoiYeuCauID = nd_yc.NguoiDungID
+        WHERE ttyc.MaTrangThai = @MaTrangThai
+        ORDER BY ych.NgayYeuCauHuy DESC;
+    `;
+  const params = [
+    { name: 'Limit', type: sql.Int, value: limit },
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH,
+    },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauHuySKRepository = {
   findSuKienForCancellationRequest,
   checkExistingPendingCancellationRequest,
@@ -455,4 +486,5 @@ export const yeuCauHuySKRepository = {
   getYeuCauHuySKForProcessing,
   updateYeuCauHuySKAfterBGHAction,
   deleteChiTietDatPhongBySuKienID,
+  getPendingCancelRequestsForDashboard,
 };

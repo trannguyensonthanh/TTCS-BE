@@ -8,6 +8,7 @@ const getPhongParamsSchema = Joi.object({
   searchTerm: Joi.string().allow('', null).optional(),
   loaiPhongID: Joi.number().integer().positive().allow(null).optional(),
   trangThaiPhongID: Joi.number().integer().positive().allow(null).optional(), // Hoặc MaTrangThaiPhong
+  trangThaiPhongMa: Joi.string().max(20).allow('', null).optional(),
   toaNhaID: Joi.number().integer().positive().allow(null).optional(),
   toaNhaTangID: Joi.number().integer().positive().allow(null).optional(),
   sucChuaTu: Joi.number().integer().min(0).allow(null).optional(),

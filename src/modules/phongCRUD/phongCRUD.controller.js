@@ -20,6 +20,7 @@ const getPhongListController = async (req, res) => {
     'searchTerm',
     'loaiPhongID',
     'trangThaiPhongID',
+    'trangThaiPhongMa',
     'toaNhaID',
     'toaNhaTangID',
     'sucChuaTu',
@@ -40,7 +41,9 @@ const getPhongListController = async (req, res) => {
  * @returns {Promise<void>} Gửi response chi tiết phòng
  */
 const getPhongDetailController = async (req, res) => {
-  const phong = await phongCRUDService.getPhongDetail(parseInt(req.params.id));
+  const phong = await phongCRUDService.getPhongDetail(
+    parseInt(req.params.id, 10)
+  );
   okResponse(res, phong, 'Lấy chi tiết phòng thành công.');
 };
 
