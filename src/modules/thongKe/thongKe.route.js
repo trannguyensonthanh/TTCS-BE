@@ -17,7 +17,8 @@ router.use(authMiddleware.authenticateToken);
 router.use(
   authMiddleware.authorizeRoles(
     MaVaiTro.ADMIN_HE_THONG,
-    MaVaiTro.BGH_DUYET_SK_TRUONG
+    MaVaiTro.BGH_DUYET_SK_TRUONG,
+    MaVaiTro.QUAN_LY_CSVC
   )
 );
 

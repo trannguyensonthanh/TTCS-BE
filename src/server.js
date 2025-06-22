@@ -5,6 +5,7 @@ import logger from './utils/logger.util.js';
 import { getPool, closePool } from './utils/database.js'; // Đảm bảo getPool được gọi để khởi tạo pool
 import { startScheduledJobs } from './jobs/eventStatusManager.job.js';
 
+process.env.TZ = 'Asia/Ho_Chi_Minh';
 let server;
 
 /**
