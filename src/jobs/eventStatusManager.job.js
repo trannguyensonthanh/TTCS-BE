@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import logger from '../utils/logger.util.js';
 import { suKienService } from '../modules/suKien/suKien.service.js';
 import { yeuCauMuonPhongService } from '../modules/yeuCauMuonPhong/yeuCauMuonPhong.service.js';
+import { phongCRUDService } from '../modules/phongCRUD/phongCRUD.service.js';
 
 /**
  * Lên lịch kiểm tra quá hạn duyệt BGH mỗi ngày.
@@ -58,6 +59,23 @@ const scheduleEventCompletionChecks = () => {
 };
 
 /**
+ * [MỚI] Lên lịch kiểm tra và cập nhật trạng thái phòng mỗi 5 phút.
+ */
+const scheduleRoomStatusUpdates = () => {
+  // Chạy mỗi 5 phút
+  cron.schedule('*/5 * * * *', async () => {
+    logger.info('CRON JOB: Starting room status updates...');
+    try {
+      await phongCRUDService.autoUpdateRoomStatusToInUse();
+      await phongCRUDService.autoUpdateRoomStatusToAvailable();
+      logger.info('CRON JOB: Room status updates finished.');
+    } catch (error) {
+      logger.error('CRON JOB: Error during room status updates:', error);
+    }
+  });
+};
+
+/**
  * Khởi động tất cả các scheduled jobs quản lý trạng thái sự kiện và yêu cầu phòng.
  * Đầu vào: không
  * Đầu ra: không
@@ -66,7 +84,8 @@ export const startScheduledJobs = () => {
   scheduleBGHOverdueChecks();
   scheduleCSVCOverdueChecks();
   scheduleEventCompletionChecks();
+  scheduleRoomStatusUpdates();
   logger.info(
-    'Scheduled jobs for event and room request status management have been started.'
+    'Scheduled jobs for event, room request, and room status management have been started.'
   );
 };

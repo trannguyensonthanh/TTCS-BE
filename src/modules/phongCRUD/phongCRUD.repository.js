@@ -601,6 +601,46 @@ const getTrangThaiPhongIDByMa = async (maTrangThai, transaction = null) => {
   );
 };
 
+/**
+ * [MỚI] Tìm các phòng đang ở trạng thái 'Sẵn sàng' nhưng có lịch đặt vào thời điểm hiện tại.
+ * @returns {Promise<Array<{PhongID: number}>>}
+ */
+const findRoomsToSetAsInUse = async () => {
+  const query = `
+        SELECT DISTINCT p.PhongID
+        FROM Phong p
+        JOIN TrangThaiPhong ttp ON p.TrangThaiPhongID = ttp.TrangThaiPhongID
+        WHERE ttp.MaTrangThai = 'SAN_SANG'
+          AND EXISTS (
+              SELECT 1 FROM ChiTietDatPhong cdp
+              WHERE cdp.PhongID = p.PhongID
+                AND GETDATE() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
+          );
+    `;
+  const result = await executeQuery(query);
+  return result.recordset;
+};
+
+/**
+ * [MỚI] Tìm các phòng đang ở trạng thái 'Đang sử dụng' nhưng đã hết lịch đặt.
+ * @returns {Promise<Array<{PhongID: number}>>}
+ */
+const findRoomsToSetAsAvailable = async () => {
+  const query = `
+        SELECT p.PhongID
+        FROM Phong p
+        JOIN TrangThaiPhong ttp ON p.TrangThaiPhongID = ttp.TrangThaiPhongID
+        WHERE ttp.MaTrangThai = 'DANG_SU_DUNG'
+          AND NOT EXISTS (
+              SELECT 1 FROM ChiTietDatPhong cdp
+              WHERE cdp.PhongID = p.PhongID
+                AND GETDATE() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
+          );
+    `;
+  const result = await executeQuery(query);
+  return result.recordset;
+};
+
 export const phongCRUDRepository = {
   getPhongListWithPagination,
   getPhongDetailById,
@@ -615,4 +655,6 @@ export const phongCRUDRepository = {
   getPhongIDsBookedForSuKien,
   updateTrangThaiNhieuPhong,
   getTrangThaiPhongIDByMa,
+  findRoomsToSetAsInUse,
+  findRoomsToSetAsAvailable,
 };

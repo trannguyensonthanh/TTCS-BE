@@ -705,6 +705,65 @@ const importPhongFromExcel = async (filePath) => {
   };
 };
 
+/**
+ * [MỚI] Tác vụ tự động cập nhật trạng thái các phòng đang được sử dụng.
+ */
+const autoUpdateRoomStatusToInUse = async () => {
+  logger.info('CRON JOB: Checking for rooms to set as IN-USE...');
+  const roomsToUpdate = await phongCRUDRepository.findRoomsToSetAsInUse();
+
+  if (roomsToUpdate.length === 0) {
+    logger.info('CRON JOB: No rooms to update to IN-USE status.');
+    return;
+  }
+
+  const roomIDs = roomsToUpdate.map((r) => r.PhongID);
+  const trangThaiInUseID =
+    await phongCRUDRepository.getTrangThaiPhongIDByMa('DANG_SU_DUNG');
+
+  if (trangThaiInUseID) {
+    await phongCRUDRepository.updateTrangThaiNhieuPhong(
+      roomIDs,
+      trangThaiInUseID
+    );
+    logger.info(
+      `CRON JOB: Successfully updated ${roomIDs.length} rooms to IN-USE. IDs: [${roomIDs.join(', ')}]`
+    );
+  } else {
+    logger.error('CRON JOB: Could not find status ID for DANG_SU_DUNG.');
+  }
+};
+
+/**
+ * [MỚI] Tác vụ tự động cập nhật trạng thái các phòng đã sử dụng xong.
+ */
+const autoUpdateRoomStatusToAvailable = async () => {
+  logger.info('CRON JOB: Checking for rooms to set as AVAILABLE...');
+  const roomsToUpdate = await phongCRUDRepository.findRoomsToSetAsAvailable();
+
+  if (roomsToUpdate.length === 0) {
+    logger.info('CRON JOB: No rooms to update to AVAILABLE status.');
+    return;
+  }
+
+  const roomIDs = roomsToUpdate.map((r) => r.PhongID);
+  // Có thể chuyển thành trạng thái "Chờ dọn dẹp" thay vì "Sẵn sàng" nếu nghiệp vụ yêu cầu
+  const trangThaiAvailableID =
+    await phongCRUDRepository.getTrangThaiPhongIDByMa('SAN_SANG');
+
+  if (trangThaiAvailableID) {
+    await phongCRUDRepository.updateTrangThaiNhieuPhong(
+      roomIDs,
+      trangThaiAvailableID
+    );
+    logger.info(
+      `CRON JOB: Successfully updated ${roomIDs.length} rooms to AVAILABLE. IDs: [${roomIDs.join(', ')}]`
+    );
+  } else {
+    logger.error('CRON JOB: Could not find status ID for SAN_SANG.');
+  }
+};
+
 export const phongCRUDService = {
   getPhongs,
   getPhongDetail,
@@ -713,4 +772,6 @@ export const phongCRUDService = {
   deletePhong,
   generateMaPhong,
   importPhongFromExcel,
+  autoUpdateRoomStatusToInUse,
+  autoUpdateRoomStatusToAvailable,
 };

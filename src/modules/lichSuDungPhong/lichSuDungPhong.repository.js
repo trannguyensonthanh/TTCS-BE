@@ -24,26 +24,6 @@ const getLichDatPhongRecords = async (params) => {
   denNgayThucTe.setHours(23, 59, 59, 999);
 
   let finalQuery = `
-        WITH ActiveBookings AS (
-            SELECT 
-                yct.YcMuonPhongCtID,
-                MAX(COALESCE(ycdp_approved.DatPhongID_Moi, cdp.DatPhongID)) AS ActiveDatPhongID -- Dùng hàm tổng hợp MAX() hoặc MIN()
-            FROM YcMuonPhongChiTiet yct
-            LEFT JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
-            JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID
-            LEFT JOIN (
-                SELECT 
-                    ycdp_inner.YcMuonPhongCtID,
-                    ycdp_inner.DatPhongID_Moi,
-                    ROW_NUMBER() OVER(PARTITION BY ycdp_inner.YcMuonPhongCtID ORDER BY ycdp_inner.NgayDuyetDoiCSVC DESC) as rn
-                FROM YeuCauDoiPhong ycdp_inner
-                JOIN TrangThaiYeuCauDoiPhong tt ON ycdp_inner.TrangThaiYcDoiPID = tt.TrangThaiYcDoiPID
-                WHERE tt.MaTrangThai = 'DA_DUYET_DOI_PHONG'
-            ) ycdp_approved ON yct.YcMuonPhongCtID = ycdp_approved.YcMuonPhongCtID AND ycdp_approved.rn = 1
-            -- Chỉ lấy các chi tiết yêu cầu đã được duyệt, tránh các chi tiết đang chờ hoặc đã hủy
-            WHERE tt_ct.MaTrangThai = @MaTrangThaiDaXepPhong
-            GROUP BY yct.YcMuonPhongCtID -- <<== THÊM GROUP BY ĐỂ ĐẢM BẢO MỖI YcMuonPhongCtID CHỈ CÓ 1 DÒNG
-        )
         SELECT
             cdp.DatPhongID, cdp.YcMuonPhongCtID, cdp.TgNhanPhongTT, cdp.TgTraPhongTT,
             p.PhongID, p.TenPhong, p.MaPhong, p.SucChua AS Phong_SucChua, p.ToaNhaTangID AS Phong_ToaNhaTangID,
@@ -52,18 +32,19 @@ const getLichDatPhongRecords = async (params) => {
             sk.SuKienID, sk.TenSK,
             dv_tc.DonViID AS DonViToChuc_ID, dv_tc.TenDonVi AS DonViToChuc_Ten, dv_tc.MaDonVi AS DonViToChuc_Ma, dv_tc.LoaiDonVi AS DonViToChuc_LoaiDonVi
         FROM ChiTietDatPhong cdp
-        JOIN ActiveBookings ab ON cdp.DatPhongID = ab.ActiveDatPhongID
         JOIN Phong p ON cdp.PhongID = p.PhongID
         JOIN TrangThaiPhong tt_dp ON p.TrangThaiPhongID = tt_dp.TrangThaiPhongID
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
         JOIN YcMuonPhongChiTiet yct ON cdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
+        JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID
         JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
         JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
         JOIN DonVi dv_tc ON sk.DonViChuTriID = dv_tc.DonViID
         LEFT JOIN ToaNha_Tang tnt ON p.ToaNhaTangID = tnt.ToaNhaTangID
         LEFT JOIN ToaNha tn ON tnt.ToaNhaID = tn.ToaNhaID
         WHERE 
-            cdp.TgNhanPhongTT < @DenNgayThucTe 
+            tt_ct.MaTrangThai = @MaTrangThaiDaXepPhong
+            AND cdp.TgNhanPhongTT < @DenNgayThucTe 
             AND cdp.TgTraPhongTT > @TuNgay
             AND (@PhongIDs_TVP IS NULL OR p.PhongID IN (SELECT ID FROM @PhongIDs_TVP))
             AND (@ToaNhaID IS NULL OR tn.ToaNhaID = @ToaNhaID)

@@ -198,6 +198,7 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
  * Lấy chi tiết YeuCauMuonPhong (Header) và các YcMuonPhongChiTiet (Detail) của nó
  */
 const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
+  console.log('getYeuCauMuonPhongDetailById ycMuonPhongID:', ycMuonPhongID);
   // 1. Lấy thông tin Header
   const headerQuery = `
     SELECT

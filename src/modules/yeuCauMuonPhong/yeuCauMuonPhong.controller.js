@@ -37,6 +37,7 @@ const getYeuCauMuonPhongsController = async (req, res) => {
  */
 const getYeuCauMuonPhongDetailController = async (req, res) => {
   const ycMuonPhongID = parseInt(req.params.id, 10);
+  console.log('---------------------> ycMuonPhongID', ycMuonPhongID);
   const currentUser = req.user;
   const result = await yeuCauMuonPhongService.getYeuCauMuonPhongDetail(
     ycMuonPhongID,
