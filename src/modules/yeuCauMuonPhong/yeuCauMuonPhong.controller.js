@@ -36,7 +36,7 @@ const getYeuCauMuonPhongsController = async (req, res) => {
  * Đầu ra: Response trả về chi tiết yêu cầu mượn phòng
  */
 const getYeuCauMuonPhongDetailController = async (req, res) => {
-  const ycMuonPhongID = parseInt(req.params.id);
+  const ycMuonPhongID = parseInt(req.params.id, 10);
   const currentUser = req.user;
   const result = await yeuCauMuonPhongService.getYeuCauMuonPhongDetail(
     ycMuonPhongID,
@@ -72,7 +72,7 @@ const xuLyChiTietYeuCauController = async (req, res) => {
   const nguoiXuLy = req.user;
 
   const updatedYeuCau = await yeuCauMuonPhongService.xuLyChiTietYeuCau(
-    parseInt(ycMuonPhongCtID),
+    parseInt(ycMuonPhongCtID, 10),
     payload,
     nguoiXuLy
   );
@@ -89,7 +89,7 @@ const xuLyChiTietYeuCauController = async (req, res) => {
  * Đầu ra: Response trả về kết quả hủy yêu cầu
  */
 const huyYeuCauMuonPhongByUserController = async (req, res) => {
-  const ycMuonPhongID = parseInt(req.params.id);
+  const ycMuonPhongID = parseInt(req.params.id, 10);
   const nguoiHuy = req.user;
 
   const updatedYeuCau = await yeuCauMuonPhongService.huyYeuCauMuonPhongByUser(
@@ -105,7 +105,7 @@ const huyYeuCauMuonPhongByUserController = async (req, res) => {
  * Đầu ra: Response trả về kết quả cập nhật yêu cầu
  */
 const updateYeuCauMuonPhongByUserController = async (req, res) => {
-  const ycMuonPhongID = parseInt(req.params.id);
+  const ycMuonPhongID = parseInt(req.params.id, 10);
   const payload = req.body;
   const nguoiThucHien = req.user;
 

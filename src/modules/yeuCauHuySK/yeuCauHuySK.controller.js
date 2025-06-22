@@ -66,7 +66,7 @@ const createYeuCauHuySKController = async (req, res) => {
  * Đầu ra: Response trả về kết quả duyệt yêu cầu
  */
 const duyetYeuCauHuySKController = async (req, res) => {
-  const ycHuySkID = parseInt(req.params.id);
+  const ycHuySkID = parseInt(req.params.id, 10);
   const payload = req.body;
   const nguoiDuyet = req.user;
   const result = await yeuCauHuySKService.duyetYeuCauHuySK(
@@ -83,7 +83,7 @@ const duyetYeuCauHuySKController = async (req, res) => {
  * Đầu ra: Response trả về kết quả từ chối yêu cầu
  */
 const tuChoiYeuCauHuySKController = async (req, res) => {
-  const ycHuySkID = parseInt(req.params.id);
+  const ycHuySkID = parseInt(req.params.id, 10);
   const payload = req.body;
   const nguoiDuyet = req.user;
   const result = await yeuCauHuySKService.tuChoiYeuCauHuySK(
@@ -94,10 +94,21 @@ const tuChoiYeuCauHuySKController = async (req, res) => {
   okResponse(res, result, 'Từ chối yêu cầu hủy sự kiện thành công.');
 };
 
+const thuHoiYeuCauHuySKController = async (req, res) => {
+  const { id } = req.params;
+  const currentUser = req.user;
+  const result = await yeuCauHuySKService.thuHoiYeuCauHuySK(
+    parseInt(id, 10),
+    currentUser
+  );
+  okResponse(res, result, 'Thu hồi yêu cầu hủy sự kiện thành công.');
+};
+
 export const yeuCauHuySKController = {
   getYeuCauHuySKsController,
   getYeuCauHuySKDetailController,
   createYeuCauHuySKController,
   duyetYeuCauHuySKController,
   tuChoiYeuCauHuySKController,
+  thuHoiYeuCauHuySKController,
 };

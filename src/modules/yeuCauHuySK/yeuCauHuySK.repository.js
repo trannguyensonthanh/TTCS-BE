@@ -202,6 +202,12 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 
+  // Thêm tham số phân trang vào queryParams
+  queryParams.push(
+    { name: 'Limit', type: sql.Int, value: limit },
+    { name: 'Offset', type: sql.Int, value: offset }
+  );
+
   const itemsQuery = `
         SELECT ${selectFields}
         ${fromClause}
@@ -475,6 +481,34 @@ const getPendingCancelRequestsForDashboard = async (limit) => {
   return result.recordset;
 };
 
+/**
+ * [MỚI] Cập nhật trạng thái của một yêu cầu hủy sự kiện.
+ * @param {number} ycHuySkID - ID của yêu cầu hủy.
+ * @param {number} trangThaiMoiID - ID của trạng thái mới.
+ * @param {sql.Transaction} [transaction=null]
+ * @returns {Promise<void>}
+ */
+const updateYeuCauHuySKStatus = async (
+  ycHuySkID,
+  trangThaiMoiID,
+  transaction = null
+) => {
+  const query = `
+        UPDATE YeuCauHuySK
+        SET TrangThaiYcHuySkID = @TrangThaiMoiID
+        WHERE YcHuySkID = @YcHuySkID;
+    `;
+  const params = [
+    { name: 'YcHuySkID', type: sql.Int, value: ycHuySkID },
+    { name: 'TrangThaiMoiID', type: sql.Int, value: trangThaiMoiID },
+  ];
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  await request.query(query);
+};
+
 export const yeuCauHuySKRepository = {
   findSuKienForCancellationRequest,
   checkExistingPendingCancellationRequest,
@@ -487,4 +521,5 @@ export const yeuCauHuySKRepository = {
   updateYeuCauHuySKAfterBGHAction,
   deleteChiTietDatPhongBySuKienID,
   getPendingCancelRequestsForDashboard,
+  updateYeuCauHuySKStatus,
 };

@@ -80,4 +80,14 @@ router.post(
   asyncHandler(yeuCauHuySKController.tuChoiYeuCauHuySKController)
 );
 
+router.put(
+  '/:id/thu-hoi',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CB_TO_CHUC_SU_KIEN,
+    MaVaiTro.ADMIN_HE_THONG
+  ),
+  yeuCauHuySKValidation.validateIdParam,
+  asyncHandler(yeuCauHuySKController.thuHoiYeuCauHuySKController)
+);
+
 export default router;

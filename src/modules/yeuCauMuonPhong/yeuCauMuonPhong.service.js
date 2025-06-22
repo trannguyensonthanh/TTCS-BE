@@ -1,4 +1,5 @@
 // src/modules/yeuCauMuonPhong/yeuCauMuonPhong.service.js
+import sql from 'mssql';
 import { yeuCauMuonPhongRepository } from './yeuCauMuonPhong.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
@@ -9,7 +10,6 @@ import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import { suKienRepository } from '../suKien/suKien.repository.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 import { getPool } from '../../utils/database.js';
-import sql from 'mssql';
 import logger from '../../utils/logger.util.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
 
@@ -31,7 +31,7 @@ const getYeuCauMuonPhongs = async (params, currentUser) => {
     (role) => role.maVaiTro === MaVaiTro.ADMIN_HE_THONG
   );
 
-  let modifiedParams = { ...params };
+  const modifiedParams = { ...params };
   if (!isAdmin && !isCSVC) {
     // Nếu không phải admin hoặc CSVC, chỉ cho xem yêu cầu của chính họ
     // Hoặc nếu là Trưởng Khoa/CLB/Bí thư Đoàn, có thể cho xem của đơn vị họ (cần thêm logic này)
@@ -44,8 +44,8 @@ const getYeuCauMuonPhongs = async (params, currentUser) => {
       currentUser
     );
 
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -134,7 +134,7 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
     );
 
     // 3. Lấy ID trạng thái cần thiết
-    const trangThaiChungID_ChoXuLy =
+    const trangThaiChungIdChoXuLy =
       await suKienRepository.getTrangThaiIDByMaGeneric(
         MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY,
         'TrangThaiYeuCauPhong',
@@ -142,7 +142,7 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
         'MaTrangThai',
         transaction
       );
-    const trangThaiCtID_ChoDuyet =
+    const trangThaiCtIdChoDuyet =
       await suKienRepository.getTrangThaiIDByMaGeneric(
         MaTrangThaiYeuCauPhong.YCCPCT_CHO_DUYET,
         'TrangThaiYeuCauPhong',
@@ -150,21 +150,21 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
         'MaTrangThai',
         transaction
       );
-    const trangThaiSK_ChoDuyetPhong =
+    const trangThaiSkChoDuyetPhong =
       await suKienRepository.getTrangThaiSkIDByMa(
         MaTrangThaiSK.CHO_DUYET_PHONG,
         transaction
       );
     logger.debug('Trang Thai IDs retrieved for creation:', {
-      trangThaiChungID_ChoXuLy,
-      trangThaiCtID_ChoDuyet,
-      trangThaiSK_ChoDuyetPhong,
+      trangThaiChungIdChoXuLy,
+      trangThaiCtIdChoDuyet,
+      trangThaiSkChoDuyetPhong,
     });
 
     if (
-      !trangThaiChungID_ChoXuLy ||
-      !trangThaiCtID_ChoDuyet ||
-      !trangThaiSK_ChoDuyetPhong
+      !trangThaiChungIdChoXuLy ||
+      !trangThaiCtIdChoDuyet ||
+      !trangThaiSkChoDuyetPhong
     ) {
       logger.error(
         'Lỗi cấu hình: Không tìm thấy mã trạng thái cần thiết cho việc tạo yêu cầu mượn phòng.'
@@ -182,7 +182,7 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
           suKienID,
           nguoiYeuCauID: nguoiYeuCau.nguoiDungID,
           ghiChuChungYc,
-          trangThaiChungID: trangThaiChungID_ChoXuLy,
+          trangThaiChungID: trangThaiChungIdChoXuLy,
         },
         transaction
       );
@@ -194,7 +194,7 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
         {
           ...detail,
           ycMuonPhongID,
-          trangThaiCtID: trangThaiCtID_ChoDuyet,
+          trangThaiCtID: trangThaiCtIdChoDuyet,
         },
         transaction
       );
@@ -206,7 +206,7 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
     // 6. Cập nhật trạng thái SuKien thành CHO_DUYET_PHONG
     await suKienRepository.updateSuKienTrangThai(
       suKienID,
-      trangThaiSK_ChoDuyetPhong,
+      trangThaiSkChoDuyetPhong,
       transaction
     );
     logger.debug(`SuKienID: ${suKienID} status updated to CHO_DUYET_PHONG`);
@@ -292,14 +292,41 @@ const xuLyChiTietYeuCau = async (ycMuonPhongCtID, payload, nguoiXuLy) => {
         'Chi tiết yêu cầu mượn phòng không tồn tại.'
       );
     }
-    if (
-      chiTietYeuCau.MaTrangThaiChiTietHienTai !==
-      MaTrangThaiYeuCauPhong.YCCPCT_CHO_DUYET
-    ) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        `Chi tiết yêu cầu này không ở trạng thái "Chờ duyệt" (Hiện tại: ${chiTietYeuCau.MaTrangThaiChiTietHienTai}).`
-      );
+    // if (
+    //   chiTietYeuCau.MaTrangThaiChiTietHienTai !==
+    //   MaTrangThaiYeuCauPhong.YCCPCT_CHO_DUYET
+    // ) {
+    //   throw new ApiError(
+    //     httpStatus.BAD_REQUEST,
+    //     `Chi tiết yêu cầu này không ở trạng thái "Chờ duyệt" (Hiện tại: ${chiTietYeuCau.MaTrangThaiChiTietHienTai}).`
+    //   );
+    // }
+
+    // Kiểm tra trạng thái hợp lệ cho từng hành động
+    if (hanhDong === 'DUYET') {
+      if (
+        chiTietYeuCau.MaTrangThaiChiTietHienTai !==
+        MaTrangThaiYeuCauPhong.YCCPCT_CHO_DUYET
+      ) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Chỉ được duyệt khi chi tiết ở trạng thái "Chờ duyệt" (Hiện tại: ${chiTietYeuCau.MaTrangThaiChiTietHienTai}).`
+        );
+      }
+    } else if (hanhDong === 'TU_CHOI') {
+      if (
+        chiTietYeuCau.MaTrangThaiChiTietHienTai !==
+          MaTrangThaiYeuCauPhong.YCCPCT_CHO_DUYET &&
+        chiTietYeuCau.MaTrangThaiChiTietHienTai !==
+          MaTrangThaiYeuCauPhong.CSVC_YEU_CAU_CHINH_SUA_CT
+      ) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Chỉ được từ chối khi chi tiết ở trạng thái "Chờ duyệt" hoặc "CSVC yêu cầu chỉnh sửa" (Hiện tại: ${chiTietYeuCau.MaTrangThaiChiTietHienTai}).`
+        );
+      }
+    } else {
+      throw new ApiError(httpStatus.BAD_REQUEST, 'Hành động không hợp lệ.');
     }
 
     let trangThaiCtMoiID;
@@ -468,7 +495,7 @@ const xuLyChiTietYeuCau = async (ycMuonPhongCtID, payload, nguoiXuLy) => {
     if (finalStatusCounts.ChoDuyetCount === 0) {
       // Tất cả chi tiết đã được xử lý
       if (finalStatusCounts.DaXepPhongCount > 0) {
-        const trangThaiSK_DaXNPhong =
+        const trangThaiSkDaXNPhong =
           await suKienRepository.getTrangThaiIDByMaGeneric(
             MaTrangThaiSK.DA_XAC_NHAN_PHONG,
             'TrangThaiSK',
@@ -476,10 +503,10 @@ const xuLyChiTietYeuCau = async (ycMuonPhongCtID, payload, nguoiXuLy) => {
             'MaTrangThai',
             transaction
           );
-        if (trangThaiSK_DaXNPhong)
+        if (trangThaiSkDaXNPhong)
           await suKienRepository.updateSuKienTrangThai(
             suKienID,
-            trangThaiSK_DaXNPhong,
+            trangThaiSkDaXNPhong,
             transaction
           );
         logger.debug(
@@ -487,15 +514,15 @@ const xuLyChiTietYeuCau = async (ycMuonPhongCtID, payload, nguoiXuLy) => {
         );
       } else {
         // Tất cả chi tiết bị từ chối hoặc không phù hợp
-        const trangThaiSK_PhongBiTuChoi =
+        const trangThaiSkPhongBiTuChoi =
           await suKienRepository.getTrangThaiSkIDByMa(
             MaTrangThaiSK.PHONG_BI_TU_CHOI,
             transaction
           );
-        if (trangThaiSK_PhongBiTuChoi)
+        if (trangThaiSkPhongBiTuChoi)
           await suKienRepository.updateSuKienTrangThai(
             suKienID,
-            trangThaiSK_PhongBiTuChoi,
+            trangThaiSkPhongBiTuChoi,
             transaction
           );
         logger.debug(
@@ -624,16 +651,15 @@ const huyYeuCauMuonPhongByUser = async (ycMuonPhongID, nguoiHuy) => {
         'MaTrangThai',
         transaction
       );
-    const trangThaiSK_DaDuyetBGH_ID =
-      await suKienRepository.getTrangThaiSkIDByMa(
-        MaTrangThaiSK.DA_DUYET_BGH,
-        transaction
-      ); // Dùng hàm getTrangThaiSkIDByMa từ suKienRepo
+    const trangThaiSkDaDuyetBGHId = await suKienRepository.getTrangThaiSkIDByMa(
+      MaTrangThaiSK.DA_DUYET_BGH,
+      transaction
+    ); // Dùng hàm getTrangThaiSkIDByMa từ suKienRepo
 
     if (
       !trangThaiHeaderDaHuyID ||
       !trangThaiChiTietDaHuyID ||
-      !trangThaiSK_DaDuyetBGH_ID
+      !trangThaiSkDaDuyetBGHId
     ) {
       logger.error(
         'Lỗi cấu hình: Không tìm thấy mã trạng thái cần thiết cho việc hủy yêu cầu phòng.'
@@ -668,7 +694,7 @@ const huyYeuCauMuonPhongByUser = async (ycMuonPhongID, nguoiHuy) => {
     // 3. Cập nhật trạng thái của SuKien liên quan quay lại DA_DUYET_BGH
     await suKienRepository.updateSuKienTrangThai(
       yeuCauHeader.SuKienID,
-      trangThaiSK_DaDuyetBGH_ID,
+      trangThaiSkDaDuyetBGHId,
       transaction
     );
     logger.debug(

@@ -35,24 +35,24 @@ const getYeuCauHuySKs = async (params, currentUser) => {
     // CBTC chỉ thấy yêu cầu của mình
     modifiedParams.nguoiYeuCauID = currentUser.nguoiDungID;
   }
-  // BGH có thể cần filter mặc định là các yêu cầu đang chờ họ duyệt
-  else if (
-    isBGH &&
-    !params.trangThaiYcHuySkMa &&
-    !params.suKienID &&
-    !params.nguoiYeuCauID
-  ) {
-    modifiedParams.trangThaiYcHuySkMa =
-      MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH;
-  }
+  // // BGH có thể cần filter mặc định là các yêu cầu đang chờ họ duyệt
+  // else if (
+  //   isBGH &&
+  //   !params.trangThaiYcHuySkMa &&
+  //   !params.suKienID &&
+  //   !params.nguoiYeuCauID
+  // ) {
+  //   modifiedParams.trangThaiYcHuySkMa =
+  //     MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH;
+  // }
 
   const { items, totalItems } =
     await yeuCauHuySKRepository.getYeuCauHuySKListWithPagination(
       modifiedParams,
       currentUser
     );
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -161,14 +161,14 @@ const createYeuCauHuySK = async (suKienID, lyDoHuy, nguoiYeuCau) => {
   }
 
   // Lấy ID cho trạng thái "Chờ duyệt hủy BGH" của YeuCauHuySK
-  const trangThaiYcHuySkID_ChoDuyet =
+  const trangThaiYcHuySkIdChoDuyet =
     await yeuCauHuySKRepository.getTrangThaiIDByMa(
       MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH,
       'TrangThaiYeuCauHuySK',
       'TrangThaiYcHuySkID',
       'MaTrangThai'
     );
-  if (!trangThaiYcHuySkID_ChoDuyet) {
+  if (!trangThaiYcHuySkIdChoDuyet) {
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Lỗi cấu hình: Không tìm thấy trạng thái yêu cầu hủy.'
@@ -180,18 +180,17 @@ const createYeuCauHuySK = async (suKienID, lyDoHuy, nguoiYeuCau) => {
     suKienID,
     nguoiYeuCau.nguoiDungID,
     lyDoHuy,
-    trangThaiYcHuySkID_ChoDuyet
+    trangThaiYcHuySkIdChoDuyet
   );
 
   // Cập nhật trạng thái của SuKien thành "Chờ duyệt hủy sau duyệt"
-  const trangThaiSK_ChoDuyetHuy =
-    await yeuCauHuySKRepository.getTrangThaiIDByMa(
-      MaTrangThaiSK.CHO_DUYET_HUY_SAU_DUYET,
-      'TrangThaiSK',
-      'TrangThaiSkID',
-      'MaTrangThai'
-    );
-  if (!trangThaiSK_ChoDuyetHuy) {
+  const trangThaiSkChoDuyetHuy = await yeuCauHuySKRepository.getTrangThaiIDByMa(
+    MaTrangThaiSK.CHO_DUYET_HUY_SAU_DUYET,
+    'TrangThaiSK',
+    'TrangThaiSkID',
+    'MaTrangThai'
+  );
+  if (!trangThaiSkChoDuyetHuy) {
     throw new ApiError(
       httpStatus.INTERNAL_SERVER_ERROR,
       'Lỗi cấu hình: Không tìm thấy trạng thái sự kiện.'
@@ -200,7 +199,7 @@ const createYeuCauHuySK = async (suKienID, lyDoHuy, nguoiYeuCau) => {
   await yeuCauHuySKRepository.updateSuKienTrangThai(
     // cần sử dụng updateSuKienTrangThai từ sukienRepository
     suKienID,
-    trangThaiSK_ChoDuyetHuy
+    trangThaiSkChoDuyetHuy
   );
 
   // Trả về thông tin chi tiết sự kiện đã được cập nhật trạng thái
@@ -269,7 +268,7 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
     }
 
     // Lấy ID trạng thái mới cho YeuCauHuySK và SuKien
-    const trangThaiYCHuy_DaDuyetID =
+    const trangThaiYcHuyDaDuyetId =
       await suKienRepository.getTrangThaiIDByMaGeneric(
         MaTrangThaiYeuCauHuySK.DA_DUYET_HUY,
         'TrangThaiYeuCauHuySK',
@@ -277,16 +276,15 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
         'MaTrangThai',
         transaction
       );
-    const trangThaiSK_DaHuyID =
-      await suKienRepository.getTrangThaiIDByMaGeneric(
-        MaTrangThaiSK.DA_HUY,
-        'TrangThaiSK',
-        'TrangThaiSkID',
-        'MaTrangThai',
-        transaction
-      );
+    const trangThaiSkDaHuyId = await suKienRepository.getTrangThaiIDByMaGeneric(
+      MaTrangThaiSK.DA_HUY,
+      'TrangThaiSK',
+      'TrangThaiSkID',
+      'MaTrangThai',
+      transaction
+    );
 
-    if (!trangThaiYCHuy_DaDuyetID || !trangThaiSK_DaHuyID) {
+    if (!trangThaiYcHuyDaDuyetId || !trangThaiSkDaHuyId) {
       logger.error(
         'Lỗi cấu hình: Không tìm thấy mã trạng thái cần thiết cho việc duyệt hủy sự kiện.'
       );
@@ -299,7 +297,7 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
     // 1. Cập nhật YeuCauHuySK
     await yeuCauHuySKRepository.updateYeuCauHuySKAfterBGHAction(
       ycHuySkID,
-      trangThaiYCHuy_DaDuyetID,
+      trangThaiYcHuyDaDuyetId,
       nguoiDuyet.nguoiDungID,
       null,
       payload.ghiChuBGH,
@@ -312,7 +310,7 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
     // 2. Cập nhật SuKien
     await suKienRepository.updateSuKienTrangThai(
       yeuCauHuy.SuKienID,
-      trangThaiSK_DaHuyID,
+      trangThaiSkDaHuyId,
       transaction
     );
     logger.debug(`SuKien ID: ${yeuCauHuy.SuKienID} status updated to DA_HUY.`);
@@ -438,7 +436,7 @@ const tuChoiYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
       );
     }
 
-    const trangThaiYCHuy_TuChoiID =
+    const trangThaiYcHuyTuChoiId =
       await suKienRepository.getTrangThaiIDByMaGeneric(
         MaTrangThaiYeuCauHuySK.TU_CHOI_HUY,
         'TrangThaiYeuCauHuySK',
@@ -446,7 +444,7 @@ const tuChoiYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
         'MaTrangThai',
         transaction
       );
-    if (!trangThaiYCHuy_TuChoiID)
+    if (!trangThaiYcHuyTuChoiId)
       throw new ApiError(
         httpStatus.INTERNAL_SERVER_ERROR,
         'Lỗi cấu hình trạng thái.'
@@ -455,7 +453,7 @@ const tuChoiYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
     // 1. Cập nhật YeuCauHuySK
     await yeuCauHuySKRepository.updateYeuCauHuySKAfterBGHAction(
       ycHuySkID,
-      trangThaiYCHuy_TuChoiID,
+      trangThaiYcHuyTuChoiId,
       nguoiDuyet.nguoiDungID,
       payload.lyDoTuChoiHuyBGH,
       null, // Không có ghi chú khi từ chối (trừ khi FE gửi)
@@ -565,10 +563,111 @@ const tuChoiYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
   }
 };
 
+/**
+ * [MỚI] Thu hồi một yêu cầu hủy sự kiện.
+ * @param {number} ycHuySkID
+ * @param {object} currentUser
+ * @returns {Promise<object>} Yêu cầu hủy đã được cập nhật.
+ */
+const thuHoiYeuCauHuySK = async (ycHuySkID, currentUser) => {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+  try {
+    await transaction.begin();
+
+    // 1. Lấy thông tin yêu cầu hủy để kiểm tra
+    const yeuCauHuy = await yeuCauHuySKRepository.getYeuCauHuySKForProcessing(
+      ycHuySkID,
+      transaction
+    );
+    if (!yeuCauHuy) {
+      throw new ApiError(httpStatus.NOT_FOUND, 'Yêu cầu hủy không tồn tại.');
+    }
+
+    // 2. Kiểm tra quyền sở hữu
+    if (yeuCauHuy.NguoiYeuCauID !== currentUser.nguoiDungID) {
+      throw new ApiError(
+        httpStatus.FORBIDDEN,
+        'Bạn không có quyền thu hồi yêu cầu này.'
+      );
+    }
+
+    // 3. Kiểm tra trạng thái hiện tại của yêu cầu
+    if (
+      yeuCauHuy.MaTrangThaiHienTai !== MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH
+    ) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Chỉ có thể thu hồi yêu cầu ở trạng thái "Chờ duyệt". Trạng thái hiện tại: ${yeuCauHuy.MaTrangThaiHienTai}`
+      );
+    }
+
+    // 4. Lấy ID các trạng thái mới cần thiết
+    const trangThaiYcHuyDaThuHoiId =
+      await suKienRepository.getTrangThaiIDByMaGeneric(
+        MaTrangThaiYeuCauHuySK.DA_THU_HOI,
+        'TrangThaiYeuCauHuySK',
+        'TrangThaiYcHuySkID',
+        'MaTrangThai',
+        transaction
+      );
+    // Logic quay lại trạng thái sự kiện: Kiểm tra xem sự kiện có phòng chưa
+    const bookedRooms =
+      await yeuCauMuonPhongRepository.getChiTietDatPhongBySuKienID(
+        yeuCauHuy.SuKienID,
+        transaction
+      );
+    const trangThaiSkMoi =
+      bookedRooms.length > 0
+        ? MaTrangThaiSK.DA_XAC_NHAN_PHONG
+        : MaTrangThaiSK.DA_DUYET_BGH;
+    const trangThaiSkMoiID = await suKienRepository.getTrangThaiSkIDByMa(
+      trangThaiSkMoi,
+      transaction
+    );
+
+    if (!trangThaiYcHuyDaThuHoiId || !trangThaiSkMoiID) {
+      throw new ApiError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Lỗi cấu hình trạng thái.'
+      );
+    }
+
+    // 5. Cập nhật trạng thái của YeuCauHuySK -> DA_THU_HOI
+    await yeuCauHuySKRepository.updateYeuCauHuySKStatus(
+      ycHuySkID,
+      trangThaiYcHuyDaThuHoiId,
+      transaction
+    );
+
+    // 6. Cập nhật trạng thái của SuKien -> quay lại trạng thái trước khi yêu cầu hủy
+    await suKienRepository.updateSuKienTrangThai(
+      yeuCauHuy.SuKienID,
+      trangThaiSkMoiID,
+      transaction
+    );
+
+    await transaction.commit();
+    logger.info(
+      `User ${currentUser.nguoiDungID} revoked cancellation request ID: ${ycHuySkID}`
+    );
+
+    return yeuCauHuySKRepository.getYeuCauHuySKDetailById(ycHuySkID);
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      'Thu hồi yêu cầu thất bại.'
+    );
+  }
+};
+
 export const yeuCauHuySKService = {
   getYeuCauHuySKs,
   getYeuCauHuySKDetail,
   createYeuCauHuySK,
   duyetYeuCauHuySK,
   tuChoiYeuCauHuySK,
+  thuHoiYeuCauHuySK,
 };
