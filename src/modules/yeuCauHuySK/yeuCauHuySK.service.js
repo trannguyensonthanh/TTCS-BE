@@ -324,6 +324,16 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
       );
 
     if (bookedPhongRecords && bookedPhongRecords.length > 0) {
+      // BƯỚC 1: Xóa các YeuCauDoiPhong liên quan trước (xóa con)
+      await yeuCauHuySKRepository.deleteYeuCauDoiPhongBySuKienID(
+        yeuCauHuy.SuKienID,
+        transaction
+      );
+      logger.info(
+        `All YeuCauDoiPhong records deleted for cancelled SuKienID: ${yeuCauHuy.SuKienID}`
+      );
+
+      // BƯỚC 2: Bây giờ mới xóa ChiTietDatPhong (xóa cha)
       await yeuCauHuySKRepository.deleteChiTietDatPhongBySuKienID(
         yeuCauHuy.SuKienID,
         transaction

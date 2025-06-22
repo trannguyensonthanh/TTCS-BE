@@ -63,7 +63,7 @@ const createYeuCauHuySKRecord = async (
   const query = `
     INSERT INTO YeuCauHuySK (SuKienID, NguoiYeuCauID, LyDoHuy, TrangThaiYcHuySkID, NgayYeuCauHuy)
     OUTPUT inserted.YcHuySkID, inserted.SuKienID, inserted.NguoiYeuCauID, inserted.LyDoHuy, inserted.TrangThaiYcHuySkID, inserted.NgayYeuCauHuy
-    VALUES (@SuKienID, @NguoiYeuCauID, @LyDoHuy, @TrangThaiYcHuySkID, GETDATE());
+    VALUES (@SuKienID, @NguoiYeuCauID, @LyDoHuy, @TrangThaiYcHuySkID, SYSUTCDATETIME());
   `;
   const params = [
     { name: 'SuKienID', type: sql.Int, value: suKienID },
@@ -146,7 +146,7 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
             JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
             WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID 
               AND vt.MaVaiTro = @MaVaiTroThanhVien
-              AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+              AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME())
             ORDER BY ndvt.NgayBatDau DESC
         ) AS dv_nguoi_yc
     `;
@@ -216,6 +216,7 @@ const getYeuCauHuySKListWithPagination = async (params, currentUser) => {
         OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
   `;
   const itemsResult = await executeQuery(itemsQuery, queryParams);
+  console.log('itemsResult', itemsResult);
   const items = itemsResult.recordset.map((row) => ({
     ycHuySkID: row.YcHuySkID,
     suKien: {
@@ -393,7 +394,7 @@ const updateYeuCauHuySKAfterBGHAction = async (
   let setClauses = `
     TrangThaiYcHuySkID = @TrangThaiMoiID,
     NguoiDuyetHuyBGHID = @NguoiDuyetHuyBGHID,
-    NgayDuyetHuyBGH = GETDATE()
+    NgayDuyetHuyBGH = SYSUTCDATETIME()
   `;
   const params = [
     { name: 'YcHuySkID', type: sql.Int, value: ycHuySkID },
@@ -509,6 +510,25 @@ const updateYeuCauHuySKStatus = async (
   await request.query(query);
 };
 
+/**
+ * [MỚI] Xóa các bản ghi YeuCauDoiPhong liên quan đến một sự kiện.
+ * @param {number} suKienID
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<void>}
+ */
+const deleteYeuCauDoiPhongBySuKienID = async (suKienID, transaction) => {
+  const query = `
+        DELETE ycdp
+        FROM YeuCauDoiPhong ycdp
+        JOIN YcMuonPhongChiTiet yct ON ycdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
+        JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+        WHERE yc.SuKienID = @SuKienID;
+    `;
+  const request = transaction.request();
+  request.input('SuKienID', sql.Int, suKienID);
+  await request.query(query);
+};
+
 export const yeuCauHuySKRepository = {
   findSuKienForCancellationRequest,
   checkExistingPendingCancellationRequest,
@@ -522,4 +542,5 @@ export const yeuCauHuySKRepository = {
   deleteChiTietDatPhongBySuKienID,
   getPendingCancelRequestsForDashboard,
   updateYeuCauHuySKStatus,
+  deleteYeuCauDoiPhongBySuKienID,
 };

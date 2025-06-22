@@ -61,7 +61,7 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
         JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
         WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID 
           AND vt.MaVaiTro = @MaVaiTroThanhVien
-          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME())
         ORDER BY ndvt.NgayBatDau DESC
     ) AS dv_nguoi_yc
   `;
@@ -215,7 +215,7 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
     JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
     LEFT JOIN NguoiDung nd_duyet_tong ON yc.NguoiDuyetTongCSVCID = nd_duyet_tong.NguoiDungID
     -- Logic lấy dv_nguoi_yc tương tự như hàm get list
-    LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= GETDATE())
+    LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= SYSUTCDATETIME())
     LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}'
     LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
     OUTER APPLY (
@@ -391,7 +391,7 @@ const createYeuCauMuonPhongHeader = async (data, transaction) => {
   const query = `
     INSERT INTO YeuCauMuonPhong (SuKienID, NguoiYeuCauID, GhiChuChungYc, TrangThaiChungID, NgayYeuCau)
     OUTPUT inserted.YcMuonPhongID
-    VALUES (@SuKienID, @NguoiYeuCauID, @GhiChuChungYc, @TrangThaiChungID, GETDATE());
+    VALUES (@SuKienID, @NguoiYeuCauID, @GhiChuChungYc, @TrangThaiChungID, SYSUTCDATETIME());
   `;
   const params = [
     { name: 'SuKienID', type: sql.Int, value: data.suKienID },
@@ -416,6 +416,7 @@ const createYeuCauMuonPhongHeader = async (data, transaction) => {
  * @returns {Promise<void>}
  */
 const createYcMuonPhongDetail = async (data, transaction) => {
+  console.log('------------------------> createYcMuonPhongDetail data:', data);
   const query = `
     INSERT INTO YcMuonPhongChiTiet (
         YcMuonPhongID, MoTaNhomPhong, SlPhongNhomNay, LoaiPhongYcID,
@@ -741,7 +742,7 @@ const updateYeuCauMuonPhongHeaderStatus = async (
     UPDATE YeuCauMuonPhong
     SET TrangThaiChungID = @TrangThaiChungIDMoi,
         NguoiDuyetTongCSVCID = @NguoiDuyetTongCSVCID,
-        NgayDuyetTongCSVC = GETDATE()
+        NgayDuyetTongCSVC = SYSUTCDATETIME()
     WHERE YcMuonPhongID = @YcMuonPhongID;
   `;
   const params = [
@@ -844,7 +845,7 @@ const findYeuCauPhongChoCSVCQuaHan = async (soNgayQuaHan) => {
     JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
     JOIN NguoiDung nd ON yc.NguoiYeuCauID = nd.NguoiDungID
     WHERE tt_yc.MaTrangThai = @MaYcpChoXuLy
-      AND yc.NgayYeuCau < DATEADD(day, -@SoNgayQuaHan, GETDATE());
+      AND yc.NgayYeuCau < DATEADD(day, -@SoNgayQuaHan, SYSUTCDATETIME());
   `;
   const params = [
     {
@@ -877,7 +878,7 @@ const findSuKienQuaHanXepPhongDeHuy = async () => {
         LEFT JOIN YeuCauMuonPhong yc ON sk.SuKienID = yc.SuKienID
         LEFT JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID
             AND tt_yc.LoaiApDung = 'CHUNG'
-        WHERE sk.TgBatDauDK <= GETDATE() -- Thời gian bắt đầu sự kiện đã đến hoặc qua
+        WHERE sk.TgBatDauDK <= SYSUTCDATETIME() -- Thời gian bắt đầu sự kiện đã đến hoặc qua
           AND (
                 ttsk_sk.MaTrangThai = @MaSK_DaDuyetBGH OR
                 ttsk_sk.MaTrangThai = @MaSK_ChoDuyetPhong OR

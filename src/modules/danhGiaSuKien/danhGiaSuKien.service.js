@@ -83,6 +83,7 @@ const updateEventRating = async (danhGiaSkID, payload, currentUser) => {
   }
 
   const tgTaoDanhGia = new Date(existingRating.TgDanhGia);
+
   const tgHienTai = new Date();
   const thoiGianDaTroiMs = tgHienTai.getTime() - tgTaoDanhGia.getTime();
   const thoiGianDaTroiH = thoiGianDaTroiMs / (1000 * 60 * 60);

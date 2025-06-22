@@ -1,4 +1,5 @@
 // src/server.js
+
 import app from './app.js';
 import serverConfig from './config/server.config.js';
 import logger from './utils/logger.util.js';
@@ -6,6 +7,7 @@ import { getPool, closePool } from './utils/database.js'; // Đảm bảo getPoo
 import { startScheduledJobs } from './jobs/eventStatusManager.job.js';
 
 process.env.TZ = 'Asia/Ho_Chi_Minh';
+
 let server;
 
 /**

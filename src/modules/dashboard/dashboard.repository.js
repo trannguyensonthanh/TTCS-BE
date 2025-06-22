@@ -13,7 +13,7 @@ const getPublicKpiData = async (params) => {
   let dateFilterClause = '';
   const queryParams = [];
 
-  const now = 'GETDATE()';
+  const now = 'SYSUTCDATETIME()';
   switch (thoiGian) {
     case 'HOM_NAY':
       dateFilterClause = `AND CAST(sk.TgBatDauDK AS DATE) = CAST(${now} AS DATE)`;

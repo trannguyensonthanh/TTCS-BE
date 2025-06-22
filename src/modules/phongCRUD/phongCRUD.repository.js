@@ -614,7 +614,7 @@ const findRoomsToSetAsInUse = async () => {
           AND EXISTS (
               SELECT 1 FROM ChiTietDatPhong cdp
               WHERE cdp.PhongID = p.PhongID
-                AND GETDATE() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
+                AND SYSUTCDATETIME() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
           );
     `;
   const result = await executeQuery(query);
@@ -634,7 +634,7 @@ const findRoomsToSetAsAvailable = async () => {
           AND NOT EXISTS (
               SELECT 1 FROM ChiTietDatPhong cdp
               WHERE cdp.PhongID = p.PhongID
-                AND GETDATE() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
+                AND SYSUTCDATETIME() BETWEEN cdp.TgNhanPhongTT AND cdp.TgTraPhongTT
           );
     `;
   const result = await executeQuery(query);

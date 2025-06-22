@@ -31,7 +31,7 @@ const getKpiData = async (params) => {
   const query = `
         SELECT
             COUNT(DISTINCT sk.SuKienID) AS TongSuKien,
-            SUM(CASE WHEN sk.TgBatDauDK > GETDATE() AND ttsk.MaTrangThai NOT IN ('DA_HUY', 'HOAN_THANH') THEN 1 ELSE 0 END) AS SuKienSapToi,
+            SUM(CASE WHEN sk.TgBatDauDK > SYSUTCDATETIME() AND ttsk.MaTrangThai NOT IN ('DA_HUY', 'HOAN_THANH') THEN 1 ELSE 0 END) AS SuKienSapToi,
             SUM(ISNULL(sk.SlThamDuDK, 0)) AS TongLuotThamGiaDuKien,
             COUNT(dg.DanhGiaSkID) AS SoLuotDanhGia,
             AVG(CAST(dg.DiemNoiDung AS FLOAT)) AS DiemNoiDungTrungBinh,
@@ -155,7 +155,7 @@ const getStatsOverTime = async (params) => {
 const getUpcomingEventsForDashboard = async (params) => {
   const { limit, donViID } = params;
 
-  let whereClause = ` WHERE sk.TgBatDauDK > GETDATE() AND ttsk.MaTrangThai NOT IN ('DA_HUY', 'HOAN_THANH') `;
+  let whereClause = ` WHERE sk.TgBatDauDK > SYSUTCDATETIME() AND ttsk.MaTrangThai NOT IN ('DA_HUY', 'HOAN_THANH') `;
   const queryParams = [{ name: 'Limit', type: sql.Int, value: limit }];
 
   if (donViID) {

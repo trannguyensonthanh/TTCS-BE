@@ -50,7 +50,7 @@ const getNguoiDungList = async (params) => {
       if (thongTinGV && donViCongTac) {
         thongTinGV.donViCongTac = donViCongTac;
       }
-      console.log('donViCongTacfucku', donViCongTac);
+
       // Xác định các trường hiển thị chung
       let loaiNguoiDungHienThi = 'Nhân viên';
       let donViCongTacChinh = null;

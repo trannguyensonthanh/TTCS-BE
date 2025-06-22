@@ -299,7 +299,7 @@ const getDonViCongTacByNguoiDungID = async (nguoiDungID) => {
         JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
         WHERE ndvt.NguoiDungID = @NguoiDungID 
           AND vt.MaVaiTro = @MaVaiTroThanhVien
-          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME())
         ORDER BY ndvt.NgayBatDau DESC;
     `;
   const params = [
@@ -353,7 +353,7 @@ const createNguoiDungRecord = async (data, transaction) => {
   const query = `
     INSERT INTO NguoiDung (HoTen, Email, MaDinhDanh, SoDienThoai, AnhDaiDien, IsActive, NgayTao, NgaySinh)
     OUTPUT inserted.NguoiDungID
-    VALUES (@HoTen, @Email, @MaDinhDanh, @SoDienThoai, @AnhDaiDien, @IsActive, GETDATE(), @NgaySinh);
+    VALUES (@HoTen, @Email, @MaDinhDanh, @SoDienThoai, @AnhDaiDien, @IsActive, SYSUTCDATETIME(), @NgaySinh);
   `;
   logger.debug('Creating new NguoiDung with data:', data);
   const params = [
@@ -384,7 +384,7 @@ const createNguoiDungRecord = async (data, transaction) => {
 const createTaiKhoanRecord = async (data, transaction) => {
   const query = `
     INSERT INTO TaiKhoan (NguoiDungID, MatKhauHash, TrangThaiTk, NgayTaoTk)
-    VALUES (@NguoiDungID, @MatKhauHash, @TrangThaiTk, GETDATE());
+    VALUES (@NguoiDungID, @MatKhauHash, @TrangThaiTk, SYSUTCDATETIME());
   `;
   const params = [
     { name: 'NguoiDungID', type: sql.Int, value: data.nguoiDungID },
@@ -879,7 +879,7 @@ const checkExistingNguoiDungVaiTro = async (
           AND (@DonViID IS NULL OR DonViID = @DonViID) -- Xử lý DonViID có thể NULL
           AND (@DonViID IS NOT NULL OR DonViID IS NULL)
           AND NgayBatDau = @NgayBatDau
-          AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE()); -- Chỉ check các gán còn hiệu lực
+          AND (NgayKetThuc IS NULL OR NgayKetThuc >= SYSUTCDATETIME()); -- Chỉ check các gán còn hiệu lực
     `;
   const params = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
@@ -1046,7 +1046,7 @@ const getCurrentActiveRolesOfUser = async (nguoiDungID) => {
   const query = `
     SELECT ndvt.* FROM NguoiDung_VaiTro ndvt
     WHERE ndvt.NguoiDungID = @NguoiDungID
-      AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE())
+      AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME())
   `;
   const params = [{ name: 'NguoiDungID', type: sql.Int, value: nguoiDungID }];
   const result = await executeQuery(query, params);
@@ -1153,7 +1153,7 @@ const findUsersForInvitation = async (params) => {
     lopID,
     limit = 15,
   } = params;
-
+  console.log('findUsersForInvitation params:', params);
   const selectFields = `
         SELECT TOP (@Limit)
             nd.NguoiDungID,
@@ -1245,6 +1245,8 @@ const findUsersForInvitation = async (params) => {
     `;
 
   const result = await executeQuery(finalQuery, queryParams);
+  console.log('findUsersForInvitation result:', result);
+
   return result.recordset;
 };
 

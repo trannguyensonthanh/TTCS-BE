@@ -72,7 +72,7 @@ const getVaiTroHeThongListWithPagination = async (params) => {
     });
   }
 
-  const soNguoiDungSuDungSubQuery = `(SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.VaiTroID = vt.VaiTroID AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE()))`;
+  const soNguoiDungSuDungSubQuery = `(SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.VaiTroID = vt.VaiTroID AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME()))`;
 
   const countQuery = `SELECT COUNT(DISTINCT vt.VaiTroID) AS TotalItems ${FROM_VAITRO} ${whereClause}`;
   const countResult = await executeQuery(countQuery, queryParams);
@@ -109,7 +109,7 @@ const getVaiTroHeThongListWithPagination = async (params) => {
  * @returns {Promise<Object|null>} Đối tượng vai trò hoặc null nếu không tồn tại.
  */
 const getVaiTroHeThongById = async (vaiTroId, transaction = null) => {
-  const soNguoiDungSuDungSubQuery = `(SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.VaiTroID = vt.VaiTroID AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE()))`;
+  const soNguoiDungSuDungSubQuery = `(SELECT COUNT(DISTINCT ndvt.NguoiDungID) FROM NguoiDung_VaiTro ndvt WHERE ndvt.VaiTroID = vt.VaiTroID AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME()))`;
   const query = `
     SELECT ${SELECT_VAITRO_FIELDS},
            ${soNguoiDungSuDungSubQuery} AS SoNguoiDungSuDung
@@ -256,7 +256,7 @@ const checkVaiTroUsageInNguoiDungVaiTro = async (
     SELECT COUNT(DISTINCT NguoiDungID) AS UsageCount
     FROM NguoiDung_VaiTro 
     WHERE VaiTroID = @VaiTroID 
-      AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE()); -- Chỉ tính các gán vai trò còn hiệu lực
+      AND (NgayKetThuc IS NULL OR NgayKetThuc >= SYSUTCDATETIME()); -- Chỉ tính các gán vai trò còn hiệu lực
   `;
   const params = [{ name: 'VaiTroID', type: sql.Int, value: vaiTroId }];
   const request = transaction

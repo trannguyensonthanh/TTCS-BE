@@ -5,6 +5,8 @@ import { executeQuery, getPool } from '../../utils/database.js';
 import logger from '../../utils/logger.util.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 
+// import { formatToVietnamString } from '../../utils/timezone.util.js';
+
 const PUBLIC_VISIBLE_STATUS_CODES = [
   MaTrangThaiSK.DA_DUYET_BGH,
   MaTrangThaiSK.CHO_DUYET_PHONG,
@@ -133,7 +135,7 @@ const getSuKienListWithPagination = async (params) => {
     });
   }
   if (typeof sapDienRa === 'boolean' && sapDienRa) {
-    query += ` AND sk.TgBatDauDK > GETDATE() AND ttsk.MaTrangThai NOT IN (
+    query += ` AND sk.TgBatDauDK > SYSUTCDATETIME() AND ttsk.MaTrangThai NOT IN (
         '${MaTrangThaiSK.DA_HUY}',
         '${MaTrangThaiSK.HOAN_THANH}',
         '${MaTrangThaiSK.BI_TU_CHOI_BGH}',
@@ -202,11 +204,11 @@ const getSuKienListWithPagination = async (params) => {
   `;
 
   const itemsResult = await executeQuery(itemsQuery, queryParams);
-
+  console.log('itemsResult:', itemsResult);
   const items = itemsResult.recordset.map((row) => ({
     suKienID: row.SuKienID,
     tenSK: row.TenSK,
-    tgBatDauDK: row.TgBatDauDK.toISOString(),
+    tgBatDauDK: row.TgBatDauDK,
     tgKetThucDK: row.TgKetThucDK.toISOString(),
     diaDiemToChucDaXep: row.DiaDiemToChucDaXep,
     donViChuTri: {
@@ -506,7 +508,7 @@ const updateSuKienTrangThaiVaLyDo = async (
     });
   }
   // Thêm các trường khác cần cập nhật
-  // query += `, NgayCapNhat = GETDATE()`;
+  // query += `, NgayCapNhat = SYSUTCDATETIME()`;
 
   query += ` WHERE SuKienID = @SuKienID;`;
 
@@ -648,7 +650,7 @@ const getPublicSuKienListWithPagination = async (params) => {
 
   if (typeof sapDienRa === 'boolean') {
     if (sapDienRa) {
-      query += ` AND sk.TgBatDauDK >= GETDATE() AND ttsk.MaTrangThai <> @MaTrangThaiHoanThanh`;
+      query += ` AND sk.TgBatDauDK >= SYSUTCDATETIME() AND ttsk.MaTrangThai <> @MaTrangThaiHoanThanh`;
       queryParams.push({
         name: 'MaTrangThaiHoanThanh',
         type: sql.VarChar,
@@ -656,7 +658,7 @@ const getPublicSuKienListWithPagination = async (params) => {
       });
     } else {
       // Lấy cả sắp diễn ra và đã hoàn thành gần đây (ví dụ trong 30 ngày)
-      query += ` AND (sk.TgBatDauDK >= GETDATE() OR (ttsk.MaTrangThai = @MaTrangThaiHoanThanh AND sk.TgKetThucDK >= DATEADD(day, -30, GETDATE())))`;
+      query += ` AND (sk.TgBatDauDK >= SYSUTCDATETIME() OR (ttsk.MaTrangThai = @MaTrangThaiHoanThanh AND sk.TgKetThucDK >= DATEADD(day, -30, SYSUTCDATETIME())))`;
       queryParams.push({
         name: 'MaTrangThaiHoanThanh',
         type: sql.VarChar,
@@ -766,6 +768,8 @@ const getPublicSuKienDetailById = async (suKienID) => {
 };
 
 const createSuKien = async (suKienData, transaction = null) => {
+  const tgBatDauDKVN = new Date(suKienData.tgBatDauDK);
+  const tgKetThucDKVN = new Date(suKienData.tgKetThucDK);
   const query = `
     INSERT INTO SuKien (
         TenSK, TgBatDauDK, TgKetThucDK, MoTaChiTiet, DonViChuTriID, LoaiSuKienID,
@@ -778,7 +782,7 @@ const createSuKien = async (suKienData, transaction = null) => {
     VALUES (
         @TenSK, @TgBatDauDK, @TgKetThucDK, @MoTaChiTiet, @DonViChuTriID, @LoaiSuKienID,
         @NguoiChuTriID, @TenChuTriNgoai, @DonViChuTriNgoai, @SlThamDuDK, @IsCongKhaiNoiBo,
-        @KhachMoiNgoaiGhiChu, @TrangThaiSkID, @NguoiTaoID, GETDATE(),
+        @KhachMoiNgoaiGhiChu, @TrangThaiSkID, @NguoiTaoID, SYSUTCDATETIME(),
         @TgBatDauThucTe, @TgKetThucThucTe
     );
   `;
@@ -787,12 +791,12 @@ const createSuKien = async (suKienData, transaction = null) => {
     {
       name: 'TgBatDauDK',
       type: sql.DateTime,
-      value: new Date(suKienData.tgBatDauDK),
+      value: tgBatDauDKVN,
     },
     {
       name: 'TgKetThucDK',
       type: sql.DateTime,
-      value: new Date(suKienData.tgKetThucDK),
+      value: tgKetThucDKVN,
     },
     {
       name: 'MoTaChiTiet',
@@ -1206,7 +1210,7 @@ const findSuKienChoBGHQuaHan = async (soNgayQuaHan) => {
     JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
     JOIN NguoiDung nd ON sk.NguoiTaoID = nd.NguoiDungID
     WHERE ttsk.MaTrangThai = @MaChoDuyetBGH
-      AND sk.NgayTaoSK < DATEADD(day, -@SoNgayQuaHan, GETDATE());
+      AND sk.NgayTaoSK < DATEADD(day, -@SoNgayQuaHan, SYSUTCDATETIME());
   `;
   const params = [
     {
@@ -1231,7 +1235,7 @@ const findSuKienSapDienRaChoBGHDeHuy = async () => {
     JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
     JOIN NguoiDung nd ON sk.NguoiTaoID = nd.NguoiDungID
     WHERE ttsk.MaTrangThai = @MaChoDuyetBGH
-      AND sk.TgBatDauDK <= GETDATE(); -- Thời gian bắt đầu dự kiến đã đến hoặc đã qua
+      AND sk.TgBatDauDK <= SYSUTCDATETIME(); -- Thời gian bắt đầu dự kiến đã đến hoặc đã qua
   `;
   const params = [
     {
@@ -1284,7 +1288,7 @@ const findFinishedEventsToUpdateStatus = async () => {
     JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
     WHERE 
       -- Đã qua thời gian kết thúc dự kiến
-      sk.TgKetThucDK < GETDATE() 
+      sk.TgKetThucDK < SYSUTCDATETIME() 
       -- Và trạng thái hiện tại là các trạng thái "đang diễn ra"
       AND ttsk.MaTrangThai IN (
         '${MaTrangThaiSK.DA_XAC_NHAN_PHONG}', 
@@ -1293,7 +1297,7 @@ const findFinishedEventsToUpdateStatus = async () => {
       );
   `;
 
-  // WHERE COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) < GETDATE()
+  // WHERE COALESCE(sk.TgKetThucThucTe, sk.TgKetThucDK) < SYSUTCDATETIME()
 
   const result = await executeQuery(query);
   return result.recordset.map((row) => row.SuKienID);
@@ -1331,7 +1335,7 @@ const getSuKienCoTheMoiList = async (params) => {
         GROUP BY SuKienID
     ) moi ON sk.SuKienID = moi.SuKienID
   `;
-  let whereClause = ` WHERE ttsk.MaTrangThai IN (${allowedStatusCodes}) AND sk.TgKetThucDK > GETDATE() `;
+  let whereClause = ` WHERE ttsk.MaTrangThai IN (${allowedStatusCodes}) AND sk.TgKetThucDK > SYSUTCDATETIME() `;
   const queryParams = [];
 
   if (searchTerm) {
@@ -1621,7 +1625,7 @@ const getMyInvitations = async (nguoiDungID, params) => {
   }
 
   if (sapDienRa === true) {
-    whereClause += ' AND sk.TgKetThucDK >= GETDATE() ';
+    whereClause += ' AND sk.TgKetThucDK >= SYSUTCDATETIME() ';
   }
 
   const countQuery = `SELECT COUNT(DISTINCT skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
@@ -1665,7 +1669,7 @@ const updateInvitationResponse = async (moiThamGiaID, chapNhan, lyDoTuChoi) => {
         UPDATE SK_MoiThamGia
         SET 
             IsChapNhanMoi = @IsChapNhanMoi,
-            TgPhanHoiMoi = GETDATE(),
+            TgPhanHoiMoi = SYSUTCDATETIME(),
             LyDoTuChoiMoi = @LyDoTuChoiMoi
         OUTPUT 
             inserted.MoiThamGiaID,
@@ -1738,7 +1742,7 @@ const getMyAttendedEvents = async (nguoiDungID, params) => {
 
   // Logic lọc theo trạng thái sự kiện
   if (trangThaiSuKien) {
-    const now = 'GETDATE()';
+    const now = 'SYSUTCDATETIME()';
     if (trangThaiSuKien === 'SAP_DIEN_RA') {
       whereClause += ` AND sk.TgBatDauDK > ${now} AND ttsk.MaTrangThai NOT IN ('${MaTrangThaiSK.DA_HUY}', '${MaTrangThaiSK.HOAN_THANH}') `;
     } else if (trangThaiSuKien === 'DANG_DIEN_RA') {

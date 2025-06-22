@@ -27,7 +27,7 @@ const countThanhVienInDonVi = async (donViId) => {
         JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
         WHERE ndvt.DonViID = @DonViID 
           AND vt.MaVaiTro = @MaVaiTroThanhVien
-          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE());
+          AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME());
     `;
   const params = [
     { name: 'DonViID', type: sql.Int, value: donViId },
@@ -321,7 +321,7 @@ const checkDonViUsage = async (donViId, transaction = null) => {
       'SELECT COUNT(*) as count FROM LopHoc lh JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID WHERE nh.KhoaQuanLyID = @DonViID'
     ), // Lớp học (qua ngành)
     request.query(
-      'SELECT COUNT(*) as count FROM NguoiDung_VaiTro WHERE DonViID = @DonViID AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE())'
+      'SELECT COUNT(*) as count FROM NguoiDung_VaiTro WHERE DonViID = @DonViID AND (NgayKetThuc IS NULL OR NgayKetThuc >= SYSUTCDATETIME())'
     ), // Người dùng có vai trò tại ĐV
     request.query(
       'SELECT COUNT(*) as count FROM SuKien WHERE DonViChuTriID = @DonViID'

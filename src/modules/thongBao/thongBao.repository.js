@@ -32,7 +32,7 @@ const getRelevantDonViIDsForUser = async (nguoiDungID) => {
     SELECT DISTINCT DonViID
     FROM NguoiDung_VaiTro 
     WHERE NguoiDungID = @NguoiDungID AND DonViID IS NOT NULL
-      AND (NgayKetThuc IS NULL OR NgayKetThuc >= GETDATE());
+      AND (NgayKetThuc IS NULL OR NgayKetThuc >= SYSUTCDATETIME());
   `;
   const resultRoles = await executeQuery(queryRoles, params);
   resultRoles.recordset.forEach((row) => {
@@ -159,7 +159,7 @@ const markThongBaoAsRead = async (
 
   const finalQueryUpdate = `
         UPDATE ThongBao
-        SET DaDocTB = 1, NgayDocTB = GETDATE()
+        SET DaDocTB = 1, NgayDocTB = SYSUTCDATETIME()
         WHERE ThongBaoID = @ThongBaoID 
           AND DaDocTB = 0
           AND (
@@ -194,7 +194,7 @@ const markAllThongBaoAsReadForUser = async (nguoiDungID, relevantDonViIDs) => {
 
   const query = `
         UPDATE ThongBao
-        SET DaDocTB = 1, NgayDocTB = GETDATE()
+        SET DaDocTB = 1, NgayDocTB = SYSUTCDATETIME()
         WHERE (${whereClauses.join(' OR ')}) AND DaDocTB = 0;
     `;
   const result = await executeQuery(query, queryParams);
@@ -226,7 +226,7 @@ const createThongBaoRecord = async (thongBaoData, transaction = null) => {
     OUTPUT inserted.ThongBaoID, inserted.NoiDungTB, inserted.NgayTaoTB, inserted.LoaiThongBao
     VALUES (
         @NguoiNhanID, @DonViNhanID, @SkLienQuanID, @YcLienQuanID, @LoaiYcLienQuan,
-        @NoiDungTB, @DuongDanTB, @LoaiThongBao, GETDATE(), 0
+        @NoiDungTB, @DuongDanTB, @LoaiThongBao, SYSUTCDATETIME(), 0
     );
   `;
   const params = [

@@ -398,7 +398,7 @@ const createYeuCauDoiPhongRecord = async (data, transaction = null) => {
     )
     OUTPUT inserted.YcDoiPhongID
     VALUES (
-        @YcMuonPhongCtID, @DatPhongID_Cu, @NguoiYeuCauID, GETDATE(),
+        @YcMuonPhongCtID, @DatPhongID_Cu, @NguoiYeuCauID, SYSUTCDATETIME(),
         @LyDoDoiPhong, @YcPhongMoi_LoaiID, @YcPhongMoi_SucChua, @YcPhongMoi_ThietBi,
         @TrangThaiYcDoiPID
     );
@@ -488,7 +488,7 @@ const updateYeuCauDoiPhongAfterProcessing = async (
     SET TrangThaiYcDoiPID = @TrangThaiMoiID,
         DatPhongID_Moi = @DatPhongIDMoi,
         NguoiDuyetDoiCSVCID = @NguoiDuyetCSVCID,
-        NgayDuyetDoiCSVC = GETDATE(),
+        NgayDuyetDoiCSVC = SYSUTCDATETIME(),
         LyDoTuChoiDoiCSVC = @LyDoTuChoi,
         GhiChuDoiCSVC = @GhiChuCSVC -- Giả sử có cột này trong YeuCauDoiPhong để CSVC ghi chú thêm khi duyệt
     WHERE YcDoiPhongID = @YcDoiPhongID;
@@ -604,6 +604,41 @@ const getPendingChangeRoomRequestsForDashboard = async (limit) => {
   return result.recordset;
 };
 
+/**
+ * [MỚI] Kiểm tra xem đã có yêu cầu đổi phòng nào đang chờ duyệt cho một lần đặt phòng cụ thể chưa.
+ * @param {number} datPhongID_Cu - ID của bản ghi trong ChiTietDatPhong.
+ * @param {sql.Transaction} [transaction=null]
+ * @returns {Promise<boolean>} True nếu đã tồn tại yêu cầu chờ duyệt.
+ */
+const checkExistingPendingChangeRequest = async (
+  datPhongIDCu,
+  transaction = null
+) => {
+  const query = `
+        SELECT TOP 1 ycdp.YcDoiPhongID
+        FROM YeuCauDoiPhong ycdp
+        JOIN TrangThaiYeuCauDoiPhong tt ON ycdp.TrangThaiYcDoiPID = tt.TrangThaiYcDoiPID
+        WHERE ycdp.DatPhongID_Cu = @DatPhongID_Cu
+          AND tt.MaTrangThai = @MaTrangThaiChoDuyet;
+    `;
+  const params = [
+    { name: 'DatPhongID_Cu', type: sql.Int, value: datPhongIDCu },
+    {
+      name: 'MaTrangThaiChoDuyet',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauDoiPhong.CHO_DUYET_DOI_PHONG,
+    },
+  ];
+
+  const request = transaction
+    ? transaction.request()
+    : (await getPool()).request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+
+  const result = await request.query(query);
+  return result.recordset.length > 0;
+};
+
 export const yeuCauDoiPhongRepository = {
   getYeuCauDoiPhongListWithPagination,
   getYeuCauDoiPhongDetailById,
@@ -616,4 +651,5 @@ export const yeuCauDoiPhongRepository = {
   getYeuCauDoiPhongForUserCancel,
   updateUserCancelYeuCauDoiPhong,
   getPendingChangeRoomRequestsForDashboard,
+  checkExistingPendingChangeRequest,
 };

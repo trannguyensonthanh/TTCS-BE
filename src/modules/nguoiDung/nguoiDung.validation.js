@@ -121,7 +121,7 @@ const thongTinGiangVienPayloadSchema = Joi.object({
 const vaiTroChucNangGanPayloadSchema = Joi.object({
   vaiTroID: Joi.number().integer().positive().required(),
   donViID: Joi.number().integer().positive().allow(null).optional(),
-  ngayBatDau: Joi.string().isoDate().allow(null).optional(), // Sẽ default GETDATE() nếu null
+  ngayBatDau: Joi.string().isoDate().allow(null).optional(), // Sẽ default SYSUTCDATETIME() nếu null
   ngayKetThuc: Joi.string().isoDate().allow(null).optional(),
   // ghiChuGanVT không cần thiết ở payload tạo, admin có thể thêm sau
 });

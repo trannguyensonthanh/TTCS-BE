@@ -9,7 +9,7 @@ import logger from '../../utils/logger.util.js';
  * @returns {Promise<Array>} Danh sách phòng đã đặt
  */
 const getMyActiveBookedRoomsForChange = async (queryParams, currentUser) => {
-  let effectiveNguoiYeuCauID = currentUser.nguoiDungID;
+  const effectiveNguoiYeuCauID = currentUser.nguoiDungID;
   logger.debug(
     `getMyActiveBookedRoomsForChange called by user ${currentUser.nguoiDungID} with params: ${JSON.stringify(queryParams)}`
   );

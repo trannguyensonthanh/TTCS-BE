@@ -1,6 +1,6 @@
 // src/modules/chiTietSuDungPhong/chiTietSuDungPhong.repository.js
-import { executeQuery } from '../../utils/database.js';
 import sql from 'mssql';
+import { executeQuery } from '../../utils/database.js';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enum.js';
@@ -37,7 +37,7 @@ const getActiveBookedRoomsForChange = async (params) => {
         WHERE yc.NguoiYeuCauID = @NguoiYeuCauID
           AND ttsk.MaTrangThai IN (${skAllowChangeStatusCodes})
           AND tt_yct.MaTrangThai = @MaYcChiTietDaXepPhong
-          -- AND sk.TgBatDauDK > DATEADD(day, 7, GETDATE()) -- Sự kiện phải còn ít nhất 7 ngày nữa mới diễn ra (điều chỉnh sau)
+          -- AND sk.TgBatDauDK > DATEADD(day, 7, SYSUTCDATETIME()) -- Sự kiện phải còn ít nhất 7 ngày nữa mới diễn ra (điều chỉnh sau)
           AND NOT EXISTS ( -- Chưa có yêu cầu đổi phòng nào đang chờ duyệt cho bản ghi ChiTietDatPhong này
                 SELECT 1
                 FROM YeuCauDoiPhong ycdp_check
@@ -64,6 +64,7 @@ const getActiveBookedRoomsForChange = async (params) => {
   ];
 
   const result = await executeQuery(query, queryParams);
+
   return result.recordset.map((row) => ({
     datPhongID: Number(row.DatPhongID),
     ycMuonPhongCtID: row.YcMuonPhongCtID,

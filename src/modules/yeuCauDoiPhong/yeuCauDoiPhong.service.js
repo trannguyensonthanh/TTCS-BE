@@ -1,4 +1,5 @@
 // src/modules/yeuCauDoiPhong/yeuCauDoiPhong.service.js
+import sql from 'mssql';
 import { yeuCauDoiPhongRepository } from './yeuCauDoiPhong.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
@@ -10,7 +11,6 @@ import { suKienRepository } from '../suKien/suKien.repository.js';
 import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enum.js';
 import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
-import sql from 'mssql';
 import { yeuCauMuonPhongRepository } from '../yeuCauMuonPhong/yeuCauMuonPhong.repository.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
 
@@ -22,7 +22,7 @@ import { thongBaoService } from '../thongBao/thongBao.service.js';
  * @throws {ApiError} Nếu có lỗi truy vấn dữ liệu
  */
 const getYeuCauDoiPhongs = async (params, currentUser) => {
-  let modifiedParams = { ...params };
+  const modifiedParams = { ...params };
   const { items, totalItems } =
     await yeuCauDoiPhongRepository.getYeuCauDoiPhongListWithPagination(
       modifiedParams,
@@ -87,6 +87,17 @@ const createYeuCauDoiPhong = async (payload, nguoiYeuCau) => {
   ) {
     console.warn(
       `User ${nguoiYeuCau.nguoiDungID} is creating change request for YC created by ${preRequisites.yeuCauPhongNguoiTaoID} / SK created by ${preRequisites.suKienNguoiTaoID}`
+    );
+  }
+
+  const daTonTaiYeuCauCho =
+    await yeuCauDoiPhongRepository.checkExistingPendingChangeRequest(
+      datPhongID_Cu
+    );
+  if (daTonTaiYeuCauCho) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      'Bạn đã có một yêu cầu đổi cho phòng này đang chờ duyệt. Vui lòng chờ xử lý hoặc hủy yêu cầu cũ.'
     );
   }
   if (ycPhongMoi_LoaiID) {

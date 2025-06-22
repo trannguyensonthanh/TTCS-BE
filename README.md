@@ -14,7 +14,7 @@
 | Email       | VARCHAR(150)     | UNIQUE, NOT NULL                               |
 | SoDienThoai | VARCHAR(20)      | UNIQUE, NULL                                   |
 | AnhDaiDien  | VARCHAR(500)     | NULL (URL ảnh)                                 |
-| NgayTao     | DATETIME         | DEFAULT GETDATE()                              |
+| NgayTao     | DATETIME         | DEFAULT SYSUTCDATETIME()                       |
 | IsActive    | BIT              | DEFAULT 1 (Tài khoản người dùng còn hoạt động) |
 
 **2. Bảng TaiKhoan (Accounts - Thông tin đăng nhập)**
@@ -28,7 +28,7 @@
 | Salt            | VARCHAR(100)     | NOT NULL                                                                          |
 | LanDangNhapCuoi | DATETIME         | NULL                                                                              |
 | TrangThaiTk     | VARCHAR(50)      | NOT NULL, DEFAULT 'Active' (VD: 'Active', 'Locked', 'Disabled')                   |
-| NgayTaoTk       | DATETIME         | DEFAULT GETDATE()                                                                 |
+| NgayTaoTk       | DATETIME         | DEFAULT SYSUTCDATETIME()                                                          |
 
 **3. Bảng DonVi (Departments/Units - Khoa, Phòng, Ban, CLB, Bộ môn...)**
 
@@ -115,7 +115,7 @@
 | NguoiDungID | INT              | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                        |
 | VaiTroID    | INT              | NOT NULL, FOREIGN KEY REFERENCES VaiTroHeThong(VaiTroID)                       |
 | DonViID     | INT              | NULL, FOREIGN KEY REFERENCES DonVi(DonViID) (Đơn vị nơi vai trò được thực thi) |
-| NgayBatDau  | DATE             | NOT NULL, DEFAULT GETDATE()                                                    |
+| NgayBatDau  | DATE             | NOT NULL, DEFAULT SYSUTCDATETIME()                                             |
 | NgayKetThuc | DATE             | NULL                                                                           |
 | GhiChuGanVT | NVARCHAR(500)    | NULL                                                                           |
 |             |                  | UNIQUE (NguoiDungID, VaiTroID, DonViID, NgayBatDau)                            |
@@ -147,7 +147,7 @@
 | MoTaChiTiet         | NVARCHAR(MAX) | NULL                                                                                          |
 | TrangThaiSkID       | INT           | NOT NULL, FOREIGN KEY REFERENCES TrangThaiSK(TrangThaiSkID)                                   |
 | NguoiTaoID          | INT           | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                                       |
-| NgayTaoSK           | DATETIME      | DEFAULT GETDATE()                                                                             |
+| NgayTaoSK           | DATETIME      | DEFAULT SYSUTCDATETIME()                                                                      |
 | NguoiDuyetBGHID     | INT           | NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                                           |
 | NgayDuyetBGH        | DATETIME      | NULL                                                                                          |
 | LyDoTuChoiBGH       | NVARCHAR(MAX) | NULL                                                                                          |
@@ -298,7 +298,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | YcMuonPhongID        | INT           | PRIMARY KEY, IDENTITY(1,1)                                            |
 | SuKienID             | INT           | NOT NULL, FOREIGN KEY REFERENCES SuKien(SuKienID)                     |
 | NguoiYeuCauID        | INT           | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)               |
-| NgayYeuCau           | DATETIME      | DEFAULT GETDATE()                                                     |
+| NgayYeuCau           | DATETIME      | DEFAULT SYSUTCDATETIME()                                              |
 | TrangThaiChungID     | INT           | NOT NULL, FOREIGN KEY REFERENCES TrangThaiYeuCauPhong(TrangThaiYcpID) |
 | NguoiDuyetTongCSVCID | INT           | NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                   |
 | NgayDuyetTongCSVC    | DATETIME      | NULL                                                                  |
@@ -352,7 +352,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | YcHuySkID          | INT           | PRIMARY KEY, IDENTITY(1,1)                                                |
 | SuKienID           | INT           | NOT NULL, FOREIGN KEY REFERENCES SuKien(SuKienID)                         |
 | NguoiYeuCauID      | INT           | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                   |
-| NgayYeuCauHuy      | DATETIME      | DEFAULT GETDATE()                                                         |
+| NgayYeuCauHuy      | DATETIME      | DEFAULT SYSUTCDATETIME()                                                  |
 | LyDoHuy            | NVARCHAR(MAX) | NOT NULL                                                                  |
 | TrangThaiYcHuySkID | INT           | NOT NULL, FOREIGN KEY REFERENCES TrangThaiYeuCauHuySK(TrangThaiYcHuySkID) |
 | NguoiDuyetHuyBGHID | INT           | NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                       |
@@ -376,7 +376,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | YcMuonPhongCtID     | INT           | NOT NULL, FOREIGN KEY REFERENCES YcMuonPhongChiTiet(YcMuonPhongCtID)        |
 | DatPhongID_Cu       | INT           | NOT NULL, FOREIGN KEY REFERENCES ChiTietDatPhong(DatPhongID)                |
 | NguoiYeuCauID       | INT           | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                     |
-| NgayYeuCauDoi       | DATETIME      | DEFAULT GETDATE()                                                           |
+| NgayYeuCauDoi       | DATETIME      | DEFAULT SYSUTCDATETIME()                                                    |
 | LyDoDoiPhong        | NVARCHAR(MAX) | NOT NULL                                                                    |
 | YcPhongMoi_LoaiID   | INT           | NULL, FOREIGN KEY REFERENCES LoaiPhong(LoaiPhongID)                         |
 | YcPhongMoi_SucChua  | INT           | NULL                                                                        |
@@ -409,7 +409,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | DuongDanFile  | VARCHAR(500)  | NOT NULL                                                            |
 | MoTaTL        | NVARCHAR(MAX) | NULL                                                                |
 | NguoiTaiLenID | INT           | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)             |
-| NgayTaiLen    | DATETIME      | DEFAULT GETDATE()                                                   |
+| NgayTaiLen    | DATETIME      | DEFAULT SYSUTCDATETIME()                                            |
 | IsCongKhaiTL  | BIT           | DEFAULT 0                                                           |
 
 **30. Bảng DanhGiaSK**
@@ -423,7 +423,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | DiemToChuc     | TINYINT       | NULL, CHECK (DiemToChuc BETWEEN 1 AND 5)                |
 | DiemDiaDiem    | TINYINT       | NULL, CHECK (DiemDiaDiem BETWEEN 1 AND 5)               |
 | YKienDongGop   | NVARCHAR(MAX) | NULL                                                    |
-| TgDanhGia      | DATETIME      | DEFAULT GETDATE()                                       |
+| TgDanhGia      | DATETIME      | DEFAULT SYSUTCDATETIME()                                |
 |                |               | UNIQUE(SuKienID, NguoiDanhGiaID)                        |
 
 **31. Bảng ThongBao**
@@ -438,7 +438,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | LoaiYcLienQuan | VARCHAR(50)   | NULL                                                |
 | NoiDungTB      | NVARCHAR(MAX) | NOT NULL                                            |
 | DuongDanTB     | VARCHAR(500)  | NULL                                                |
-| NgayTaoTB      | DATETIME      | DEFAULT GETDATE()                                   |
+| NgayTaoTB      | DATETIME      | DEFAULT SYSUTCDATETIME()                            |
 | DaDocTB        | BIT           | DEFAULT 0                                           |
 | NgayDocTB      | DATETIME      | NULL                                                |
 | LoaiThongBao   | VARCHAR(50)   | NULL                                                |
@@ -451,7 +451,7 @@ CONSTRAINT CK_SuKien_ThoiGianThucTe CHECK (TgBatDauThucTe IS NULL OR TgKetThucTh
 | NguoiDungID    | INT              | NOT NULL, FOREIGN KEY REFERENCES NguoiDung(NguoiDungID)                                                                                                 |
 | DonViID_CLB    | INT              | NOT NULL, FOREIGN KEY REFERENCES DonVi(DonViID) (Ràng buộc DonVi.LoaiDonVi phải là 'CLB')                                                               |
 | ChucVuTrongCLB | NVARCHAR(100)    | NULL (VD: 'Thành viên', 'Phó Ban Kỹ thuật', 'Trưởng Ban Nội dung'. Nếu là Trưởng CLB, có thể vẫn lưu ở đây hoặc ưu tiên vai trò trong NguoiDung_VaiTro) |
-| NgayGiaNhap    | DATE             | DEFAULT GETDATE()                                                                                                                                       |
+| NgayGiaNhap    | DATE             | DEFAULT SYSUTCDATETIME()                                                                                                                                |
 | NgayRoiCLB     | DATE             | NULL                                                                                                                                                    |
 | IsActiveInCLB  | BIT              | DEFAULT 1 (Còn là thành viên tích cực không)                                                                                                            |
 |                |                  | UNIQUE (NguoiDungID, DonViID_CLB) (Mỗi người chỉ là thành viên của một CLB một lần tại một thời điểm)                                                   |

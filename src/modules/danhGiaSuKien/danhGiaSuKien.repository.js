@@ -22,7 +22,7 @@ const checkRatingEligibility = async (suKienID, nguoiDungID) => {
             sk.SuKienID = @SuKienID
             AND skm.NguoiDuocMoiID = @NguoiDungID
             AND skm.IsChapNhanMoi = 1
-            AND (ttsk.MaTrangThai = 'HOAN_THANH' OR sk.TgKetThucDK < GETDATE());
+            AND (ttsk.MaTrangThai = 'HOAN_THANH' OR sk.TgKetThucDK < SYSUTCDATETIME());
     `;
   const params = [
     { name: 'SuKienID', type: sql.Int, value: suKienID },
@@ -73,7 +73,7 @@ const createRating = async (ratingData) => {
         )
         OUTPUT inserted.*
         VALUES (
-            @SuKienID, @NguoiDanhGiaID, @DiemNoiDung, @DiemToChuc, @DiemDiaDiem, @YKienDongGop, GETDATE()
+            @SuKienID, @NguoiDanhGiaID, @DiemNoiDung, @DiemToChuc, @DiemDiaDiem, @YKienDongGop, SYSUTCDATETIME()
         );
     `;
   const params = [
@@ -152,7 +152,7 @@ const updateRating = async (danhGiaSkID, updateData) => {
     return getRatingById(danhGiaSkID);
   }
 
-  setClauses.push('TgDanhGia = GETDATE()');
+  setClauses.push('TgDanhGia = SYSUTCDATETIME()');
 
   const query = `
         UPDATE DanhGiaSK

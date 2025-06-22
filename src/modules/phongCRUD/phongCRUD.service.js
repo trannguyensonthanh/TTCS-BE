@@ -518,16 +518,16 @@ const importPhongFromExcel = async (filePath) => {
         );
         phongPayload.toaNhaTangID = parseInt(phongPayload.toaNhaTangID, 10);
         if (
-          isNaN(phongPayload.loaiPhongID) ||
-          isNaN(phongPayload.trangThaiPhongID) ||
-          isNaN(phongPayload.toaNhaTangID)
+          Number.isNaN(phongPayload.loaiPhongID) ||
+          Number.isNaN(phongPayload.trangThaiPhongID) ||
+          Number.isNaN(phongPayload.toaNhaTangID)
         ) {
           rowError =
             'ID Loại phòng, Trạng thái phòng, Tòa nhà tầng phải là số.';
         }
         if (phongPayload.sucChua) {
           phongPayload.sucChua = parseInt(phongPayload.sucChua, 10);
-          if (isNaN(phongPayload.sucChua))
+          if (Number.isNaN(phongPayload.sucChua))
             rowError = `${rowError ? `${rowError}; ` : ''}Sức chứa phải là số.`;
         }
         // Xử lý ThietBiTrongPhong (chuỗi JSON)
@@ -565,7 +565,7 @@ const importPhongFromExcel = async (filePath) => {
           status: 'error',
           message: rowError,
         });
-        errorCount++;
+        errorCount += 1;
         continue; // Bỏ qua dòng này
       }
 
@@ -649,7 +649,7 @@ const importPhongFromExcel = async (filePath) => {
           status: 'success',
           phongID: newPhongID,
         });
-        successCount++;
+        successCount += 1;
       } catch (err) {
         if (
           transaction &&
@@ -665,7 +665,7 @@ const importPhongFromExcel = async (filePath) => {
           status: 'error',
           message: err.message,
         });
-        errorCount++;
+        errorCount += 1;
       }
     }
   } catch (err) {

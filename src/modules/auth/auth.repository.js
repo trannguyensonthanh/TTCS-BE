@@ -1,7 +1,7 @@
 // src/modules/auth/auth.repository.js
+import sql from 'mssql';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
 import { executeQuery } from '../../utils/database.js';
-import sql from 'mssql';
 
 /**
  * Tìm tài khoản người dùng bằng email.
@@ -170,7 +170,7 @@ const saveOtp = async (email, otp) => {
 
   const query = `
     INSERT INTO OtpVaResetToken (Email, Otp, OtpExpiresAt, LoaiToken, NgayTao)
-    VALUES (@Email, @Otp, DATEADD(minute, @OtpExpiryMinutes, GETDATE()), 'OTP_QUEN_MK', GETDATE()); 
+    VALUES (@Email, @Otp, DATEADD(minute, @OtpExpiryMinutes, SYSUTCDATETIME()), 'OTP_QUEN_MK', SYSUTCDATETIME()); 
   `;
   const params = [
     { name: 'Email', type: sql.VarChar, value: email },
@@ -195,7 +195,7 @@ const findValidOtp = async (email, otp) => {
     SELECT TokenID, Email, Otp, OtpExpiresAt
     FROM OtpVaResetToken
     WHERE Email = @Email AND Otp = @Otp AND LoaiToken = 'OTP_QUEN_MK'
-      AND DaSuDung = 0 AND OtpExpiresAt > GETDATE();
+      AND DaSuDung = 0 AND OtpExpiresAt > SYSUTCDATETIME();
   `;
   const params = [
     { name: 'Email', type: sql.VarChar, value: email },
@@ -229,8 +229,8 @@ const saveResetToken = async (email, resetToken) => {
     [{ name: 'Email', type: sql.VarChar, value: email }]
   );
   const query = `
-    INSERT INTO OtpVaResetToken (Email, ResetToken, ResetTokenExpiresAt, LoaiToken)
-    VALUES (@Email, @ResetToken, DATEADD(hour, @ResetTokenExpiryHours, GETDATE()), 'RESET_PASSWORD_TOKEN');
+    INSERT INTO OtpVaResetToken (Email, ResetToken, ResetTokenExpiresAt, LoaiToken, NgayTao)
+    VALUES (@Email, @ResetToken, DATEADD(hour, @ResetTokenExpiryHours, SYSUTCDATETIME()), 'RESET_PASSWORD_TOKEN', SYSUTCDATETIME());
   `;
   const params = [
     { name: 'Email', type: sql.VarChar, value: email },
@@ -254,7 +254,7 @@ const findValidResetToken = async (resetToken) => {
     SELECT TokenID, Email, ResetTokenExpiresAt
     FROM OtpVaResetToken
     WHERE ResetToken = @ResetToken AND LoaiToken = 'RESET_PASSWORD_TOKEN'
-      AND DaSuDung = 0 AND ResetTokenExpiresAt > GETDATE();
+      AND DaSuDung = 0 AND ResetTokenExpiresAt > SYSUTCDATETIME();
   `;
   const params = [{ name: 'ResetToken', type: sql.VarChar, value: resetToken }];
   const result = await executeQuery(query, params);
@@ -314,7 +314,7 @@ const getVaiTroChucNangByNguoiDungID = async (nguoiDungID) => {
     LEFT JOIN DonVi dv ON nd_vt.DonViID = dv.DonViID
     WHERE nd_vt.NguoiDungID = @NguoiDungID
       AND vtht.MaVaiTro != @MaVaiTroThanhVien
-      AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= GETDATE());
+      AND (nd_vt.NgayKetThuc IS NULL OR nd_vt.NgayKetThuc >= SYSUTCDATETIME());
   `;
   const params = [
     { name: 'NguoiDungID', type: sql.Int, value: nguoiDungID },
@@ -354,7 +354,7 @@ const findUsersByRoleMa = async (maVaiTro) => {
     JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
     WHERE vt.MaVaiTro = @MaVaiTro
       AND nd.IsActive = 1
-      AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= GETDATE());
+      AND (ndvt.NgayKetThuc IS NULL OR ndvt.NgayKetThuc >= SYSUTCDATETIME());
   `;
   const params = [{ name: 'MaVaiTro', type: sql.VarChar, value: maVaiTro }];
   const result = await executeQuery(query, params);

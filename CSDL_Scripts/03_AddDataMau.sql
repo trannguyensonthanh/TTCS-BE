@@ -64,7 +64,7 @@ BEGIN
 
     IF @VaiTroID_Admin_Final_V2 IS NOT NULL
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_Admin_Final_V2, @VaiTroID_Admin_Final_V2, NULL, GETDATE());
+        VALUES (@NguoiDungID_Admin_Final_V2, @VaiTroID_Admin_Final_V2, NULL, SYSUTCDATETIME());
     PRINT 'Admin user V2 created.';
 END
 ELSE
@@ -91,7 +91,7 @@ BEGIN
     -- Gán vai trò chức năng Bí thư Đoàn Trường
     IF @VaiTroID_BiThuDoan_Final_V2 IS NOT NULL AND @DonViID_DoanTruong_Final_V2 IS NOT NULL
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_BiThuDoan_Final_V2, @VaiTroID_BiThuDoan_Final_V2, @DonViID_DoanTruong_Final_V2, GETDATE());
+        VALUES (@NguoiDungID_BiThuDoan_Final_V2, @VaiTroID_BiThuDoan_Final_V2, @DonViID_DoanTruong_Final_V2, SYSUTCDATETIME());
     PRINT 'Bi Thu Doan (Lecturer) V2 user created and functional role assigned.';
 END
 ELSE
@@ -114,7 +114,7 @@ BEGIN
     -- Gán vai trò chức năng Quản lý CSVC
     IF @VaiTroID_QuanLyCsvc_Final_V2 IS NOT NULL AND @DonViID_Csvc_Final_V2 IS NOT NULL
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_QuanLyCsvc_Final_V2, @VaiTroID_QuanLyCsvc_Final_V2, @DonViID_Csvc_Final_V2, GETDATE());
+        VALUES (@NguoiDungID_QuanLyCsvc_Final_V2, @VaiTroID_QuanLyCsvc_Final_V2, @DonViID_Csvc_Final_V2, SYSUTCDATETIME());
     PRINT 'Quan Ly CSVC (Staff) V2 user created and functional role assigned.';
 END
 ELSE
@@ -141,7 +141,7 @@ BEGIN
     -- Gán vai trò chức năng BGH duyệt SK
     IF @VaiTroID_Bgh_Final_V2 IS NOT NULL AND @DonViID_Bgh_Final_V2 IS NOT NULL
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_Bgh_Final_V2, @VaiTroID_Bgh_Final_V2, @DonViID_Bgh_Final_V2, GETDATE());
+        VALUES (@NguoiDungID_Bgh_Final_V2, @VaiTroID_Bgh_Final_V2, @DonViID_Bgh_Final_V2, SYSUTCDATETIME());
     PRINT 'BGH user (Lecturer) V2 created and functional role assigned.';
 END
 ELSE
@@ -164,7 +164,7 @@ BEGIN
     IF @VaiTroID_CbToChucSk_Final_V2 IS NOT NULL AND @DonViID_Pctsv_Final_V2 IS NOT NULL
     BEGIN
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_CbToChucSk_Final_V2, @VaiTroID_CbToChucSk_Final_V2, @DonViID_Pctsv_Final_V2, GETDATE());
+        VALUES (@NguoiDungID_CbToChucSk_Final_V2, @VaiTroID_CbToChucSk_Final_V2, @DonViID_Pctsv_Final_V2, SYSUTCDATETIME());
         PRINT 'CB_TO_CHUC_SU_KIEN user (Staff of P_CTSV) V2 created and functional role assigned.';
     END
     ELSE
@@ -183,7 +183,7 @@ BEGIN
                      AND DonViID = @DonViID_Pctsv_Final_V2)
     BEGIN
         INSERT INTO dbo.NguoiDung_VaiTro (NguoiDungID, VaiTroID, DonViID, NgayBatDau)
-        VALUES (@NguoiDungID_CbToChucSk_Final_V2, @VaiTroID_CbToChucSk_Final_V2, @DonViID_Pctsv_Final_V2, GETDATE());
+        VALUES (@NguoiDungID_CbToChucSk_Final_V2, @VaiTroID_CbToChucSk_Final_V2, @DonViID_Pctsv_Final_V2, SYSUTCDATETIME());
         PRINT 'CB_TO_CHUC_SU_KIEN role assigned to existing V2 user (Staff of P_CTSV).';
     END
     ELSE
