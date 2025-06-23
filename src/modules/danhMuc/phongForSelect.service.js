@@ -37,6 +37,7 @@ const getPhongsForSelect = async (params) => {
   const page = parseInt(params.page, 10) || 1;
   const limit = parseInt(params.limit, 10) || 50;
   const totalPages = Math.ceil(totalItems / limit);
+  console.log('ccccccccccccccccccc', items);
   return items;
 };
 

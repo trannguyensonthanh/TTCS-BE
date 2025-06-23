@@ -21,22 +21,26 @@ const getPhongForSelect = async (params) => {
     sortBy = 'p.TenPhong',
     sortOrder = 'ASC',
   } = params;
-  const selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.SoThuTuPhong, p.ToaNhaTangID `;
+  const queryParams = [];
+
+  // [SỬA LỖI 1] Đặt alias nhất quán
   const fromClause = `
         FROM Phong p
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
         JOIN TrangThaiPhong ttp ON p.TrangThaiPhongID = ttp.TrangThaiPhongID
-        JOIN ToaNha_Tang tn ON p.ToaNhaTangID = tn.ToaNhaTangID
-        JOIN LoaiTang lt ON tn.LoaiTangID = lt.LoaiTangID
-        JOIN ToaNha t ON tn.ToaNhaID = t.ToaNhaID
-   
+        LEFT JOIN ToaNha_Tang tnt ON p.ToaNhaTangID = tnt.ToaNhaTangID
+        LEFT JOIN ToaNha tn ON tnt.ToaNhaID = tn.ToaNhaID
+        LEFT JOIN LoaiTang lt ON tnt.LoaiTangID = lt.LoaiTangID
     `;
   let whereClause = ` WHERE ttp.MaTrangThai = @TrangThaiPhong `;
-  const queryParams = [
-    { name: 'TrangThaiPhong', type: sql.NVarChar, value: trangThaiPhongMa },
-  ];
+  queryParams.push({
+    name: 'TrangThaiPhong',
+    type: sql.NVarChar,
+    value: trangThaiPhongMa,
+  });
 
   if (searchTerm) {
+    // [SỬA LỖI 1] Sử dụng đúng alias: tn.TenToaNha
     whereClause += ` AND (p.TenPhong LIKE @SearchTerm OR p.MaPhong LIKE @SearchTerm OR p.SoThuTuPhong LIKE @SearchTerm OR tn.TenToaNha LIKE @SearchTerm OR lt.TenLoaiTang LIKE @SearchTerm) `;
     queryParams.push({
       name: 'SearchTerm',
@@ -61,42 +65,37 @@ const getPhongForSelect = async (params) => {
     });
   }
 
-  // Logic kiểm tra phòng trống nếu có thời gian
+  // [TỐI ƯU 2 & 3] Logic kiểm tra phòng trống
   if (thoiGianMuon && thoiGianTra) {
+    // Chuyển từ NOT IN sang NOT EXISTS để có hiệu năng tốt hơn
     whereClause += `
-            AND p.PhongID NOT IN (
-                SELECT DISTINCT cdp.PhongID
+            AND NOT EXISTS (
+                SELECT 1
                 FROM ChiTietDatPhong cdp
-                JOIN YcMuonPhongChiTiet yct ON cdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
-                JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID
-                WHERE tt_ct.MaTrangThai = @MaTrangThaiDaXepPhong -- Chỉ xét các phòng đã được xếp
-                  AND (
-                       (cdp.TgNhanPhongTT < @ThoiGianTra AND cdp.TgTraPhongTT > @ThoiGianMuon)
-                       -- Các trường hợp trùng lặp khác nếu cần
-                      )
+                WHERE cdp.PhongID = p.PhongID
+                  AND (cdp.TgNhanPhongTT < @ThoiGianTra AND cdp.TgTraPhongTT > @ThoiGianMuon)
             )
         `;
+    // Sử dụng DateTimeOffset để xử lý múi giờ chính xác
     queryParams.push({
       name: 'ThoiGianMuon',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: new Date(thoiGianMuon),
     });
     queryParams.push({
       name: 'ThoiGianTra',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: new Date(thoiGianTra),
-    });
-    queryParams.push({
-      name: 'MaTrangThaiDaXepPhong',
-      type: sql.VarChar,
-      value: MaTrangThaiYeuCauPhong.YCCPCT_DA_XEP_PHONG,
     });
   }
 
+  // Câu query đếm tổng số bản ghi
   const countQuery = `SELECT COUNT(DISTINCT p.PhongID) AS TotalItems ${fromClause} ${whereClause}`;
   const countResult = await executeQuery(countQuery, queryParams);
-  const totalItems = countResult.recordset[0].TotalItems;
+  const totalItems =
+    countResult.recordset.length > 0 ? countResult.recordset[0].TotalItems : 0;
 
+  // Logic phân trang và sắp xếp giữ nguyên
   const allowedSortBy = [
     'p.TenPhong',
     'p.MaPhong',
@@ -107,13 +106,18 @@ const getPhongForSelect = async (params) => {
   const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const offset = (page - 1) * limit;
 
+  // Câu query lấy dữ liệu
+  const selectFields = `p.PhongID, p.TenPhong, p.MaPhong, p.SucChua, lp.TenLoaiPhong, lp.LoaiPhongID, p.SoThuTuPhong, p.ToaNhaTangID`;
   const itemsQuery = `
         SELECT ${selectFields}
         ${fromClause}
         ${whereClause}
         ORDER BY ${safeSortBy} ${safeSortOrder}
-        OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY;
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
     `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
   const itemsResult = await executeQuery(itemsQuery, queryParams);
   const items = itemsResult.recordset.map((p) => ({
     phongID: p.PhongID,
@@ -124,6 +128,7 @@ const getPhongForSelect = async (params) => {
     loaiPhongID: p.LoaiPhongID,
     toaNhaTangID: p.ToaNhaTangID,
   }));
+
   return { items, totalItems };
 };
 
