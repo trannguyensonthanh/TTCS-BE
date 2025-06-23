@@ -4,6 +4,8 @@ import { executeQuery, getPool } from '../../utils/database.js';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js'; // Nếu cần lọc sự kiện theo trạng thái
 import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
+import logger from '../../utils/logger.util.js';
+import { nguoiDungRepository } from '../nguoiDung/nguoiDung.repository.js';
 
 /**
  * Lấy danh sách YeuCauMuonPhong (Header) với phân trang và bộ lọc
@@ -198,124 +200,120 @@ const getYeuCauMuonPhongListWithPagination = async (params, currentUser) => {
  * Lấy chi tiết YeuCauMuonPhong (Header) và các YcMuonPhongChiTiet (Detail) của nó
  */
 const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
-  console.log('getYeuCauMuonPhongDetailById ycMuonPhongID:', ycMuonPhongID);
-  // 1. Lấy thông tin Header
+  logger.debug(`Fetching details for YcMuonPhongID: ${ycMuonPhongID}`);
+
+  // === BƯỚC 1: LẤY THÔNG TIN HEADER CỦA YÊU CẦU ===
   const headerQuery = `
-    SELECT
-        yc.YcMuonPhongID, yc.NgayYeuCau, yc.GhiChuChungYc,
-        sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK,
-        nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen, nd_yc.Email AS NguoiYeuCau_Email,
-        dv_nguoi_yc.DonViID AS DonViYC_ID, dv_nguoi_yc.TenDonVi AS DonViYC_TenDonVi, dv_nguoi_yc.MaDonVi AS DonViYC_MaDonVi, dv_nguoi_yc.LoaiDonVi AS DonViYC_LoaiDonVi,
-        tt_yc.TrangThaiYcpID AS TrangThaiChung_ID, tt_yc.MaTrangThai AS TrangThaiChung_Ma, tt_yc.TenTrangThai AS TrangThaiChung_Ten,
-        nd_duyet_tong.NguoiDungID AS NguoiDuyetTong_ID, nd_duyet_tong.HoTen AS NguoiDuyetTong_HoTen, nd_duyet_tong.Email AS NguoiDuyetTong_Email,
-        yc.NgayDuyetTongCSVC
-    FROM YeuCauMuonPhong yc
-    JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
-    JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
-    JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID AND tt_yc.LoaiApDung = 'CHUNG'
-    LEFT JOIN NguoiDung nd_duyet_tong ON yc.NguoiDuyetTongCSVCID = nd_duyet_tong.NguoiDungID
-    -- Logic lấy dv_nguoi_yc tương tự như hàm get list
-    LEFT JOIN NguoiDung_VaiTro ndvt_yc ON nd_yc.NguoiDungID = ndvt_yc.NguoiDungID AND (ndvt_yc.NgayKetThuc IS NULL OR ndvt_yc.NgayKetThuc >= SYSUTCDATETIME())
-    LEFT JOIN VaiTroHeThong vt_yc ON ndvt_yc.VaiTroID = vt_yc.VaiTroID AND vt_yc.MaVaiTro = '${MaVaiTro.CB_TO_CHUC_SU_KIEN}'
-    LEFT JOIN DonVi dv_ndvt_yc ON ndvt_yc.DonViID = dv_ndvt_yc.DonViID
-    OUTER APPLY (
-            SELECT TOP 1 dv.DonViID, dv.TenDonVi, dv.MaDonVi, dv.LoaiDonVi
-            FROM NguoiDung_VaiTro ndvt
-            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
-            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
-            WHERE ndvt.NguoiDungID = nd_yc.NguoiDungID AND vt.MaVaiTro = @MaVaiTroThanhVien
-            ORDER BY ndvt.NgayBatDau DESC
-        ) AS dv_nguoi_yc
+        SELECT
+            yc.YcMuonPhongID, yc.NgayYeuCau, yc.GhiChuChungYc,
+            sk.SuKienID, sk.TenSK, sk.TgBatDauDK, sk.TgKetThucDK,
+            nd_yc.NguoiDungID AS NguoiYeuCau_ID, nd_yc.HoTen AS NguoiYeuCau_HoTen, nd_yc.Email AS NguoiYeuCau_Email,
+            tt_yc.TrangThaiYcpID AS TrangThaiChung_ID, tt_yc.MaTrangThai AS TrangThaiChung_Ma, tt_yc.TenTrangThai AS TrangThaiChung_Ten,
+            nd_duyet_tong.NguoiDungID AS NguoiDuyetTong_ID, nd_duyet_tong.HoTen AS NguoiDuyetTong_HoTen, nd_duyet_tong.Email AS NguoiDuyetTong_Email,
+            yc.NgayDuyetTongCSVC
+        FROM YeuCauMuonPhong yc
+        JOIN SuKien sk ON yc.SuKienID = sk.SuKienID
+        JOIN NguoiDung nd_yc ON yc.NguoiYeuCauID = nd_yc.NguoiDungID
+        JOIN TrangThaiYeuCauPhong tt_yc ON yc.TrangThaiChungID = tt_yc.TrangThaiYcpID
+        LEFT JOIN NguoiDung nd_duyet_tong ON yc.NguoiDuyetTongCSVCID = nd_duyet_tong.NguoiDungID
         WHERE yc.YcMuonPhongID = @YcMuonPhongID;
-  `;
-  const headerParams = [
+    `;
+  const headerResult = await executeQuery(headerQuery, [
     { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
-    {
-      name: 'MaVaiTroThanhVien',
-      type: sql.VarChar,
-      value: MaVaiTro.THANH_VIEN_DON_VI,
-    },
-  ];
-  const headerResult = await executeQuery(headerQuery, headerParams);
+  ]);
   if (headerResult.recordset.length === 0) return null;
   const headerData = headerResult.recordset[0];
 
-  // 2. Lấy danh sách chi tiết yêu cầu (YcMuonPhongChiTiet) và phòng được cấp
-  const detailQuery = `
-    WITH ActiveBookings AS (
-        SELECT
-            yct.YcMuonPhongCtID,
-            -- Lấy DatPhongID đang hoạt động, ưu tiên phòng từ YC đổi đã duyệt
-            COALESCE(ycdp_approved.DatPhongID_Moi, cdp.DatPhongID) AS ActiveDatPhongID
-        FROM YcMuonPhongChiTiet yct
-        LEFT JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
-        LEFT JOIN (
-            -- Tìm yêu cầu đổi phòng đã được duyệt gần nhất cho mỗi chi tiết
-            SELECT 
-                ycdp_inner.YcMuonPhongCtID,
-                ycdp_inner.DatPhongID_Moi,
-                ROW_NUMBER() OVER(PARTITION BY ycdp_inner.YcMuonPhongCtID ORDER BY ycdp_inner.NgayDuyetDoiCSVC DESC) as rn
-            FROM YeuCauDoiPhong ycdp_inner
-            JOIN TrangThaiYeuCauDoiPhong tt ON ycdp_inner.TrangThaiYcDoiPID = tt.TrangThaiYcDoiPID
-            WHERE tt.MaTrangThai = 'DA_DUYET_DOI_PHONG'
-        ) ycdp_approved ON yct.YcMuonPhongCtID = ycdp_approved.YcMuonPhongCtID AND ycdp_approved.rn = 1
-        WHERE yct.YcMuonPhongID = @YcMuonPhongID
-    )
-    SELECT
-        yct.YcMuonPhongCtID, yct.YcMuonPhongID, yct.MoTaNhomPhong, yct.SlPhongNhomNay,
-        yct.LoaiPhongYcID, lp.TenLoaiPhong,
-        yct.SucChuaYc, yct.ThietBiThemYc, yct.TgMuonDk, yct.TgTraDk,
-        tt_ct.TrangThaiYcpID AS TrangThaiChiTiet_ID, tt_ct.MaTrangThai AS TrangThaiChiTiet_Ma, tt_ct.TenTrangThai AS TrangThaiChiTiet_Ten,
-        yct.GhiChuCtCSVC,
-        -- Lấy thông tin phòng từ ActiveDatPhongID
-        cdp_active.DatPhongID, p.PhongID AS PhongDuocCap_ID, p.TenPhong AS PhongDuocCap_Ten, p.MaPhong AS PhongDuocCap_Ma
-    FROM YcMuonPhongChiTiet yct
-    JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID AND tt_ct.LoaiApDung = 'CHI_TIET'
-    LEFT JOIN LoaiPhong lp ON yct.LoaiPhongYcID = lp.LoaiPhongID
-    LEFT JOIN ActiveBookings ab ON yct.YcMuonPhongCtID = ab.YcMuonPhongCtID
-    LEFT JOIN ChiTietDatPhong cdp_active ON ab.ActiveDatPhongID = cdp_active.DatPhongID
-    LEFT JOIN Phong p ON cdp_active.PhongID = p.PhongID
-    WHERE yct.YcMuonPhongID = @YcMuonPhongID;
-  `;
-  const detailResult = await executeQuery(detailQuery, headerParams); // Dùng lại headerParams
+  // === BƯỚC 2: LẤY ĐƠN VỊ CÔNG TÁC CHÍNH CỦA NGƯỜI YÊU CẦU ===
+  const donViYeuCau = await nguoiDungRepository.getDonViCongTacByNguoiDungID(
+    headerData.NguoiYeuCau_ID
+  );
 
-  // Gom nhóm phòng được cấp cho từng chi tiết yêu cầu
-  const chiTietYeuCauMap = new Map();
-  detailResult.recordset.forEach((row) => {
-    if (!chiTietYeuCauMap.has(row.YcMuonPhongCtID)) {
-      chiTietYeuCauMap.set(row.YcMuonPhongCtID, {
-        ycMuonPhongCtID: row.YcMuonPhongCtID,
-        ycMuonPhongID: row.YcMuonPhongID,
-        moTaNhomPhong: row.MoTaNhomPhong,
-        slPhongNhomNay: row.SlPhongNhomNay,
-        loaiPhongYeuCau: row.LoaiPhongYcID
-          ? { loaiPhongID: row.LoaiPhongYcID, tenLoaiPhong: row.TenLoaiPhong }
-          : null,
-        sucChuaYc: row.SucChuaYc,
-        thietBiThemYc: row.ThietBiThemYc,
-        tgMuonDk: row.TgMuonDk.toISOString(),
-        tgTraDk: row.TgTraDk.toISOString(),
-        trangThaiChiTiet: {
-          trangThaiYcpID: row.TrangThaiChiTiet_ID,
-          maTrangThai: row.TrangThaiChiTiet_Ma,
-          tenTrangThai: row.TrangThaiChiTiet_Ten,
-          loaiApDung: 'CHI_TIET',
-        },
-        ghiChuCtCSVC: row.GhiChuCtCSVC,
-        phongDuocCap: [],
-      });
+  // === BƯỚC 3: LẤY TẤT CẢ CÁC CHI TIẾT YÊU CẦU (YcMuonPhongChiTiet) ===
+  const chiTietQuery = `
+        SELECT
+            yct.YcMuonPhongCtID, yct.MoTaNhomPhong, yct.SlPhongNhomNay,
+            yct.LoaiPhongYcID, lp.TenLoaiPhong,
+            yct.SucChuaYc, yct.ThietBiThemYc, yct.TgMuonDk, yct.TgTraDk,
+            tt_ct.TrangThaiYcpID, tt_ct.MaTrangThai, tt_ct.TenTrangThai,
+            yct.GhiChuCtCSVC
+        FROM YcMuonPhongChiTiet yct
+        JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID
+        LEFT JOIN LoaiPhong lp ON yct.LoaiPhongYcID = lp.LoaiPhongID
+        WHERE yct.YcMuonPhongID = @YcMuonPhongID;
+    `;
+  const chiTietResult = await executeQuery(chiTietQuery, [
+    { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+  ]);
+  const chiTietList = chiTietResult.recordset;
+
+  // === BƯỚC 4: LẤY TOÀN BỘ LỊCH SỬ ĐẶT VÀ ĐỔI PHÒNG CHO TOÀN BỘ YÊU CẦU NÀY ===
+  const historyQuery = `
+        SELECT 
+            yct.YcMuonPhongCtID,
+            cdp.DatPhongID,
+            cdp.PhongID,
+            p.TenPhong,
+            p.MaPhong,
+            ycdp_cu.YcDoiPhongID AS YcDoiPhongID_BiThayThe, -- ID của yêu cầu đổi đã thay thế phòng này
+            ycdp_moi.DatPhongID_Moi
+        FROM YcMuonPhongChiTiet yct
+        JOIN ChiTietDatPhong cdp ON yct.YcMuonPhongCtID = cdp.YcMuonPhongCtID
+        JOIN Phong p ON cdp.PhongID = p.PhongID
+        LEFT JOIN YeuCauDoiPhong ycdp_cu ON cdp.DatPhongID = ycdp_cu.DatPhongID_Cu 
+             AND ycdp_cu.TrangThaiYcDoiPID IN (SELECT TrangThaiYcDoiPID FROM TrangThaiYeuCauDoiPhong WHERE MaTrangThai = 'DA_DUYET_DOI_PHONG')
+        LEFT JOIN YeuCauDoiPhong ycdp_moi ON cdp.DatPhongID = ycdp_moi.DatPhongID_Moi
+             AND ycdp_moi.TrangThaiYcDoiPID IN (SELECT TrangThaiYcDoiPID FROM TrangThaiYeuCauDoiPhong WHERE MaTrangThai = 'DA_DUYET_DOI_PHONG')
+        WHERE yct.YcMuonPhongID = @YcMuonPhongID;
+    `;
+  const historyResult = await executeQuery(historyQuery, [
+    { name: 'YcMuonPhongID', type: sql.Int, value: ycMuonPhongID },
+  ]);
+  const historyMap = new Map();
+  historyResult.recordset.forEach((row) => {
+    if (!historyMap.has(row.YcMuonPhongCtID)) {
+      historyMap.set(row.YcMuonPhongCtID, []);
     }
-    if (row.DatPhongID) {
-      // Nếu có phòng được cấp
-      chiTietYeuCauMap.get(row.YcMuonPhongCtID).phongDuocCap.push({
-        datPhongID: Number(row.DatPhongID),
-        phongID: row.PhongDuocCap_ID,
-        tenPhong: row.PhongDuocCap_Ten,
-        maPhong: row.PhongDuocCap_Ma,
-      });
-    }
+    historyMap.get(row.YcMuonPhongCtID).push(row);
   });
 
+  // === BƯỚC 5: XỬ LÝ VÀ GOM NHÓM DỮ LIỆU ===
+  const chiTietYeuCauFormatted = chiTietList.map((chiTiet) => {
+    const bookingsForThisDetail = historyMap.get(chiTiet.YcMuonPhongCtID) || [];
+    const activeBookings = bookingsForThisDetail.filter(
+      (b) => b.YcDoiPhongID_BiThayThe === null
+    );
+
+    return {
+      ycMuonPhongCtID: chiTiet.YcMuonPhongCtID,
+      moTaNhomPhong: chiTiet.MoTaNhomPhong,
+      slPhongNhomNay: chiTiet.SlPhongNhomNay,
+      loaiPhongYeuCau: chiTiet.LoaiPhongYcID
+        ? {
+            loaiPhongID: chiTiet.LoaiPhongYcID,
+            tenLoaiPhong: chiTiet.TenLoaiPhong,
+          }
+        : null,
+      sucChuaYc: chiTiet.SucChuaYc,
+      thietBiThemYc: chiTiet.ThietBiThemYc,
+      tgMuonDk: chiTiet.TgMuonDk.toISOString(),
+      tgTraDk: chiTiet.TgTraDk.toISOString(),
+      trangThaiChiTiet: {
+        trangThaiYcpID: chiTiet.TrangThaiYcpID,
+        maTrangThai: chiTiet.MaTrangThai,
+        tenTrangThai: chiTiet.TenTrangThai,
+      },
+      ghiChuCtCSVC: chiTiet.GhiChuCtCSVC,
+      phongDuocCap: activeBookings.map((b) => ({
+        datPhongID: Number(b.DatPhongID),
+        phongID: b.PhongID,
+        tenPhong: b.TenPhong,
+        maPhong: b.MaPhong,
+      })),
+    };
+  });
+
+  // === BƯỚC 6: TỔNG HỢP KẾT QUẢ CUỐI CÙNG ===
   return {
     ycMuonPhongID: headerData.YcMuonPhongID,
     suKien: {
@@ -329,20 +327,12 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
       hoTen: headerData.NguoiYeuCau_HoTen,
       email: headerData.NguoiYeuCau_Email,
     },
-    donViYeuCau: headerData.DonViYC_ID
-      ? {
-          donViID: headerData.DonViYC_ID,
-          tenDonVi: headerData.DonViYC_TenDonVi,
-          maDonVi: headerData.DonViYC_MaDonVi,
-          loaiDonVi: headerData.DonViYC_LoaiDonVi,
-        }
-      : null,
+    donViYeuCau, // Kết quả từ Bước 2
     ngayYeuCau: headerData.NgayYeuCau.toISOString(),
     trangThaiChung: {
       trangThaiYcpID: headerData.TrangThaiChung_ID,
       maTrangThai: headerData.TrangThaiChung_Ma,
       tenTrangThai: headerData.TrangThaiChung_Ten,
-      loaiApDung: 'CHUNG',
     },
     ghiChuChungYc: headerData.GhiChuChungYc,
     nguoiDuyetTongCSVC: headerData.NguoiDuyetTong_ID
@@ -355,7 +345,7 @@ const getYeuCauMuonPhongDetailById = async (ycMuonPhongID) => {
     ngayDuyetTongCSVC: headerData.NgayDuyetTongCSVC
       ? headerData.NgayDuyetTongCSVC.toISOString()
       : null,
-    chiTietYeuCau: Array.from(chiTietYeuCauMap.values()),
+    chiTietYeuCau: chiTietYeuCauFormatted,
   };
 };
 

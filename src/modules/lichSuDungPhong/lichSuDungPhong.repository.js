@@ -21,19 +21,78 @@ const getLichDatPhongRecords = async (params) => {
   } = params;
 
   const denNgayThucTe = new Date(denNgay);
-  denNgayThucTe.setHours(23, 59, 59, 999);
+  denNgayThucTe.setHours(23, 59, 59, 999); // Lấy đến cuối ngày
 
-  let finalQuery = `
+  // Xây dựng các điều kiện WHERE
+  const whereClauses = [
+    'tt_ct.MaTrangThai = @MaTrangThaiDaXepPhong', // Chỉ lấy các yêu cầu chi tiết đã được xếp phòng
+    'cdp.TgNhanPhongTT < @DenNgayThucTe',
+    'cdp.TgTraPhongTT > @TuNgay',
+    // Điều kiện quan trọng: Lịch đặt phòng này không phải là một phòng cũ đã bị thay thế
+    `cdp.DatPhongID NOT IN (
+            SELECT ycdp.DatPhongID_Cu
+            FROM YeuCauDoiPhong ycdp
+            JOIN TrangThaiYeuCauDoiPhong tt_ycdp ON ycdp.TrangThaiYcDoiPID = tt_ycdp.TrangThaiYcDoiPID
+            WHERE tt_ycdp.MaTrangThai = 'DA_DUYET_DOI_PHONG' AND ycdp.DatPhongID_Cu IS NOT NULL
+        )`,
+  ];
+
+  const queryParams = [
+    {
+      name: 'MaTrangThaiDaXepPhong',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauPhong.YCCPCT_DA_XEP_PHONG,
+    },
+    { name: 'TuNgay', type: sql.DateTimeOffset, value: new Date(tuNgay) },
+    { name: 'DenNgayThucTe', type: sql.DateTimeOffset, value: denNgayThucTe },
+  ];
+
+  // Thêm các filter động
+  if (phongIDs && phongIDs.length > 0) {
+    // Sử dụng tham số hóa để tránh SQL Injection
+    const phongIDParams = phongIDs
+      .map((id, index) => {
+        const paramName = `phongID${index}`;
+        queryParams.push({ name: paramName, type: sql.Int, value: id });
+        return `@${paramName}`;
+      })
+      .join(',');
+    whereClauses.push(`p.PhongID IN (${phongIDParams})`);
+  }
+  if (toaNhaID) {
+    whereClauses.push(`tn.ToaNhaID = @ToaNhaID`);
+    queryParams.push({ name: 'ToaNhaID', type: sql.Int, value: toaNhaID });
+  }
+  if (loaiPhongID) {
+    whereClauses.push(`p.LoaiPhongID = @LoaiPhongID`);
+    queryParams.push({
+      name: 'LoaiPhongID',
+      type: sql.Int,
+      value: loaiPhongID,
+    });
+  }
+  if (suKienID) {
+    whereClauses.push(`sk.SuKienID = @SuKienID`);
+    queryParams.push({ name: 'SuKienID', type: sql.Int, value: suKienID });
+  }
+  if (donViToChucID) {
+    whereClauses.push(`sk.DonViChuTriID = @DonViToChucID`);
+    queryParams.push({
+      name: 'DonViToChucID',
+      type: sql.Int,
+      value: donViToChucID,
+    });
+  }
+
+  const finalQuery = `
         SELECT
             cdp.DatPhongID, cdp.YcMuonPhongCtID, cdp.TgNhanPhongTT, cdp.TgTraPhongTT,
             p.PhongID, p.TenPhong, p.MaPhong, p.SucChua AS Phong_SucChua, p.ToaNhaTangID AS Phong_ToaNhaTangID,
-            tt_dp.MaTrangThai AS TrangThaiPhong_Ma,
             lp.LoaiPhongID AS LoaiPhong_ID, lp.TenLoaiPhong AS LoaiPhong_Ten,
             sk.SuKienID, sk.TenSK,
             dv_tc.DonViID AS DonViToChuc_ID, dv_tc.TenDonVi AS DonViToChuc_Ten, dv_tc.MaDonVi AS DonViToChuc_Ma, dv_tc.LoaiDonVi AS DonViToChuc_LoaiDonVi
         FROM ChiTietDatPhong cdp
         JOIN Phong p ON cdp.PhongID = p.PhongID
-        JOIN TrangThaiPhong tt_dp ON p.TrangThaiPhongID = tt_dp.TrangThaiPhongID
         JOIN LoaiPhong lp ON p.LoaiPhongID = lp.LoaiPhongID
         JOIN YcMuonPhongChiTiet yct ON cdp.YcMuonPhongCtID = yct.YcMuonPhongCtID
         JOIN TrangThaiYeuCauPhong tt_ct ON yct.TrangThaiCtID = tt_ct.TrangThaiYcpID
@@ -42,50 +101,14 @@ const getLichDatPhongRecords = async (params) => {
         JOIN DonVi dv_tc ON sk.DonViChuTriID = dv_tc.DonViID
         LEFT JOIN ToaNha_Tang tnt ON p.ToaNhaTangID = tnt.ToaNhaTangID
         LEFT JOIN ToaNha tn ON tnt.ToaNhaID = tn.ToaNhaID
-        WHERE 
-            tt_ct.MaTrangThai = @MaTrangThaiDaXepPhong
-            AND cdp.TgNhanPhongTT < @DenNgayThucTe 
-            AND cdp.TgTraPhongTT > @TuNgay
-            AND (@PhongIDs_TVP IS NULL OR p.PhongID IN (SELECT ID FROM @PhongIDs_TVP))
-            AND (@ToaNhaID IS NULL OR tn.ToaNhaID = @ToaNhaID)
-            AND (@LoaiPhongID IS NULL OR p.LoaiPhongID = @LoaiPhongID)
-            AND (@SuKienID IS NULL OR sk.SuKienID = @SuKienID)
-            AND (@DonViToChucID IS NULL OR sk.DonViChuTriID = @DonViToChucID)
+        WHERE ${whereClauses.join(' AND ')}
         ORDER BY cdp.TgNhanPhongTT ASC, p.TenPhong ASC;
     `;
 
-  // Chuẩn bị tham số
-  const request = (await getPool()).request();
-  request.input(
-    'MaTrangThaiDaXepPhong',
-    sql.VarChar,
-    MaTrangThaiYeuCauPhong.YCCPCT_DA_XEP_PHONG
+  const result = await executeQuery(finalQuery, queryParams);
+  logger.info(
+    `Lấy lịch đặt phòng thành công, tìm thấy ${result.recordset.length} bản ghi.`
   );
-  request.input('TuNgay', sql.DateTimeOffset, new Date(tuNgay));
-  request.input('DenNgayThucTe', sql.DateTimeOffset, denNgayThucTe);
-  request.input('ToaNhaID', sql.Int, toaNhaID);
-  request.input('LoaiPhongID', sql.Int, loaiPhongID);
-  request.input('SuKienID', sql.Int, suKienID);
-  request.input('DonViToChucID', sql.Int, donViToChucID);
-
-  if (phongIDs && phongIDs.length > 0) {
-    // Tạo chuỗi ID cho truy vấn IN
-    const phongIDsStr = phongIDs.map((id) => Number(id)).join(',');
-    finalQuery = finalQuery.replace(
-      '(@PhongIDs_TVP IS NULL OR p.PhongID IN (SELECT ID FROM @PhongIDs_TVP))',
-      `(p.PhongID IN (${phongIDsStr}))`
-    );
-    request.input('PhongIDs_TVP', null);
-  } else {
-    finalQuery = finalQuery.replace(
-      '(@PhongIDs_TVP IS NULL OR p.PhongID IN (SELECT ID FROM @PhongIDs_TVP))',
-      '1=1'
-    );
-    request.input('PhongIDs_TVP', null);
-  }
-
-  const result = await request.query(finalQuery);
-  logger.info('Lấy lịch đặt phòng thành công:', result.recordset);
 
   return result.recordset.map((row) => ({
     datPhongID: Number(row.DatPhongID),
@@ -102,7 +125,6 @@ const getLichDatPhongRecords = async (params) => {
     ycMuonPhongCtID: row.YcMuonPhongCtID,
     suKienID: row.SuKienID,
     tenSK: row.TenSK,
-    maTrangThaiDatPhong: row.TrangThaiPhong_Ma,
     donViToChuc: {
       donViID: row.DonViToChuc_ID,
       tenDonVi: row.DonViToChuc_Ten,
