@@ -1,4 +1,3 @@
-import sql from 'mssql';
 import { executeQuery } from '../../utils/database.js';
 import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 

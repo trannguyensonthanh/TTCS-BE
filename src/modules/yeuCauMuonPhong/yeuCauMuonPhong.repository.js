@@ -441,8 +441,16 @@ const createYcMuonPhongDetail = async (data, transaction) => {
       type: sql.NVarChar(sql.MAX),
       value: data.thietBiThemYc,
     },
-    { name: 'TgMuonDk', type: sql.DateTime, value: new Date(data.tgMuonDk) },
-    { name: 'TgTraDk', type: sql.DateTime, value: new Date(data.tgTraDk) },
+    {
+      name: 'TgMuonDk',
+      type: sql.DateTimeOffset,
+      value: new Date(data.tgMuonDk),
+    },
+    {
+      name: 'TgTraDk',
+      type: sql.DateTimeOffset,
+      value: new Date(data.tgTraDk),
+    },
     { name: 'TrangThaiCtID', type: sql.Int, value: data.trangThaiCtID },
   ];
   const request = transaction.request();
@@ -511,8 +519,8 @@ const checkPhongAvailability = async (
   `;
   const params = [
     { name: 'PhongID', type: sql.Int, value: phongID },
-    { name: 'TgMuonDk', type: sql.DateTime, value: tgMuonDk },
-    { name: 'TgTraDk', type: sql.DateTime, value: tgTraDk },
+    { name: 'TgMuonDk', type: sql.DateTimeOffset, value: tgMuonDk },
+    { name: 'TgTraDk', type: sql.DateTimeOffset, value: tgTraDk },
     {
       name: 'MaTrangThaiDaXepPhong',
       type: sql.VarChar,
@@ -560,8 +568,8 @@ const createChiTietDatPhong = async (
   const params = [
     { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
     { name: 'PhongID', type: sql.Int, value: phongID },
-    { name: 'TgNhanPhongTT', type: sql.DateTime, value: tgNhanPhongTT },
-    { name: 'TgTraPhongTT', type: sql.DateTime, value: tgTraPhongTT },
+    { name: 'TgNhanPhongTT', type: sql.DateTimeOffset, value: tgNhanPhongTT },
+    { name: 'TgTraPhongTT', type: sql.DateTimeOffset, value: tgTraPhongTT },
   ];
   const request = transaction.request();
   params.forEach((param) => request.input(param.name, param.type, param.value));
@@ -652,14 +660,14 @@ const updateYcMuonPhongChiTietRecord = async (
     addUpdateField(
       'TgMuonDk',
       'TgMuonDk',
-      sql.DateTime,
+      sql.DateTimeOffset,
       new Date(updateData.tgMuonDk)
     );
   if (updateData.tgTraDk)
     addUpdateField(
       'TgTraDk',
       'TgTraDk',
-      sql.DateTime,
+      sql.DateTimeOffset,
       new Date(updateData.tgTraDk)
     );
 

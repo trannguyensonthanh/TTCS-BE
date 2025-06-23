@@ -61,8 +61,8 @@ const getLichDatPhongRecords = async (params) => {
     sql.VarChar,
     MaTrangThaiYeuCauPhong.YCCPCT_DA_XEP_PHONG
   );
-  request.input('TuNgay', sql.DateTime, new Date(tuNgay));
-  request.input('DenNgayThucTe', sql.DateTime, denNgayThucTe);
+  request.input('TuNgay', sql.DateTimeOffset, new Date(tuNgay));
+  request.input('DenNgayThucTe', sql.DateTimeOffset, denNgayThucTe);
   request.input('ToaNhaID', sql.Int, toaNhaID);
   request.input('LoaiPhongID', sql.Int, loaiPhongID);
   request.input('SuKienID', sql.Int, suKienID);
@@ -179,7 +179,7 @@ const getLichDatPhongByPhongId = async (phongId, params) => {
     whereClause += ` AND cdp.TgTraPhongTT > @TuNgay `; // Kết thúc phải sau tuNgay
     queryParams.push({
       name: 'TuNgay',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: new Date(tuNgay),
     });
   }
@@ -189,7 +189,7 @@ const getLichDatPhongByPhongId = async (phongId, params) => {
     whereClause += ` AND cdp.TgNhanPhongTT < @DenNgayThucTe `; // Bắt đầu phải trước denNgay
     queryParams.push({
       name: 'DenNgayThucTe',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: denNgayThucTe,
     });
   }

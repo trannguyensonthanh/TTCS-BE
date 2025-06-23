@@ -452,6 +452,34 @@ const deleteChiTietDatPhongBySuKienID = async (suKienID, transaction) => {
 };
 
 /**
+ * [MỚI] Cập nhật trạng thái của tất cả các YcMuonPhongChiTiet thuộc một sự kiện thành 'Đã hủy'.
+ * @param {number} suKienID
+ * @param {number} trangThaiHuyID - ID của trạng thái YCCPCT_DA_HUY
+ * @param {sql.Transaction} transaction
+ * @returns {Promise<void>}
+ */
+const cancelAllChiTietYeuCauBySuKienID = async (
+  suKienID,
+  trangThaiHuyID,
+  transaction
+) => {
+  const query = `
+        UPDATE yct
+        SET yct.TrangThaiCtID = @TrangThaiHuyID
+        FROM YcMuonPhongChiTiet yct
+        JOIN YeuCauMuonPhong yc ON yct.YcMuonPhongID = yc.YcMuonPhongID
+        WHERE yc.SuKienID = @SuKienID;
+    `;
+  const params = [
+    { name: 'SuKienID', type: sql.Int, value: suKienID },
+    { name: 'TrangThaiHuyID', type: sql.Int, value: trangThaiHuyID },
+  ];
+  const request = transaction.request();
+  params.forEach((p) => request.input(p.name, p.type, p.value));
+  await request.query(query);
+};
+
+/**
  * [MỚI] Lấy các yêu cầu hủy sự kiện đang chờ BGH duyệt cho dashboard.
  * @param {number} limit - Giới hạn số lượng.
  * @returns {Promise<Array<object>>}
@@ -570,6 +598,7 @@ export const yeuCauHuySKRepository = {
   getYeuCauHuySKForProcessing,
   updateYeuCauHuySKAfterBGHAction,
   deleteChiTietDatPhongBySuKienID,
+  cancelAllChiTietYeuCauBySuKienID,
   getPendingCancelRequestsForDashboard,
   updateYeuCauHuySKStatus,
   deleteYeuCauDoiPhongBySuKienID,

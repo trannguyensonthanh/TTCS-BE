@@ -13,10 +13,10 @@ import MaTrangThaiYeuCauDoiPhong from '../../enums/maTrangThaiYeuCauDoiPhong.enu
 const getActiveBookedRoomsForChange = async (params) => {
   const { nguoiYeuCauID, limit = 20 } = params;
 
+  // Lấy mã trạng thái của các sự kiện cho phép đổi phòng
   const skAllowChangeStatusCodes = [MaTrangThaiSK.DA_XAC_NHAN_PHONG]
     .map((code) => `'${code}'`)
     .join(',');
-
   const query = `
         SELECT TOP (@Limit)
             cdp.DatPhongID,
@@ -37,14 +37,26 @@ const getActiveBookedRoomsForChange = async (params) => {
         WHERE yc.NguoiYeuCauID = @NguoiYeuCauID
           AND ttsk.MaTrangThai IN (${skAllowChangeStatusCodes})
           AND tt_yct.MaTrangThai = @MaYcChiTietDaXepPhong
-          -- AND sk.TgBatDauDK > DATEADD(day, 7, SYSUTCDATETIME()) -- Sự kiện phải còn ít nhất 7 ngày nữa mới diễn ra (điều chỉnh sau)
-          AND NOT EXISTS ( -- Chưa có yêu cầu đổi phòng nào đang chờ duyệt cho bản ghi ChiTietDatPhong này
+          -- AND sk.TgBatDauDK > DATEADD(day, 7, SYSUTCDATETIME()) -- Có thể bật lại nếu cần
+
+          -- Điều kiện 1: Chưa có yêu cầu đổi nào đang chờ duyệt cho phòng này
+          AND NOT EXISTS (
                 SELECT 1
                 FROM YeuCauDoiPhong ycdp_check
                 JOIN TrangThaiYeuCauDoiPhong tt_ycdp_check ON ycdp_check.TrangThaiYcDoiPID = tt_ycdp_check.TrangThaiYcDoiPID
                 WHERE ycdp_check.DatPhongID_Cu = cdp.DatPhongID
                   AND tt_ycdp_check.MaTrangThai = @MaYCDPDangChoDuyet
             )
+            
+          -- [SỬA LỖI] Điều kiện 2: Phòng này chưa từng bị thay thế bởi một yêu cầu đổi đã được duyệt khác
+          AND NOT EXISTS (
+                SELECT 1
+                FROM YeuCauDoiPhong ycdp_replaced
+                JOIN TrangThaiYeuCauDoiPhong tt_ycdp_replaced ON ycdp_replaced.TrangThaiYcDoiPID = tt_ycdp_replaced.TrangThaiYcDoiPID
+                WHERE ycdp_replaced.DatPhongID_Cu = cdp.DatPhongID
+                  AND tt_ycdp_replaced.MaTrangThai = @MaYCDPDaDuyet
+            )
+            
         ORDER BY sk.TgBatDauDK ASC, sk.TenSK ASC, p.TenPhong ASC;
     `;
 
@@ -61,6 +73,11 @@ const getActiveBookedRoomsForChange = async (params) => {
       type: sql.VarChar,
       value: MaTrangThaiYeuCauDoiPhong.CHO_DUYET_DOI_PHONG,
     },
+    {
+      name: 'MaYCDPDaDuyet',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauDoiPhong.DA_DUYET_DOI_PHONG,
+    }, // <<<< THÊM PARAM MỚI
   ];
 
   const result = await executeQuery(query, queryParams);

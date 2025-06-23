@@ -13,6 +13,7 @@ import { thongBaoService } from '../thongBao/thongBao.service.js';
 import logger from '../../utils/logger.util.js';
 import { executeQuery, getPool } from '../../utils/database.js';
 import { yeuCauMuonPhongRepository } from '../yeuCauMuonPhong/yeuCauMuonPhong.repository.js';
+import MaTrangThaiYeuCauPhong from '../../enums/maTrangThaiYeuCauPhong.enum.js';
 
 const SO_NGAY_QUA_HAN_YEU_CAU_HUY = 2;
 /**
@@ -316,34 +317,60 @@ const duyetYeuCauHuySK = async (ycHuySkID, payload, nguoiDuyet) => {
     );
     logger.debug(`SuKien ID: ${yeuCauHuy.SuKienID} status updated to DA_HUY.`);
 
-    // 3. XỬ LÝ GIẢI PHÓNG PHÒNG (SỬA LẠI HOÀN TOÀN)
     let phongDaDuocGiaiPhongThongBao = false;
-    const bookedPhongRecords =
-      await yeuCauMuonPhongRepository.getChiTietDatPhongBySuKienID(
-        yeuCauHuy.SuKienID,
+    const trangThaiChiTietHuyID =
+      await suKienRepository.getTrangThaiIDByMaGeneric(
+        MaTrangThaiYeuCauPhong.YCCPCT_DA_HUY,
+        'TrangThaiYeuCauPhong',
+        'TrangThaiYcpID',
+        'MaTrangThai',
         transaction
       );
-
-    if (bookedPhongRecords && bookedPhongRecords.length > 0) {
-      // BƯỚC 1: Xóa các YeuCauDoiPhong liên quan trước (xóa con)
-      await yeuCauHuySKRepository.deleteYeuCauDoiPhongBySuKienID(
-        yeuCauHuy.SuKienID,
-        transaction
+    if (!trangThaiChiTietHuyID) {
+      throw new ApiError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        'Lỗi cấu hình: Không tìm thấy trạng thái chi tiết yêu cầu phòng đã hủy.'
       );
-      logger.info(
-        `All YeuCauDoiPhong records deleted for cancelled SuKienID: ${yeuCauHuy.SuKienID}`
-      );
-
-      // BƯỚC 2: Bây giờ mới xóa ChiTietDatPhong (xóa cha)
-      await yeuCauHuySKRepository.deleteChiTietDatPhongBySuKienID(
-        yeuCauHuy.SuKienID,
-        transaction
-      );
-      logger.info(
-        `All ChiTietDatPhong records deleted for cancelled SuKienID: ${yeuCauHuy.SuKienID}`
-      );
-      phongDaDuocGiaiPhongThongBao = true;
     }
+
+    await yeuCauHuySKRepository.cancelAllChiTietYeuCauBySuKienID(
+      yeuCauHuy.SuKienID,
+      trangThaiChiTietHuyID,
+      transaction
+    );
+    logger.info(
+      `All YcMuonPhongChiTiet records for SuKienID: ${yeuCauHuy.SuKienID} have been marked as cancelled.`
+    );
+    phongDaDuocGiaiPhongThongBao = true;
+
+    // // 3. XỬ LÝ GIẢI PHÓNG PHÒNG (SỬA LẠI HOÀN TOÀN)
+    // let phongDaDuocGiaiPhongThongBao = false;
+    // const bookedPhongRecords =
+    //   await yeuCauMuonPhongRepository.getChiTietDatPhongBySuKienID(
+    //     yeuCauHuy.SuKienID,
+    //     transaction
+    //   );
+
+    // if (bookedPhongRecords && bookedPhongRecords.length > 0) {
+    //   // BƯỚC 1: Xóa các YeuCauDoiPhong liên quan trước (xóa con)
+    //   await yeuCauHuySKRepository.deleteYeuCauDoiPhongBySuKienID(
+    //     yeuCauHuy.SuKienID,
+    //     transaction
+    //   );
+    //   logger.info(
+    //     `All YeuCauDoiPhong records deleted for cancelled SuKienID: ${yeuCauHuy.SuKienID}`
+    //   );
+
+    //   // BƯỚC 2: Bây giờ mới xóa ChiTietDatPhong (xóa cha)
+    //   await yeuCauHuySKRepository.deleteChiTietDatPhongBySuKienID(
+    //     yeuCauHuy.SuKienID,
+    //     transaction
+    //   );
+    //   logger.info(
+    //     `All ChiTietDatPhong records deleted for cancelled SuKienID: ${yeuCauHuy.SuKienID}`
+    //   );
+    //   phongDaDuocGiaiPhongThongBao = true;
+    // }
 
     await transaction.commit();
     logger.info(`Transaction committed for approving YcHuySkID: ${ycHuySkID}`);

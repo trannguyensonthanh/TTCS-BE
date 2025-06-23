@@ -28,8 +28,8 @@ const getYeuCauDoiPhongs = async (params, currentUser) => {
       modifiedParams,
       currentUser
     );
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
   return {
     items,

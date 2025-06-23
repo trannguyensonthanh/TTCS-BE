@@ -111,7 +111,7 @@ const getSuKienListWithPagination = async (params) => {
     query += ` AND sk.TgBatDauDK >= @TuNgay`;
     queryParams.push({
       name: 'TuNgay',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: new Date(tuNgay),
     });
   }
@@ -122,7 +122,7 @@ const getSuKienListWithPagination = async (params) => {
     query += ` AND sk.TgBatDauDK <= @DenNgay`; // Hoặc sk.TgKetThucDK <= @DenNgay tùy nghiệp vụ
     queryParams.push({
       name: 'DenNgay',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: denNgayEnd,
     });
   }
@@ -790,12 +790,12 @@ const createSuKien = async (suKienData, transaction = null) => {
     { name: 'TenSK', type: sql.NVarChar(300), value: suKienData.tenSK },
     {
       name: 'TgBatDauDK',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: tgBatDauDKVN,
     },
     {
       name: 'TgKetThucDK',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: tgKetThucDKVN,
     },
     {
@@ -831,12 +831,12 @@ const createSuKien = async (suKienData, transaction = null) => {
     { name: 'NguoiTaoID', type: sql.Int, value: suKienData.nguoiTaoID },
     {
       name: 'TgBatDauThucTe',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: suKienData.tgBatDauThucTe,
     },
     {
       name: 'TgKetThucThucTe',
-      type: sql.DateTime,
+      type: sql.DateTimeOffset,
       value: suKienData.tgKetThucThucTe,
     },
   ];
@@ -924,13 +924,13 @@ const updateSuKienById = async (suKienID, updateData, transaction = null) => {
   addUpdateParam(
     'TgBatDauDK',
     'TgBatDauDK',
-    sql.DateTime,
+    sql.DateTimeOffset,
     updateData.tgBatDauDK ? new Date(updateData.tgBatDauDK) : undefined
   );
   addUpdateParam(
     'TgKetThucDK',
     'TgKetThucDK',
-    sql.DateTime,
+    sql.DateTimeOffset,
     updateData.tgKetThucDK ? new Date(updateData.tgKetThucDK) : undefined
   );
   addUpdateParam('SlThamDuDK', 'SlThamDuDK', sql.Int, updateData.slThamDuDK);
@@ -1043,7 +1043,7 @@ const updateSuKienByBGHAction = async (
   const params = [
     { name: 'SuKienID', type: sql.Int, value: suKienID },
     { name: 'NguoiDuyetBGHID', type: sql.Int, value: nguoiDuyetBGHID },
-    { name: 'NgayDuyetBGH', type: sql.DateTime, value: ngayDuyetBGH },
+    { name: 'NgayDuyetBGH', type: sql.DateTimeOffset, value: ngayDuyetBGH },
     { name: 'TrangThaiSkIDMoi', type: sql.Int, value: trangThaiSkIDMoi },
   ];
 
