@@ -14,7 +14,7 @@ const getChuyenNganhListForSelectByNganhController = async (req, res) => {
   const { nganhHocId } = req.params;
   const queryParams = pick(req.query, ['searchTerm', 'limit']);
   const result = await chuyenNganhService.getChuyenNganhListForSelectByNganh(
-    parseInt(nganhHocId),
+    parseInt(nganhHocId, 10),
     queryParams
   );
   okResponse(res, result, 'Lấy danh sách chuyên ngành để chọn thành công.');
@@ -33,7 +33,7 @@ const getChuyenNganhListByNganhController = async (req, res) => {
     'sortOrder',
   ]);
   const result = await chuyenNganhService.getChuyenNganhListByNganh(
-    parseInt(nganhHocId),
+    parseInt(nganhHocId, 10),
     queryParams
   );
   okResponse(res, result, 'Lấy danh sách chuyên ngành thành công.');
@@ -45,7 +45,7 @@ const getChuyenNganhListByNganhController = async (req, res) => {
 const createChuyenNganhForNganhController = async (req, res) => {
   const { nganhHocId } = req.params;
   const chuyenNganh = await chuyenNganhService.createChuyenNganhForNganh(
-    parseInt(nganhHocId),
+    parseInt(nganhHocId, 10),
     req.body
   );
   createdResponse(res, chuyenNganh, 'Tạo chuyên ngành thành công.');
@@ -56,7 +56,7 @@ const createChuyenNganhForNganhController = async (req, res) => {
  */
 const getChuyenNganhDetailController = async (req, res) => {
   const chuyenNganh = await chuyenNganhService.getChuyenNganhDetail(
-    parseInt(req.params.id)
+    parseInt(req.params.id, 10)
   );
   okResponse(res, chuyenNganh, 'Lấy chi tiết chuyên ngành thành công.');
 };
@@ -69,7 +69,7 @@ const getChuyenNganhDetailController = async (req, res) => {
  */
 const updateChuyenNganhController = async (req, res) => {
   const updatedChuyenNganh = await chuyenNganhService.updateChuyenNganh(
-    parseInt(req.params.id),
+    parseInt(req.params.id, 10),
     req.body
   );
   okResponse(res, updatedChuyenNganh, 'Cập nhật chuyên ngành thành công.');
@@ -82,7 +82,7 @@ const updateChuyenNganhController = async (req, res) => {
  * @returns {Promise<void>} Trả về response no content khi xóa thành công
  */
 const deleteChuyenNganhController = async (req, res) => {
-  await chuyenNganhService.deleteChuyenNganh(parseInt(req.params.id));
+  await chuyenNganhService.deleteChuyenNganh(parseInt(req.params.id, 10));
   noContentResponse(res, 'Xóa chuyên ngành thành công.');
 };
 

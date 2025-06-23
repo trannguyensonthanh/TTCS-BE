@@ -52,8 +52,8 @@ const authenticateToken = async (req, res, next) => {
   }
 
   req.user = {
-    nguoiDungID: nguoiDungID,
-    dinhDanh: dinhDanh,
+    nguoiDungID,
+    dinhDanh,
     maVaiTro: maVaiTroChucNang,
   };
 

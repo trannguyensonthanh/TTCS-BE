@@ -1107,7 +1107,14 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
   const queryParams = [];
 
   if (coTheTaoYeuCauPhongMoi) {
-    baseQuery += ` AND ttsk.MaTrangThai = @MaTrangThaiDaDuyetBGH `;
+    const allowedEventStatuses = [
+      MaTrangThaiSK.DA_DUYET_BGH,
+      MaTrangThaiSK.PHONG_BI_TU_CHOI,
+    ]
+      .map((code) => `'${code}'`)
+      .join(',');
+
+    baseQuery += ` AND ttsk.MaTrangThai IN (${allowedEventStatuses}) `;
     queryParams.push({
       name: 'MaTrangThaiDaDuyetBGH',
       type: sql.VarChar,
@@ -1121,8 +1128,9 @@ const getSuKienForYeuCauPhongSelect = async (params) => {
                 JOIN TrangThaiYeuCauPhong tt_yc_check ON yc_check.TrangThaiChungID = tt_yc_check.TrangThaiYcpID
                 WHERE yc_check.SuKienID = sk.SuKienID
                   AND tt_yc_check.MaTrangThai NOT IN (
-                        '${MaTrangThaiYeuCauPhong.YCCP_DA_HUY_BOI_NGUOI_TAO}',
-                        '${MaTrangThaiYeuCauPhong.YCCP_TU_CHOI_TOAN_BO}'
+                      '${MaTrangThaiYeuCauPhong.YCCP_DA_HUY_BOI_NGUOI_TAO}',
+                      '${MaTrangThaiYeuCauPhong.YCCP_TU_CHOI_TOAN_BO}',
+                      '${MaTrangThaiYeuCauPhong.YCCP_TU_DONG_HUY}'
 
                   )
             )

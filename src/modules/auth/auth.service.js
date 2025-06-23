@@ -134,11 +134,9 @@ const forgotPassword = async (email) => {
   const otp = generateOtp();
   await authRepository.saveOtp(email, otp);
 
-  // Gửi email chứa OTP (cần triển khai emailService)
   try {
-    await emailService.sendOtpEmail(email, user.HoTen, otp); // Ví dụ
+    await emailService.sendOtpEmail(email, user.HoTen, otp);
   } catch (error) {
-    // Có thể log lỗi gửi email nhưng vẫn trả về thành công cho người dùng
     console.error('Error sending OTP email:', error);
   }
 
@@ -224,10 +222,6 @@ const refreshTokens = async (refreshTokenFromCookie) => {
     );
   }
 
-  // Tạo accessToken mới
-  const accessTokenPayload = {
-    sub: payload.sub /* , roles: userAccount.roles */,
-  };
   const newAccessToken = generateAuthTokens({
     NguoiDungID: payload.sub,
   }).accessToken;

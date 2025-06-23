@@ -90,12 +90,6 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
   if (!trangThaiSKHienTai) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
   }
-  if (trangThaiSKHienTai !== MaTrangThaiSK.DA_DUYET_BGH) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      `Sự kiện không ở trạng thái "Đã duyệt BGH" (Trạng thái hiện tại: ${trangThaiSKHienTai}). Không thể tạo yêu cầu mượn phòng.`
-    );
-  }
 
   // === QUY TẮC NGHIỆP VỤ ===
   // Lấy chi tiết sự kiện để kiểm tra
@@ -105,10 +99,14 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
   }
 
   // Quy tắc 1: Sự kiện phải ở trạng thái DA_DUYET_BGH
-  if (suKien.trangThaiSK.maTrangThai !== MaTrangThaiSK.DA_DUYET_BGH) {
+  const allowedStatuses = [
+    MaTrangThaiSK.DA_DUYET_BGH,
+    MaTrangThaiSK.PHONG_BI_TU_CHOI,
+  ];
+  if (!allowedStatuses.includes(suKien.trangThaiSK.maTrangThai)) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
-      `Chỉ có thể tạo yêu cầu phòng cho sự kiện đã được BGH duyệt. Trạng thái hiện tại: "${suKien.trangThaiSK.tenTrangThai}".`
+      `Không thể tạo yêu cầu mượn phòng khi sự kiện đang ở trạng thái "${suKien.trangThaiSK.tenTrangThai}".`
     );
   }
 

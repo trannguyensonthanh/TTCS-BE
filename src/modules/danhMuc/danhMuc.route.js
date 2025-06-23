@@ -38,11 +38,11 @@ router.use(authMiddleware.authenticateToken);
  */
 router.get(
   '/loai-phong',
-  authMiddleware.authorizeRoles(
-    MaVaiTro.CB_TO_CHUC_SU_KIEN,
-    MaVaiTro.QUAN_LY_CSVC,
-    MaVaiTro.ADMIN_HE_THONG
-  ),
+  // authMiddleware.authorizeRoles(
+  //   MaVaiTro.CB_TO_CHUC_SU_KIEN,
+  //   MaVaiTro.QUAN_LY_CSVC,
+  //   MaVaiTro.ADMIN_HE_THONG
+  // ),
   loaiPhongValidation.validateGetLoaiPhongsParams,
   asyncHandler(loaiPhongController.getLoaiPhongsController)
 );
@@ -66,7 +66,7 @@ router.get(
  */
 router.get(
   '/phong/cho-chon',
-  authMiddleware.authorizeRoles(MaVaiTro.QUAN_LY_CSVC, MaVaiTro.ADMIN_HE_THONG),
+  // authMiddleware.authorizeRoles(MaVaiTro.QUAN_LY_CSVC, MaVaiTro.ADMIN_HE_THONG),
   phongForSelectValidation.validateGetPhongForSelectParams,
   asyncHandler(phongForSelectController.getPhongsForSelectController)
 );

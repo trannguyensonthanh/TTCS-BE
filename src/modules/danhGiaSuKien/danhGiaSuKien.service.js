@@ -1,8 +1,6 @@
 // File: src/modules/danhGiaSuKien/danhGiaSuKien.service.js
 // Service xử lý logic đánh giá sự kiện
 
-import { suKienRepository } from '../suKien/suKien.repository.js';
-import MaTrangThaiSK from '../../enums/maTrangThaiSK.enum.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
 import { danhGiaSuKienRepository } from './danhGiaSuKien.repository.js';

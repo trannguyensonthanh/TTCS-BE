@@ -26,8 +26,8 @@ const getThongBaoCuaToi = async (nguoiDungID, queryParams) => {
       queryParams
     );
 
-  const page = parseInt(queryParams.page) || 1;
-  const limit = parseInt(queryParams.limit) || 10;
+  const page = parseInt(queryParams.page, 10) || 1;
+  const limit = parseInt(queryParams.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {

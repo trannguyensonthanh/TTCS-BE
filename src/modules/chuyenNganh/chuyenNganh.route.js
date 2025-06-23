@@ -5,6 +5,7 @@ import { authMiddleware } from '../../middlewares/auth.middleware.js';
 import { chuyenNganhController } from './chuyenNganh.controller.js';
 import { chuyenNganhValidation } from './chuyenNganh.validation.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
+
 const router = express.Router({ mergeParams: true });
 
 /**

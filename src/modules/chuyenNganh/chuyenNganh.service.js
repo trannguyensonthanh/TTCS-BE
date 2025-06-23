@@ -52,8 +52,8 @@ const getChuyenNganhListByNganh = async (nganhHocId, params) => {
       nganhHocId,
       params
     );
-  const page = parseInt(params.page) || 1;
-  const limit = parseInt(params.limit) || 10;
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
   return { items, totalPages, currentPage: page, totalItems, pageSize: limit };
 };
