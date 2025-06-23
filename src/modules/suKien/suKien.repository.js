@@ -790,12 +790,12 @@ const createSuKien = async (suKienData, transaction = null) => {
     { name: 'TenSK', type: sql.NVarChar(300), value: suKienData.tenSK },
     {
       name: 'TgBatDauDK',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: tgBatDauDKVN,
     },
     {
       name: 'TgKetThucDK',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: tgKetThucDKVN,
     },
     {
@@ -831,12 +831,12 @@ const createSuKien = async (suKienData, transaction = null) => {
     { name: 'NguoiTaoID', type: sql.Int, value: suKienData.nguoiTaoID },
     {
       name: 'TgBatDauThucTe',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: suKienData.tgBatDauThucTe,
     },
     {
       name: 'TgKetThucThucTe',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: suKienData.tgKetThucThucTe,
     },
   ];
@@ -924,13 +924,13 @@ const updateSuKienById = async (suKienID, updateData, transaction = null) => {
   addUpdateParam(
     'TgBatDauDK',
     'TgBatDauDK',
-    sql.DateTimeOffset,
+    sql.DateTime,
     updateData.tgBatDauDK ? new Date(updateData.tgBatDauDK) : undefined
   );
   addUpdateParam(
     'TgKetThucDK',
     'TgKetThucDK',
-    sql.DateTimeOffset,
+    sql.DateTime,
     updateData.tgKetThucDK ? new Date(updateData.tgKetThucDK) : undefined
   );
   addUpdateParam('SlThamDuDK', 'SlThamDuDK', sql.Int, updateData.slThamDuDK);
@@ -1043,7 +1043,7 @@ const updateSuKienByBGHAction = async (
   const params = [
     { name: 'SuKienID', type: sql.Int, value: suKienID },
     { name: 'NguoiDuyetBGHID', type: sql.Int, value: nguoiDuyetBGHID },
-    { name: 'NgayDuyetBGH', type: sql.DateTimeOffset, value: ngayDuyetBGH },
+    { name: 'NgayDuyetBGH', type: sql.DateTime, value: ngayDuyetBGH },
     { name: 'TrangThaiSkIDMoi', type: sql.Int, value: trangThaiSkIDMoi },
   ];
 

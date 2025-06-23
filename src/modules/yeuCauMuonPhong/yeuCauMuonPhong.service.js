@@ -135,7 +135,13 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
         'Thời gian trả phòng dự kiến phải sau thời gian mượn.'
       );
     }
-
+    console.log('tgMuon:', tgMuon, 'tgTra:', tgTra);
+    console.log(
+      'tgBatDauSuKien:',
+      tgBatDauSuKien,
+      'tgKetThucSuKien:',
+      tgKetThucSuKien
+    );
     // Quy tắc 1: Thời gian mượn/trả phải nằm trong khoảng thời gian sự kiện
     if (tgMuon < tgBatDauSuKien || tgTra > tgKetThucSuKien) {
       throw new ApiError(

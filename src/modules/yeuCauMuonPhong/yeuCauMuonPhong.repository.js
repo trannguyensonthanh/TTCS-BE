@@ -443,12 +443,12 @@ const createYcMuonPhongDetail = async (data, transaction) => {
     },
     {
       name: 'TgMuonDk',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: new Date(data.tgMuonDk),
     },
     {
       name: 'TgTraDk',
-      type: sql.DateTimeOffset,
+      type: sql.DateTime,
       value: new Date(data.tgTraDk),
     },
     { name: 'TrangThaiCtID', type: sql.Int, value: data.trangThaiCtID },
@@ -568,8 +568,8 @@ const createChiTietDatPhong = async (
   const params = [
     { name: 'YcMuonPhongCtID', type: sql.Int, value: ycMuonPhongCtID },
     { name: 'PhongID', type: sql.Int, value: phongID },
-    { name: 'TgNhanPhongTT', type: sql.DateTimeOffset, value: tgNhanPhongTT },
-    { name: 'TgTraPhongTT', type: sql.DateTimeOffset, value: tgTraPhongTT },
+    { name: 'TgNhanPhongTT', type: sql.DateTime, value: tgNhanPhongTT },
+    { name: 'TgTraPhongTT', type: sql.DateTime, value: tgTraPhongTT },
   ];
   const request = transaction.request();
   params.forEach((param) => request.input(param.name, param.type, param.value));
@@ -660,14 +660,14 @@ const updateYcMuonPhongChiTietRecord = async (
     addUpdateField(
       'TgMuonDk',
       'TgMuonDk',
-      sql.DateTimeOffset,
+      sql.DateTime,
       new Date(updateData.tgMuonDk)
     );
   if (updateData.tgTraDk)
     addUpdateField(
       'TgTraDk',
       'TgTraDk',
-      sql.DateTimeOffset,
+      sql.DateTime,
       new Date(updateData.tgTraDk)
     );
 

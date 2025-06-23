@@ -27,7 +27,7 @@ const MAX_EVENT_DURATION_DAYS = 5; // Sự kiện kéo dài tối đa 5 ngày
 const getSuKienList = async (params) => {
   const { items, totalItems } =
     await suKienRepository.getSuKienListWithPagination(params);
-  console.log('items ccccc', items);
+
   const page = parseInt(params.page, 10) || 1;
   const limit = parseInt(params.limit, 10) || 10;
   const totalPages = Math.ceil(totalItems / limit);
