@@ -1,11 +1,11 @@
 // src/modules/auth/auth.service.js
+import crypto from 'crypto';
 import httpStatus from '../../constants/httpStatus.js';
 import errorMessages from '../../constants/errorMessages.js';
 import ApiError from '../../utils/ApiError.util.js';
 import { comparePassword, hashPassword } from '../../utils/password.util.js';
 import { generateAuthTokens, verifyToken } from '../../utils/jwt.util.js';
 import { authRepository } from './auth.repository.js';
-import crypto from 'crypto';
 import emailService from '../../services/email.service.js';
 import jwtConfig from '../../config/jwt.config.js';
 import MaVaiTro from '../../enums/maVaiTro.enum.js';
@@ -56,7 +56,7 @@ const loginUser = async (email, matKhau) => {
 
   // 1. Tạo đối tượng `nguoiDungResponse`
   const nguoiDungResponse = {
-    nguoiDungID: nguoiDungID,
+    nguoiDungID,
     maDinhDanh: taiKhoanNguoiDung.MaDinhDanh,
     hoTen: taiKhoanNguoiDung.HoTen,
     email: taiKhoanNguoiDung.NguoiDungEmail,
@@ -226,7 +226,7 @@ const refreshTokens = async (refreshTokenFromCookie) => {
 
   // Tạo accessToken mới
   const accessTokenPayload = {
-    sub: payload.sub /*, roles: userAccount.roles */,
+    sub: payload.sub /* , roles: userAccount.roles */,
   };
   const newAccessToken = generateAuthTokens({
     NguoiDungID: payload.sub,

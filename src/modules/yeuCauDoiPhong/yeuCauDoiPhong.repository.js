@@ -639,6 +639,37 @@ const checkExistingPendingChangeRequest = async (
   return result.recordset.length > 0;
 };
 
+/**
+ * [MỚI] Tìm các yêu cầu đổi phòng đang chờ duyệt quá X ngày.
+ * @param {number} soNgayQuaHan
+ * @returns {Promise<Array<object>>}
+ */
+const findOverdueChangeRoomRequests = async (soNgayQuaHan) => {
+  const query = `
+        SELECT
+            ycdp.YcDoiPhongID,
+            p.TenPhong AS TenPhongCu,
+            nd_yc.HoTen AS HoTenNguoiYeuCau
+        FROM YeuCauDoiPhong ycdp
+        JOIN TrangThaiYeuCauDoiPhong tt_ycdp ON ycdp.TrangThaiYcDoiPID = tt_ycdp.TrangThaiYcDoiPID
+        JOIN ChiTietDatPhong cdp ON ycdp.DatPhongID_Cu = cdp.DatPhongID
+        JOIN Phong p ON cdp.PhongID = p.PhongID
+        JOIN NguoiDung nd_yc ON ycdp.NguoiYeuCauID = nd_yc.NguoiDungID
+        WHERE tt_ycdp.MaTrangThai = @MaTrangThai
+          AND ycdp.NgayYeuCauDoi < DATEADD(day, -@SoNgayQuaHan, SYSUTCDATETIME());
+    `;
+  const params = [
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauDoiPhong.CHO_DUYET_DOI_PHONG,
+    },
+    { name: 'SoNgayQuaHan', type: sql.Int, value: soNgayQuaHan },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauDoiPhongRepository = {
   getYeuCauDoiPhongListWithPagination,
   getYeuCauDoiPhongDetailById,
@@ -652,4 +683,5 @@ export const yeuCauDoiPhongRepository = {
   updateUserCancelYeuCauDoiPhong,
   getPendingChangeRoomRequestsForDashboard,
   checkExistingPendingChangeRequest,
+  findOverdueChangeRoomRequests,
 };

@@ -14,6 +14,7 @@ import logger from '../../utils/logger.util.js';
 import { executeQuery, getPool } from '../../utils/database.js';
 import { yeuCauMuonPhongRepository } from '../yeuCauMuonPhong/yeuCauMuonPhong.repository.js';
 
+const SO_NGAY_QUA_HAN_YEU_CAU_HUY = 2;
 /**
  * Lấy danh sách yêu cầu hủy sự kiện (có phân trang, phân quyền)
  * Đầu vào: params (object chứa searchTerm, trangThaiYcHuySkMa, suKienID, nguoiYeuCauID, page, limit, sortBy, sortOrder), currentUser (object)
@@ -673,6 +674,53 @@ const thuHoiYeuCauHuySK = async (ycHuySkID, currentUser) => {
   }
 };
 
+/**
+ * [MỚI] Gửi nhắc nhở cho các yêu cầu hủy sự kiện quá hạn.
+ */
+const sendRemindersForOverdueCancelRequests = async () => {
+  logger.info('JOB: Checking for overdue event cancellation requests...');
+  const overdueRequests = await yeuCauHuySKRepository.findOverdueCancelRequests(
+    SO_NGAY_QUA_HAN_YEU_CAU_HUY
+  );
+
+  if (overdueRequests.length === 0) {
+    logger.info('JOB: No overdue event cancellation requests found.');
+    return;
+  }
+
+  const usersBGH = await authRepository.findUsersByRoleMa(
+    MaVaiTro.BGH_DUYET_SK_TRUONG
+  );
+  if (!usersBGH || usersBGH.length === 0) {
+    logger.warn('JOB: No BGH users found to send reminders.');
+    return;
+  }
+
+  for (const request of overdueRequests) {
+    const noiDungTB = `Nhắc nhở: Yêu cầu hủy sự kiện "[${request.TenSK}]" (tạo bởi ${request.HoTenNguoiYeuCau}) đã chờ duyệt quá ${SO_NGAY_QUA_HAN_YEU_CAU_HUY} ngày.`;
+    for (const user of usersBGH) {
+      thongBaoService
+        .createThongBao({
+          NguoiNhanID: user.NguoiDungID,
+          NoiDungTB: noiDungTB,
+          DuongDanTB: `/admin/yeu-cau-huy-cho-duyet/${request.YcHuySkID}`,
+          YcLienQuanID: request.YcHuySkID,
+          LoaiYcLienQuan: 'YEUCAUHUYSK',
+          LoaiThongBao: 'YC_HUY_SK_NHAC_NHO_DUYET_BGH', // Cần thêm vào enum nếu muốn
+        })
+        .catch((err) =>
+          logger.error(
+            `Failed to send cancel request reminder to BGH user ${user.NguoiDungID}`,
+            err
+          )
+        );
+    }
+  }
+  logger.info(
+    `JOB: Sent reminders for ${overdueRequests.length} overdue event cancellation requests.`
+  );
+};
+
 export const yeuCauHuySKService = {
   getYeuCauHuySKs,
   getYeuCauHuySKDetail,
@@ -680,4 +728,5 @@ export const yeuCauHuySKService = {
   duyetYeuCauHuySK,
   tuChoiYeuCauHuySK,
   thuHoiYeuCauHuySK,
+  sendRemindersForOverdueCancelRequests,
 };

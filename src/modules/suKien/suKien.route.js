@@ -62,6 +62,23 @@ router.post(
   asyncHandler(suKienController.guiLoiMoiHangLoatController)
 );
 
+/**
+ * [MỚI] Lấy danh sách các sự kiện đã có lời mời được gửi đi.
+ * @route GET /api/v1/su-kien/da-gui-loi-moi
+ * @access CTSV, CBTCISK, Admin, BGH
+ */
+router.get(
+  '/da-gui-loi-moi',
+  authMiddleware.authorizeRoles(
+    MaVaiTro.CONG_TAC_SINH_VIEN,
+    MaVaiTro.CB_TO_CHUC_SU_KIEN,
+    MaVaiTro.ADMIN_HE_THONG,
+    MaVaiTro.BGH_DUYET_SK_TRUONG
+  ),
+  suKienValidation.validateGetEventsWithInvitationsParams, // Sẽ tạo
+  asyncHandler(suKienController.getEventsWithInvitationsController)
+);
+
 router.get(
   '/',
   // suKienValidation.validateGetSuKienParams, // Middleware validation cho query params
@@ -186,7 +203,7 @@ router.post(
 
 /**
  * [MỚI] Gửi lời mời tham gia sự kiện.
- * @route POST /api/v1/su-kien/{suKienID}/moi-tham-gia
+ * @route POST /api/v1/sukien/{suKienID}/moi-tham-gia
  * @access CONG_TAC_SINH_VIEN
  */
 router.post(

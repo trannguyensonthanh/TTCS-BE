@@ -19,8 +19,8 @@ const login = async (req, res) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: jwtConfig.refreshExpiresIn.endsWith('d')
-      ? parseInt(jwtConfig.refreshExpiresIn) * 24 * 60 * 60 * 1000
-      : parseInt(jwtConfig.refreshExpiresIn) * 1000,
+      ? parseInt(jwtConfig.refreshExpiresIn, 10) * 24 * 60 * 60 * 1000
+      : parseInt(jwtConfig.refreshExpiresIn, 10) * 1000,
   });
 
   const { refreshTokenForCookie, ...responsePayload } = loginResult;

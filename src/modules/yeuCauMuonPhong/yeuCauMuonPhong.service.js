@@ -13,6 +13,8 @@ import { getPool } from '../../utils/database.js';
 import logger from '../../utils/logger.util.js';
 import { thongBaoService } from '../thongBao/thongBao.service.js';
 
+const SO_NGAY_CANH_BAO_TRUOC = 2;
+
 /**
  * Lấy danh sách yêu cầu mượn phòng (có phân trang, phân quyền)
  * Đầu vào: params (object chứa searchTerm, trangThaiChungMa, suKienID, nguoiYeuCauID, donViYeuCauID, tuNgayYeuCau, denNgayYeuCau, page, limit, sortBy, sortOrder), currentUser (object)
@@ -71,16 +73,6 @@ const getYeuCauMuonPhongDetail = async (ycMuonPhongID, currentUser) => {
       'Yêu cầu mượn phòng không tồn tại.'
     );
   }
-
-  // Logic phân quyền xem chi tiết (tương tự như xem danh sách)
-  // const userRoles = await authRepository.getVaiTroChucNangByNguoiDungID(currentUser.nguoiDungID);
-  // const isCSVC = userRoles.some(role => role.maVaiTro === MaVaiTro.QUAN_LY_CSVC);
-  // const isAdmin = userRoles.some(role => role.maVaiTro === MaVaiTro.ADMIN_HE_THONG);
-  // if (!isAdmin && !isCSVC && yeuCau.nguoiYeuCau.nguoiDungID !== currentUser.nguoiDungID) {
-  //   throw new ApiError(httpStatus.FORBIDDEN, 'Bạn không có quyền xem chi tiết yêu cầu này.');
-  // }
-  // Logic phân quyền có thể phức tạp hơn, tùy theo yêu cầu (VD: Trưởng Khoa xem của Khoa mình)
-
   return yeuCau;
 };
 
@@ -105,21 +97,52 @@ const createYeuCauMuonPhong = async (payload, nguoiYeuCau) => {
     );
   }
 
-  // 2. Validate chiTietYeuCau (ví dụ: LoaiPhongYcID có tồn tại không) - có thể làm sâu hơn
+  // === QUY TẮC NGHIỆP VỤ ===
+  // Lấy chi tiết sự kiện để kiểm tra
+  const suKien = await suKienRepository.getSuKienDetailById(suKienID);
+  if (!suKien) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Sự kiện không tồn tại.');
+  }
+
+  // Quy tắc 1: Sự kiện phải ở trạng thái DA_DUYET_BGH
+  if (suKien.trangThaiSK.maTrangThai !== MaTrangThaiSK.DA_DUYET_BGH) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Chỉ có thể tạo yêu cầu phòng cho sự kiện đã được BGH duyệt. Trạng thái hiện tại: "${suKien.trangThaiSK.tenTrangThai}".`
+    );
+  }
+
+  // Quy tắc 7: Một sự kiện chỉ có một yêu cầu mượn phòng đang hoạt động
+  const existingRequest =
+    await yeuCauMuonPhongRepository.findActiveRequestBySuKienID(suKienID); // Cần tạo hàm này
+  if (existingRequest) {
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      'Sự kiện này đã có một yêu cầu mượn phòng đang được xử lý hoặc đã hoàn tất.'
+    );
+  }
+
+  // Lặp qua các chi tiết để kiểm tra thời gian
+  const tgBatDauSuKien = new Date(suKien.tgBatDauDK);
+  const tgKetThucSuKien = new Date(suKien.tgKetThucDK);
+
   for (const detail of chiTietYeuCau) {
-    if (detail.loaiPhongYcID) {
-      // const loaiPhong = await loaiPhongRepository.getLoaiPhongById(detail.loaiPhongYcID); // Giả sử có hàm này
-      // if (!loaiPhong) {
-      //   throw new ApiError(httpStatus.BAD_REQUEST, `Loại phòng yêu cầu ID ${detail.loaiPhongYcID} không hợp lệ.`);
-      // }
-      console.log(
-        `TODO: Validate LoaiPhongYcID ${detail.loaiPhongYcID} if it exists.`
-      );
-    }
-    if (new Date(detail.tgTraDk) <= new Date(detail.tgMuonDk)) {
+    const tgMuon = new Date(detail.tgMuonDk);
+    const tgTra = new Date(detail.tgTraDk);
+
+    // Quy tắc 2: TgMuonDk phải trước TgTraDk (Joi đã xử lý, nhưng service check lại cho chắc)
+    if (tgTra <= tgMuon) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        `Thời gian trả phòng dự kiến (${detail.tgTraDk}) phải sau thời gian mượn dự kiến (${detail.tgMuonDk}) cho một trong các chi tiết.`
+        'Thời gian trả phòng dự kiến phải sau thời gian mượn.'
+      );
+    }
+
+    // Quy tắc 1: Thời gian mượn/trả phải nằm trong khoảng thời gian sự kiện
+    if (tgMuon < tgBatDauSuKien || tgTra > tgKetThucSuKien) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'Thời gian mượn phòng phải nằm trong khoảng thời gian diễn ra sự kiện.'
       );
     }
   }
@@ -626,11 +649,13 @@ const huyYeuCauMuonPhongByUser = async (ycMuonPhongID, nguoiHuy) => {
     // Kiểm tra trạng thái của YeuCauMuonPhong (Header) có cho phép hủy không
     if (
       yeuCauHeader.MaTrangThaiChungHienTai !==
-      MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY
+        MaTrangThaiYeuCauPhong.YCCP_CHO_XU_LY &&
+      yeuCauHeader.MaTrangThaiChungHienTai !==
+        MaTrangThaiYeuCauPhong.CSVC_YEU_CAU_CHINH_SUA_CT
     ) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        `Không thể hủy yêu cầu mượn phòng khi đang ở trạng thái "${yeuCauHeader.MaTrangThaiChungHienTai}". Chỉ có thể hủy khi "Chờ xử lý".`
+        `Không thể hủy yêu cầu mượn phòng khi đang ở trạng thái "${yeuCauHeader.MaTrangThaiChungHienTai}". Chỉ có thể hủy khi "Chờ xử lý" hoặc "CSVC yêu cầu chỉnh sửa".`
       );
     }
 
@@ -1074,6 +1099,72 @@ const updateYeuCauMuonPhongByUser = async (
   }
 };
 
+/**
+ * [MỚI] Gửi cảnh báo cho các sự kiện sắp diễn ra nhưng chưa có phòng.
+ */
+const sendUrgentRoomAssignmentWarnings = async () => {
+  logger.info(
+    'JOB: Checking for upcoming events that need urgent room assignment...'
+  );
+  const eventsToWarn =
+    await yeuCauMuonPhongRepository.findUpcomingEventsWithoutRooms(
+      SO_NGAY_CANH_BAO_TRUOC
+    );
+
+  if (eventsToWarn.length === 0) {
+    logger.info('JOB: No events need urgent warnings.');
+    return;
+  }
+
+  const usersCSVC = await authRepository.findUsersByRoleMa(
+    MaVaiTro.QUAN_LY_CSVC
+  );
+  if (usersCSVC.length === 0) {
+    logger.warn('JOB: No QLCSVC users found to send urgent warnings.');
+  }
+
+  for (const event of eventsToWarn) {
+    const noiDungChung = `CẢNH BÁO: Sự kiện "[${event.TenSK}]" sắp diễn ra nhưng chưa được xếp phòng. Vui lòng xử lý khẩn cấp.`;
+
+    // Gửi thông báo cho người tạo sự kiện
+    thongBaoService
+      .createThongBao({
+        NguoiNhanID: event.NguoiTaoSuKienID,
+        NoiDungTB: noiDungChung,
+        DuongDanTB: `/quan-ly-su-kien/${event.SuKienID}/chi-tiet`,
+        SkLienQuanID: event.SuKienID,
+        LoaiThongBao: 'SK_CANH_BAO_XEP_PHONG', // Cần thêm vào enum nếu muốn
+      })
+      .catch((err) =>
+        logger.error(
+          `Failed to send urgent warning to event creator ${event.NguoiTaoSuKienID}`,
+          err
+        )
+      );
+
+    // Gửi thông báo cho tất cả QLCSVC
+    for (const user of usersCSVC) {
+      thongBaoService
+        .createThongBao({
+          NguoiNhanID: user.NguoiDungID,
+          NoiDungTB: noiDungChung,
+          DuongDanTB: `/admin/yeu-cau-phong?suKienID=${event.SuKienID}`,
+          SkLienQuanID: event.SuKienID,
+          LoaiThongBao: 'SK_CANH_BAO_XEP_PHONG_CSVC',
+        })
+        .catch((err) =>
+          logger.error(
+            `Failed to send urgent warning to CSVC user ${user.NguoiDungID}`,
+            err
+          )
+        );
+    }
+  }
+  logger.info(
+    `JOB: Sent urgent room assignment warnings for ${eventsToWarn.length} events.`
+  );
+};
+
 export const yeuCauMuonPhongService = {
   getYeuCauMuonPhongs,
   getYeuCauMuonPhongDetail,
@@ -1083,4 +1174,5 @@ export const yeuCauMuonPhongService = {
   sendRemindersForOverdueCSVCProcessing,
   autoCancelOverdueRoomAssignmentEvents,
   updateYeuCauMuonPhongByUser,
+  sendUrgentRoomAssignmentWarnings,
 };

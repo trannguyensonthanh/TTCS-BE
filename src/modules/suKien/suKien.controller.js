@@ -318,6 +318,26 @@ const getSuKienSapDienRaDashboardController = async (req, res) => {
   okResponse(res, result, 'Lấy danh sách sự kiện sắp diễn ra thành công.');
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đã có lời mời.
+ */
+const getEventsWithInvitationsController = async (req, res) => {
+  const params = pick(req.query, [
+    'searchTerm',
+    'donViToChucID',
+    'page',
+    'limit',
+    'sortBy',
+    'sortOrder',
+  ]);
+  const currentUser = req.user;
+  const result = await suKienService.getEventsWithInvitations(
+    params,
+    currentUser
+  );
+  okResponse(res, result, 'Lấy danh sách sự kiện đã gửi lời mời thành công.');
+};
+
 export const suKienController = {
   getSuKienListController,
   getSuKienDetailController,
@@ -335,4 +355,5 @@ export const suKienController = {
   guiLoiMoiHangLoatController,
   getMyAttendedEventsController,
   getSuKienSapDienRaDashboardController,
+  getEventsWithInvitationsController,
 };

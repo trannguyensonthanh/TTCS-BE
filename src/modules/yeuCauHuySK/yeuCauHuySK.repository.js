@@ -529,6 +529,36 @@ const deleteYeuCauDoiPhongBySuKienID = async (suKienID, transaction) => {
   await request.query(query);
 };
 
+/**
+ * [MỚI] Tìm các yêu cầu hủy sự kiện đang chờ duyệt quá X ngày.
+ * @param {number} soNgayQuaHan
+ * @returns {Promise<Array<object>>}
+ */
+const findOverdueCancelRequests = async (soNgayQuaHan) => {
+  const query = `
+        SELECT
+            ych.YcHuySkID,
+            sk.TenSK,
+            nd_yc.HoTen AS HoTenNguoiYeuCau
+        FROM YeuCauHuySK ych
+        JOIN TrangThaiYeuCauHuySK ttyc ON ych.TrangThaiYcHuySkID = ttyc.TrangThaiYcHuySkID
+        JOIN SuKien sk ON ych.SuKienID = sk.SuKienID
+        JOIN NguoiDung nd_yc ON ych.NguoiYeuCauID = nd_yc.NguoiDungID
+        WHERE ttyc.MaTrangThai = @MaTrangThai
+          AND ych.NgayYeuCauHuy < DATEADD(day, -@SoNgayQuaHan, SYSUTCDATETIME());
+    `;
+  const params = [
+    {
+      name: 'MaTrangThai',
+      type: sql.VarChar,
+      value: MaTrangThaiYeuCauHuySK.CHO_DUYET_HUY_BGH,
+    },
+    { name: 'SoNgayQuaHan', type: sql.Int, value: soNgayQuaHan },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauHuySKRepository = {
   findSuKienForCancellationRequest,
   checkExistingPendingCancellationRequest,
@@ -543,4 +573,5 @@ export const yeuCauHuySKRepository = {
   getPendingCancelRequestsForDashboard,
   updateYeuCauHuySKStatus,
   deleteYeuCauDoiPhongBySuKienID,
+  findOverdueCancelRequests,
 };

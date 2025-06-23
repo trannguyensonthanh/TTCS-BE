@@ -1462,7 +1462,7 @@ const getInvitedUserIdsForSuKien = async (suKienID, transaction) => {
 };
 
 /**
- * [MỚI] Lấy danh sách người đã được mời cho một sự kiện, có phân trang và bộ lọc.
+ * [CẢI TIẾN] Lấy danh sách người đã được mời cho một sự kiện, có phân trang, bộ lọc và thông tin chi tiết.
  * @param {number} suKienID - ID của sự kiện.
  * @param {object} params - Tham số lọc và phân trang.
  * @returns {Promise<{items: Array<object>, totalItems: number}>}
@@ -1471,8 +1471,10 @@ const getInvitedListForSuKien = async (suKienID, params) => {
   const {
     searchTerm,
     trangThaiPhanHoi,
+    vaiTroDuKienSK, // Thêm filter mới
+    donViNguoiMoiID, // Thêm filter mới
     page = 1,
-    limit = 10,
+    limit = 15,
     sortBy = 'nd.HoTen',
     sortOrder = 'ASC',
   } = params;
@@ -1480,6 +1482,20 @@ const getInvitedListForSuKien = async (suKienID, params) => {
   const fromClause = `
         FROM SK_MoiThamGia skm
         JOIN NguoiDung nd ON skm.NguoiDuocMoiID = nd.NguoiDungID
+        -- Join để lấy thông tin chi tiết của người dùng
+        LEFT JOIN ThongTinSinhVien tsv ON nd.NguoiDungID = tsv.NguoiDungID
+        LEFT JOIN LopHoc lh ON tsv.LopID = lh.LopID
+        LEFT JOIN NganhHoc nh ON lh.NganhHocID = nh.NganhHocID
+        LEFT JOIN DonVi dv_khoa ON nh.KhoaQuanLyID = dv_khoa.DonViID
+        -- Lấy đơn vị công tác của giảng viên/nhân viên
+        OUTER APPLY (
+            SELECT TOP 1 dv.DonViID, dv.TenDonVi
+            FROM NguoiDung_VaiTro ndvt
+            JOIN VaiTroHeThong vt ON ndvt.VaiTroID = vt.VaiTroID
+            JOIN DonVi dv ON ndvt.DonViID = dv.DonViID
+            WHERE ndvt.NguoiDungID = nd.NguoiDungID AND vt.MaVaiTro = 'THANH_VIEN_DON_VI'
+            ORDER BY ndvt.NgayBatDau DESC
+        ) AS dv_cong_tac
     `;
   let whereClause = ` WHERE skm.SuKienID = @SuKienID `;
   const queryParams = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
@@ -1492,21 +1508,34 @@ const getInvitedListForSuKien = async (suKienID, params) => {
       value: `%${searchTerm}%`,
     });
   }
-
   if (trangThaiPhanHoi) {
-    if (trangThaiPhanHoi === 'CHUA_PHAN_HOI') {
+    if (trangThaiPhanHoi === 'CHUA_PHAN_HOI')
       whereClause += ` AND skm.IsChapNhanMoi IS NULL `;
-    } else if (trangThaiPhanHoi === 'CHAP_NHAN') {
+    else if (trangThaiPhanHoi === 'DA_CHAP_NHAN')
       whereClause += ` AND skm.IsChapNhanMoi = 1 `;
-    } else if (trangThaiPhanHoi === 'TU_CHOI') {
+    else if (trangThaiPhanHoi === 'DA_TU_CHOI')
       whereClause += ` AND skm.IsChapNhanMoi = 0 `;
-    }
+  }
+  if (vaiTroDuKienSK) {
+    whereClause += ` AND skm.VaiTroDuKienSK LIKE @VaiTroDuKienSK `;
+    queryParams.push({
+      name: 'VaiTroDuKienSK',
+      type: sql.NVarChar,
+      value: `%${vaiTroDuKienSK}%`,
+    });
+  }
+  if (donViNguoiMoiID) {
+    whereClause += ` AND (lh.LopID = @DonViNguoiMoiID OR nh.KhoaQuanLyID = @DonViNguoiMoiID OR dv_cong_tac.DonViID = @DonViNguoiMoiID) `;
+    queryParams.push({
+      name: 'DonViNguoiMoiID',
+      type: sql.Int,
+      value: donViNguoiMoiID,
+    });
   }
 
-  const countQuery = `SELECT COUNT(skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
+  const countQuery = `SELECT COUNT(DISTINCT skm.MoiThamGiaID) AS TotalItems ${fromClause} ${whereClause}`;
   const countResult = await executeQuery(countQuery, queryParams);
-  const totalItems =
-    countResult.recordset.length > 0 ? countResult.recordset[0].TotalItems : 0;
+  const totalItems = countResult.recordset[0]?.TotalItems || 0;
 
   const allowedSortBy = ['nd.HoTen', 'nd.MaDinhDanh', 'skm.TgPhanHoiMoi'];
   const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'nd.HoTen';
@@ -1514,17 +1543,24 @@ const getInvitedListForSuKien = async (suKienID, params) => {
   const offset = (page - 1) * limit;
 
   const itemsQuery = `
-        SELECT
+        SELECT DISTINCT
             skm.MoiThamGiaID,
             skm.VaiTroDuKienSK,
             skm.IsChapNhanMoi,
             skm.TgPhanHoiMoi,
             skm.GhiChuMoi,
+            -- Thêm TgTao từ default constraint nếu có, nếu không thì dùng NULL
+            -- Giả sử không có cột TgTao, ta sẽ xử lý ở service
             nd.NguoiDungID,
             nd.MaDinhDanh,
             nd.HoTen,
             nd.Email,
-            nd.AnhDaiDien
+            nd.AnhDaiDien,
+            -- Thông tin chi tiết để định dạng
+            CASE WHEN tsv.NguoiDungID IS NOT NULL THEN 'Sinh viên' ELSE 'Giảng viên/Nhân viên' END AS LoaiNguoiDung,
+            lh.TenLop,
+            dv_khoa.TenDonVi AS TenKhoa,
+            dv_cong_tac.TenDonVi AS TenDonViCongTac
         ${fromClause}
         ${whereClause}
         ORDER BY ${safeSortBy} ${safeSortOrder}
@@ -1844,6 +1880,77 @@ const getPendingApprovalEventsForDashboard = async (limit) => {
   return result.recordset;
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đã có ít nhất một lời mời.
+ * @param {object} params - Tham số lọc và phân trang.
+ * @returns {Promise<{items: Array<object>, totalItems: number}>}
+ */
+const getEventsWithInvitations = async (params) => {
+  const {
+    searchTerm,
+    donViToChucID,
+    page = 1,
+    limit = 10,
+    sortBy = 'sk.NgayTaoSK',
+    sortOrder = 'DESC',
+  } = params;
+
+  let fromClause = `
+        FROM SuKien sk
+        -- Chỉ lấy những sự kiện có trong bảng SK_MoiThamGia
+        WHERE EXISTS (SELECT 1 FROM SK_MoiThamGia skm_check WHERE skm_check.SuKienID = sk.SuKienID)
+    `;
+  const queryParams = [];
+
+  if (searchTerm) {
+    fromClause += ` AND (sk.TenSK LIKE @SearchTerm) `;
+    queryParams.push({
+      name: 'SearchTerm',
+      type: sql.NVarChar,
+      value: `%${searchTerm}%`,
+    });
+  }
+  if (donViToChucID) {
+    fromClause += ` AND sk.DonViChuTriID = @DonViToChucID `;
+    queryParams.push({
+      name: 'DonViToChucID',
+      type: sql.Int,
+      value: donViToChucID,
+    });
+  }
+
+  const countQuery = `SELECT COUNT(DISTINCT sk.SuKienID) AS TotalItems ${fromClause}`;
+  const countResult = await executeQuery(countQuery, queryParams);
+  const totalItems = countResult.recordset[0]?.TotalItems || 0;
+
+  const allowedSortBy = ['sk.NgayTaoSK', 'sk.TenSK', 'sk.TgBatDauDK'];
+  const safeSortBy = allowedSortBy.includes(sortBy) ? sortBy : 'sk.NgayTaoSK';
+  const safeSortOrder = sortOrder.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+  const offset = (page - 1) * limit;
+
+  const itemsQuery = `
+        SELECT
+            sk.SuKienID,
+            sk.TenSK,
+            sk.TgBatDauDK,
+            dv.TenDonVi AS TenDonViChuTri,
+            ttsk.TenTrangThai AS TenTrangThaiSK,
+            ttsk.MaTrangThai AS MaTrangThaiSK,
+            (SELECT COUNT(*) FROM SK_MoiThamGia WHERE SuKienID = sk.SuKienID) AS TongSoLuotMoi
+        FROM SuKien sk
+        JOIN DonVi dv ON sk.DonViChuTriID = dv.DonViID
+        JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+        ${fromClause.replace('FROM SuKien sk', '')} -- Bỏ phần FROM SuKien sk
+        ORDER BY ${safeSortBy} ${safeSortOrder}
+        OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY;
+    `;
+  queryParams.push({ name: 'Offset', type: sql.Int, value: offset });
+  queryParams.push({ name: 'Limit', type: sql.Int, value: limit });
+
+  const itemsResult = await executeQuery(itemsQuery, queryParams);
+  return { items: itemsResult.recordset, totalItems };
+};
+
 export const suKienRepository = {
   addDonViThamGiaToSuKien,
   getSuKienListWithPagination,
@@ -1875,4 +1982,5 @@ export const suKienRepository = {
   getMoiMoi,
   getMyAttendedEvents,
   getPendingApprovalEventsForDashboard,
+  getEventsWithInvitations,
 };

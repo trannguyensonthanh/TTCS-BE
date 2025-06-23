@@ -47,15 +47,22 @@ const updateTrangThaiPayloadSchema = Joi.object({
 
 const createSuKienSchema = Joi.object({
   tenSK: Joi.string().max(300).required(),
-  tgBatDauDK: Joi.date().iso().required(),
-  tgKetThucDK: Joi.date().iso().required().min(Joi.ref('tgBatDauDK')),
+  tgBatDauDK: Joi.date().iso().required().messages({
+    'any.required': 'Thời gian bắt đầu là bắt buộc.',
+  }),
+  tgKetThucDK: Joi.date().iso().required().min(Joi.ref('tgBatDauDK')).messages({
+    'any.required': 'Thời gian kết thúc là bắt buộc.',
+    'date.min': 'Thời gian kết thúc phải sau thời gian bắt đầu.', // Quy tắc 1
+  }),
   moTaChiTiet: Joi.string().allow('', null),
   donViChuTriID: Joi.number().integer().positive().required(),
   loaiSuKienID: Joi.number().integer().positive().allow(null).optional(),
   nguoiChuTriID: Joi.number().integer().positive().allow(null).optional(),
   tenChuTriNgoai: Joi.string().max(150).allow('', null).optional(),
   donViChuTriNgoai: Joi.string().max(200).allow('', null).optional(),
-  slThamDuDK: Joi.number().integer().min(0).allow(null).optional(),
+  slThamDuDK: Joi.number().integer().min(0).allow(null).optional().messages({
+    'number.min': 'Số lượng tham dự phải là số dương.', // Quy tắc 12
+  }),
   isCongKhaiNoiBo: Joi.boolean().default(false),
   khachMoiNgoaiGhiChu: Joi.string().allow('', null),
   cacDonViThamGiaIDs: Joi.array()
@@ -211,6 +218,15 @@ const getMyAttendedEventsParamsSchema = Joi.object({
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
 });
 
+const getEventsWithInvitationsParamsSchema = Joi.object({
+  searchTerm: Joi.string().allow('', null).optional(),
+  donViToChucID: Joi.number().integer().positive().optional(),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(10),
+  sortBy: Joi.string().optional().default('NgayTaoSK'),
+  sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
+});
+
 export const suKienValidation = {
   /**
    * Middleware validate query params cho lấy danh sách sự kiện (lọc, phân trang, sắp xếp).
@@ -295,6 +311,11 @@ export const suKienValidation = {
 
   validateGetMyAttendedEventsParams: validate(
     getMyAttendedEventsParamsSchema,
+    'query'
+  ),
+
+  validateGetEventsWithInvitationsParams: validate(
+    getEventsWithInvitationsParamsSchema,
     'query'
   ),
 };

@@ -1,6 +1,7 @@
 // src/modules/suKien/suKien.service.js
 import sql from 'mssql';
 import { format } from 'morgan';
+import { addDays, differenceInDays } from 'date-fns';
 import { suKienRepository } from './suKien.repository.js';
 import ApiError from '../../utils/ApiError.util.js';
 import httpStatus from '../../constants/httpStatus.js';
@@ -14,6 +15,10 @@ import logger from '../../utils/logger.util.js';
 import { getPool } from '../../utils/database.js';
 import { nguoiDungRepository } from '../nguoiDung/nguoiDung.repository.js';
 import emailService from '../../services/email.service.js';
+
+const MIN_LEAD_TIME_DAYS = 5; // 5 ngày chuẩn bị
+const MAX_EVENT_DURATION_DAYS = 5; // Sự kiện kéo dài tối đa 5 ngày
+
 /**
  * Lấy danh sách sự kiện với phân trang và bộ lọc
  * @param {object} params - GetSuKienParams
@@ -194,6 +199,28 @@ const createSuKienService = async (suKienBody, nguoiTaoID) => {
     suKienDataToCreate.loaiSuKienID = null;
   }
 
+  const tgBatDau = new Date(suKienBody.tgBatDauDK);
+  const tgKetThuc = new Date(suKienBody.tgKetThucDK);
+  const tgHienTai = new Date();
+
+  // Quy tắc 2: TgBatDauDK phải xảy ra sau ít nhất 5 ngày kể từ hôm nay
+  const thoiGianChoPhepToiThieu = addDays(tgHienTai, MIN_LEAD_TIME_DAYS);
+  if (tgBatDau < thoiGianChoPhepToiThieu) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Thời gian bắt đầu sự kiện phải sau ít nhất ${MIN_LEAD_TIME_DAYS} ngày kể từ hôm nay.`
+    );
+  }
+
+  // Quy tắc 3: Sự kiện không được kéo dài quá 5 ngày
+  const thoiLuongSuKien = differenceInDays(tgKetThuc, tgBatDau);
+  if (thoiLuongSuKien > MAX_EVENT_DURATION_DAYS) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Sự kiện không được kéo dài quá ${MAX_EVENT_DURATION_DAYS} ngày.`
+    );
+  }
+
   // 2. Lấy ID trạng thái ban đầu
   const trangThaiBanDauID = await suKienRepository.getTrangThaiSkIDByMa(
     MaTrangThaiSK.CHO_DUYET_BGH
@@ -359,13 +386,50 @@ const updateSuKienService = async (suKienID, updateBody, nguoiThucHien) => {
     MaTrangThaiSK.BGH_YEU_CAU_CHINH_SUA_SK,
     MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO,
     MaTrangThaiSK.BI_TU_CHOI_BGH,
-    MaTrangThaiSK.DA_HUY_BOI_NGUOI_TAO,
   ];
   if (!allowedEditStatuses.includes(suKienHienTai.trangThaiSK.maTrangThai)) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
       `Không thể sửa sự kiện khi đang ở trạng thái "${suKienHienTai.trangThaiSK.tenTrangThai}".`
     );
+  }
+
+  // === QUY TẮC NGHIỆP VỤ: KIỂM TRA THỜI GIAN KHI CẬP NHẬT ===
+  if (updateBody.tgBatDauDK || updateBody.tgKetThucDK) {
+    const tgBatDauMoi = updateBody.tgBatDauDK
+      ? new Date(updateBody.tgBatDauDK)
+      : new Date(suKienHienTai.tgBatDauDK);
+    const tgKetThucMoi = updateBody.tgKetThucDK
+      ? new Date(updateBody.tgKetThucDK)
+      : new Date(suKienHienTai.tgKetThucDK);
+
+    // Quy tắc 1 (nhắc lại): tgBatDau < tgKetThuc
+    if (tgKetThucMoi <= tgBatDauMoi) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        'Thời gian kết thúc mới phải sau thời gian bắt đầu mới.'
+      );
+    }
+
+    // Quy tắc 3 (nhắc lại): Thời lượng không quá 5 ngày
+    const thoiLuongSuKien = differenceInDays(tgKetThucMoi, tgBatDauMoi);
+    if (thoiLuongSuKien > MAX_EVENT_DURATION_DAYS) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Sự kiện không được kéo dài quá ${MAX_EVENT_DURATION_DAYS} ngày.`
+      );
+    }
+
+    // Quy tắc 4: Không được sửa TgBatDauDK thành quá khứ và phải sau 5 ngày kể từ ngày sửa
+    if (updateBody.tgBatDauDK) {
+      const thoiGianChoPhepToiThieu = addDays(new Date(), MIN_LEAD_TIME_DAYS);
+      if (tgBatDauMoi < thoiGianChoPhepToiThieu) {
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          `Thời gian bắt đầu mới của sự kiện phải sau ít nhất ${MIN_LEAD_TIME_DAYS} ngày kể từ hôm nay.`
+        );
+      }
+    }
   }
 
   // Validate các FKs nếu được cập nhật (LoaiSuKienID, DonViChuTriID nếu cho phép sửa)
@@ -1006,23 +1070,36 @@ const getDanhSachMoi = async (suKienID, params) => {
     params
   );
 
-  const formattedItems = items.map((item) => ({
-    moiThamGiaID: Number(item.MoiThamGiaID),
-    nguoiDuocMoi: {
-      nguoiDungID: item.NguoiDungID,
-      maDinhDanh: item.MaDinhDanh,
-      hoTen: item.HoTen,
-      email: item.Email,
-      anhDaiDien: item.AnhDaiDien,
-    },
-    vaiTroDuKienSK: item.VaiTroDuKienSK,
-    isChapNhanMoi: item.IsChapNhanMoi,
-    tgPhanHoiMoi: item.TgPhanHoiMoi ? item.TgPhanHoiMoi.toISOString() : null,
-    ghiChuMoi: item.GhiChuMoi,
-  }));
+  const formattedItems = items.map((item) => {
+    let thongTinDonVi = '';
+    if (item.LoaiNguoiDung === 'Sinh viên') {
+      thongTinDonVi = `${item.TenLop || ''}${item.TenKhoa ? ` - ${item.TenKhoa}` : ''}`;
+    } else {
+      // Giảng viên/Nhân viên
+      thongTinDonVi = item.TenDonViCongTac || 'Chưa xác định';
+    }
+
+    return {
+      moiThamGiaID: Number(item.MoiThamGiaID),
+      nguoiDuocMoi: {
+        nguoiDungID: item.NguoiDungID,
+        maDinhDanh: item.MaDinhDanh,
+        hoTen: item.HoTen,
+        email: item.Email,
+        anhDaiDien: item.AnhDaiDien,
+        loaiNguoiDungHienThi: item.LoaiNguoiDung,
+        thongTinDonVi: thongTinDonVi.trim(),
+      },
+      vaiTroDuKienSK: item.VaiTroDuKienSK,
+      isChapNhanMoi: item.IsChapNhanMoi,
+      tgPhanHoiMoi: item.TgPhanHoiMoi ? item.TgPhanHoiMoi.toISOString() : null,
+      ghiChuMoi: item.GhiChuMoi,
+      tgGuiMoi: null, // Cần thêm cột vào CSDL để có thông tin này chính xác
+    };
+  });
 
   const page = parseInt(params.page, 10) || 1;
-  const limit = parseInt(params.limit, 10) || 10;
+  const limit = parseInt(params.limit, 10) || 15;
   const totalPages = Math.ceil(totalItems / limit);
 
   return {
@@ -1033,7 +1110,6 @@ const getDanhSachMoi = async (suKienID, params) => {
     pageSize: limit,
   };
 };
-
 /**
  * [MỚI] Thu hồi/Xóa một lời mời đã gửi.
  * @param {number} moiThamGiaID - ID của lời mời
@@ -1456,6 +1532,41 @@ const getMyAttendedEvents = async (nguoiDungID, params) => {
   };
 };
 
+/**
+ * [MỚI] Lấy danh sách sự kiện đã có lời mời để quản lý.
+ * @param {object} params - Tham số truy vấn.
+ * @param {object} currentUser - Người dùng hiện tại.
+ * @returns {Promise<PaginatedEventsWithInvitationsResponse>}
+ */
+const getEventsWithInvitations = async (params, currentUser) => {
+  const { items, totalItems } =
+    await suKienRepository.getEventsWithInvitations(params);
+
+  const formattedItems = items.map((item) => ({
+    suKienID: item.SuKienID,
+    tenSK: item.TenSK,
+    tgBatDauDK: item.TgBatDauDK.toISOString(),
+    donViChuTri: { tenDonVi: item.TenDonViChuTri },
+    trangThaiSK: {
+      tenTrangThai: item.TenTrangThaiSK,
+      maTrangThai: item.MaTrangThaiSK,
+    },
+    tongSoLuotMoi: item.TongSoLuotMoi,
+  }));
+
+  const page = parseInt(params.page, 10) || 1;
+  const limit = parseInt(params.limit, 10) || 10;
+  const totalPages = Math.ceil(totalItems / limit);
+
+  return {
+    items: formattedItems,
+    totalPages,
+    currentPage: page,
+    totalItems,
+    pageSize: limit,
+  };
+};
+
 export const suKienService = {
   getSuKienList,
   getSuKienDetail,
@@ -1478,4 +1589,5 @@ export const suKienService = {
   getMyInvitations,
   phanHoiLoiMoi,
   getMyAttendedEvents,
+  getEventsWithInvitations,
 };

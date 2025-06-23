@@ -1108,6 +1108,54 @@ const getPendingRoomRequestsForDashboard = async (limit) => {
   return result.recordset;
 };
 
+/**
+ * [MỚI] Tìm một yêu cầu mượn phòng đang hoạt động (chưa bị hủy/từ chối) của một sự kiện.
+ */
+const findActiveRequestBySuKienID = async (suKienID) => {
+  const query = `
+        SELECT yc.YcMuonPhongID
+        FROM YeuCauMuonPhong yc
+        JOIN TrangThaiYeuCauPhong ttyc ON yc.TrangThaiChungID = ttyc.TrangThaiYcpID
+        WHERE yc.SuKienID = @SuKienID
+          AND ttyc.MaTrangThai NOT IN ('YCCP_DA_HUY_BOI_NGUOI_TAO', 'YCCP_TU_CHOI_TOAN_BO', 'YCCP_TU_DONG_HUY');
+    `;
+  const params = [{ name: 'SuKienID', type: sql.Int, value: suKienID }];
+  const result = await executeQuery(query, params);
+  return result.recordset.length > 0 ? result.recordset[0] : null;
+};
+
+/**
+ * [MỚI] Tìm các sự kiện sắp diễn ra trong X ngày tới nhưng chưa được xếp phòng xong.
+ * @param {number} soNgayCanhBao - Số ngày trước khi sự kiện diễn ra để gửi cảnh báo.
+ * @returns {Promise<Array<object>>} Danh sách các sự kiện cần cảnh báo.
+ */
+const findUpcomingEventsWithoutRooms = async (soNgayCanhBao) => {
+  const query = `
+        SELECT
+            sk.SuKienID,
+            sk.TenSK,
+            sk.NguoiTaoID AS NguoiTaoSuKienID,
+            nd_tao.Email AS EmailNguoiTao
+        FROM SuKien sk
+        JOIN TrangThaiSK ttsk ON sk.TrangThaiSkID = ttsk.TrangThaiSkID
+        JOIN NguoiDung nd_tao ON sk.NguoiTaoID = nd_tao.NguoiDungID
+        WHERE 
+            -- Sắp diễn ra trong X ngày tới
+            sk.TgBatDauDK BETWEEN SYSUTCDATETIME() AND DATEADD(day, @SoNgayCanhBao, SYSUTCDATETIME())
+            -- Và đang ở trạng thái chờ phòng
+            AND ttsk.MaTrangThai IN (
+                '${MaTrangThaiSK.DA_DUYET_BGH}', 
+                '${MaTrangThaiSK.CHO_DUYET_PHONG}', 
+                '${MaTrangThaiSK.PHONG_BI_TU_CHOI}'
+            );
+    `;
+  const params = [
+    { name: 'SoNgayCanhBao', type: sql.Int, value: soNgayCanhBao },
+  ];
+  const result = await executeQuery(query, params);
+  return result.recordset;
+};
+
 export const yeuCauMuonPhongRepository = {
   getYeuCauMuonPhongListWithPagination,
   getYeuCauMuonPhongDetailById,
@@ -1132,4 +1180,6 @@ export const yeuCauMuonPhongRepository = {
   updateYeuCauMuonPhongHeaderInfo,
   getAllChiTietByHeaderID,
   getPendingRoomRequestsForDashboard,
+  findActiveRequestBySuKienID,
+  findUpcomingEventsWithoutRooms,
 };
